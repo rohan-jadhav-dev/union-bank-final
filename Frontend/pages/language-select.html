@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VoiceAssist AI — New Interaction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/language-select.css">
+</head>
+<body>
+
+<div class="page">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="brand-icon-sm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#B8923D" stroke-width="1.5">
+          <path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <span class="topbar-title">VoiceAssist AI</span>
+    </div>
+    <div class="topbar-right">
+      <span class="staff-name">EMP104782</span>
+      <div class="staff-avatar">RJ</div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="content-inner">
+
+      <div class="step-header">
+        <span class="step-label">New interaction</span>
+        <h1 class="step-title">Start the conversation</h1>
+        <p class="step-subtitle">Begin listening, and the customer's language will be detected automatically.</p>
+      </div>
+
+      <!-- LISTEN CARD -->
+      <div class="listen-card" id="listenCard">
+
+        <div class="listen-idle" id="listenIdle">
+          <button class="mic-button" id="micButton" aria-label="Start listening">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+              <rect x="9" y="3" width="6" height="11" rx="3"/>
+              <path d="M5 11a7 7 0 0014 0M12 18v3" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <p class="mic-hint">Tap to start listening</p>
+        </div>
+
+        <div class="listen-active" id="listenActive">
+          <div class="waveform" id="waveform">
+            <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <p class="listening-text">Listening<span class="dots"><span>.</span><span>.</span><span>.</span></span></p>
+        </div>
+
+        <div class="detected-result" id="detectedResult">
+          <div class="detected-row">
+            <div class="detected-info">
+              <span class="detected-label">Detected language</span>
+              <div class="detected-chip" id="detectedChip">
+                <span class="chip-flag">मा</span>
+                <span id="detectedLangName">Marathi</span>
+              </div>
+            </div>
+            <button class="change-link" id="changeLangBtn">Not correct? Change</button>
+          </div>
+
+          <div class="lang-grid" id="langGrid">
+            <button class="lang-option" data-lang="Hindi" data-code="हि">Hindi</button>
+            <button class="lang-option" data-lang="Marathi" data-code="मा">Marathi</button>
+            <button class="lang-option" data-lang="Tamil" data-code="த">Tamil</button>
+            <button class="lang-option" data-lang="Telugu" data-code="తె">Telugu</button>
+            <button class="lang-option" data-lang="English" data-code="EN">English</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- PROCESS SELECT (revealed after language confirmed) -->
+      <div class="process-section" id="processSection">
+        <p class="process-label">What does the customer need help with?</p>
+        <div class="process-grid">
+          <button class="process-card" data-process="Loan enquiry">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M3 10l9-6 9 6M5 10v9h14v-9M9 19v-5h6v5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>Loan enquiry</span>
+          </button>
+          <button class="process-card" data-process="Account opening">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="12" cy="8" r="3.5"/>
+              <path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke-linecap="round"/>
+              <path d="M18 8h3M19.5 6.5v3" stroke-linecap="round"/>
+            </svg>
+            <span>Account opening</span>
+          </button>
+          <button class="process-card" data-process="General enquiry">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="12" cy="12" r="9"/>
+              <path d="M12 17v-1.5c0-1 .6-1.5 1.5-2.2.9-.7 1.5-1.4 1.5-2.3a3 3 0 10-6 0" stroke-linecap="round"/>
+              <circle cx="12" cy="17.5" r="0.4" fill="currentColor"/>
+            </svg>
+            <span>General enquiry</span>
+          </button>
+          <button class="process-card" data-process="Other">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="6" cy="12" r="1.4" fill="currentColor" stroke="none"/>
+              <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>
+              <circle cx="18" cy="12" r="1.4" fill="currentColor" stroke="none"/>
+            </svg>
+            <span>Other</span>
+          </button>
+        </div>
+      </div>
+
+      <button class="btn-begin" id="btnBegin" disabled>
+        Begin conversation
+      </button>
+
+    </div>
+  </div>
+
+</div>
+
+<script src="../js/language-select.js"></script>
+</body>
+</html>

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VoiceAssist AI — Live Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/conversation-desk.css">
+</head>
+<body>
+<div class="desk-root">
+
+  <!-- TOP BAR -->
+  <div class="desk-topbar">
+    <a class="desk-brand" href="dashboard.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#D4AF6A" stroke-width="1.5">
+        <path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      VoiceAssist AI
+    </a>
+    <div class="desk-topbar-divider"></div>
+    <div class="desk-meta">
+      <div class="desk-lang-chip" id="langChip">
+        <span id="langChipFlag">हि</span>
+        <span id="langChipName">Hindi</span>
+      </div>
+      <div class="desk-intent-chip" id="intentChip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 7v5l3 3" stroke-linecap="round"/>
+        </svg>
+        <span id="intentChipText">General enquiry</span>
+      </div>
+
+      <!-- GUIDED HINT -->
+      <div class="desk-guide-hint" id="guideHint" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 8v4M12 16h.01" stroke-linecap="round"/>
+        </svg>
+        <span id="guideHintText"></span>
+      </div>
+
+      <div class="desk-timer">Session: <span id="timerDisplay">00:00</span></div>
+    </div>
+    <button class="desk-topbar-btn btn-back" onclick="window.location.href='dashboard.html'">← Dashboard</button>
+    <button class="desk-topbar-btn btn-end" id="endSessionBtn">End &amp; Summarise</button>
+  </div>
+
+  <!-- PROCESS STRIP -->
+  <div class="process-strip" id="processStrip"></div>
+
+  <!-- TWO PANE -->
+  <div class="desk-panes">
+
+    <!-- LEFT: CUSTOMER PANE -->
+    <div class="pane">
+      <div class="pane-header">
+        <div class="pane-label">Customer</div>
+        <div class="pane-lang-tag" id="customerLangTag">हिन्दी</div>
+        <div class="pane-status" id="customerStatus">
+          <div class="pane-status-dot" id="customerDot"></div>
+          <span id="customerStatusText">Ready</span>
+        </div>
+      </div>
+      <div class="pane-transcript" id="customerTranscript">
+        <div class="empty-state" id="customerEmpty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+            <rect x="9" y="3" width="6" height="11" rx="3"/>
+            <path d="M5 11a7 7 0 0014 0M12 18v3" stroke-linecap="round"/>
+          </svg>
+          <p>Tap the mic to record the customer</p>
+        </div>
+      </div>
+      <div class="pane-controls">
+        <div class="processing-indicator" id="customerProcessing">
+          <div class="processing-dot"></div>
+          Processing speech…
+        </div>
+        <div class="customer-mic-wrap" id="customerMicWrap">
+          <button class="customer-mic" id="customerMicBtn" aria-label="Record customer speech">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+              <rect x="9" y="3" width="6" height="11" rx="3"/>
+              <path d="M5 11a7 7 0 0014 0M12 18v3" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <div class="customer-mic-hint" id="customerMicHint">Tap to record customer</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: STAFF PANE -->
+    <div class="pane">
+      <div class="pane-header">
+        <div class="pane-label">You (Staff)</div>
+        <div class="pane-lang-tag" style="background:rgba(15,30,61,0.07);color:var(--navy)">English</div>
+        <div class="pane-status" id="staffStatus">
+          <div class="pane-status-dot" id="staffDot"></div>
+          <span id="staffStatusText">Ready</span>
+        </div>
+      </div>
+      <div class="pane-transcript" id="staffTranscript">
+        <div class="empty-state" id="staffEmpty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+            <path d="M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-4l-4 4-4-4z" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <p>Waiting for the conversation to begin…</p>
+        </div>
+      </div>
+      <div class="pane-controls">
+        
+        <!-- ✅ MANUAL STEP CONTROLS (STAFF) -->
+        <div style="display:flex;gap:8px;padding:12px 20px;border-bottom:1px solid var(--border);align-items:center;background:rgba(184,146,61,0.05);">
+          <button id="manualBackBtn" title="Go back to previous step"
+            style="flex:0.8;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--white);color:var(--slate);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all 150ms ease;white-space:nowrap;">
+            ← Back
+          </button>
+          <div style="font-size:11px;color:var(--slate-light);font-weight:600;text-align:center;flex:1;">
+            <span id="stepIndicator">Step 1 of 5</span>
+          </div>
+          <button id="manualNextBtn" title="Confirm & move to next step"
+            style="flex:0.8;padding:8px 10px;border:1px solid var(--gold);border-radius:6px;background:var(--navy);color:var(--white);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all 150ms ease;white-space:nowrap;">
+            Next ✓
+          </button>
+        </div>
+
+        <!-- Quick replies will be injected here -->
+        
+        <div class="processing-indicator" id="staffProcessing">
+          <div class="processing-dot"></div>
+          Translating &amp; generating audio…
+        </div>
+        
+        <div class="staff-input-row" id="staffInputRow">
+          <textarea class="staff-textarea" id="staffInput" placeholder="Type reply in English… or tap a quick reply above" rows="1"></textarea>
+          <button class="staff-mic-btn" id="staffMicBtn" aria-label="Record staff speech">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+              <rect x="9" y="3" width="6" height="11" rx="3"/>
+              <path d="M5 11a7 7 0 0014 0M12 18v3" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <button class="staff-send-btn" id="staffSendBtn">
+            <span class="btn-text">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="15" height="15">
+                <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 19-7z" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Send &amp; Translate
+            </span>
+            <span class="btn-sending">
+              <div class="send-spinner"></div>
+              Translating…
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /desk-panes -->
+</div><!-- /desk-root -->
+
+<audio id="audioPlayer"></audio>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+    <circle cx="12" cy="12" r="10"/>
+    <path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <span id="toastText">Done</span>
+</div>
+
+<!-- SUMMARY MODAL -->
+<div class="modal-overlay" id="summaryModal">
+  <div class="modal">
+    <div class="modal-title">Session Summary</div>
+    <div class="modal-subtitle" id="summaryMeta">Loading…</div>
+    <div class="modal-two-col">
+      <div class="summary-card">
+        <div class="summary-card-label">English Summary</div>
+        <div class="summary-card-text" id="englishSummary">Generating…</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-card-label" id="regionalLabel">Regional Summary</div>
+        <div class="summary-card-text" id="regionalSummary">Generating…</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn-primary" id="saveRecordBtn">Save to Records</button>
+      <button class="modal-btn-ghost" onclick="closeSummary()">Close</button>
+      <button class="modal-btn-ghost" onclick="newSession()">New Session</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/conversation-desk.js"></script>
+</body>
+</html>

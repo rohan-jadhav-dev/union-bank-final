@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VoiceAssist AI — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/dashboard.css">
+</head>
+<body>
+
+<div class="dashboard-root">
+
+  <!-- ==================== SIDEBAR ==================== -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#D4AF6A" stroke-width="1.5">
+          <path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="sidebar-brand-name">VoiceAssist AI</div>
+        <div class="sidebar-brand-sub">Branch Portal</div>
+      </div>
+    </div>
+
+    <div class="sidebar-staff">
+      <div class="sidebar-avatar">RJ</div>
+      <div class="sidebar-staff-info">
+        <div class="sidebar-staff-name">Rohan Jadhav</div>
+        <div class="sidebar-staff-role">Branch Officer</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section-label">Main</div>
+
+    <a class="nav-item active" data-section="overview" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+        <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+      </svg>
+      <span>Overview</span>
+    </a>
+
+    <a class="nav-item" data-section="conversation" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <rect x="9" y="3" width="6" height="11" rx="3"/>
+        <path d="M5 11a7 7 0 0014 0M12 18v3" stroke-linecap="round"/>
+      </svg>
+      <span>New Conversation</span>
+      <span class="nav-badge">Live</span>
+    </a>
+
+    <a class="nav-item" data-section="account" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <circle cx="12" cy="8" r="3.5"/>
+        <path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke-linecap="round"/>
+      </svg>
+      <span>Account Lookup</span>
+    </a>
+
+    <a class="nav-item" data-section="history" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <circle cx="12" cy="12" r="9"/>
+        <path d="M12 7v5l3 3" stroke-linecap="round"/>
+      </svg>
+      <span>Session History</span>
+    </a>
+
+    <div class="sidebar-section-label">Tools</div>
+
+    <a class="nav-item" data-section="summary" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M4 6h16M4 10h12M4 14h8" stroke-linecap="round"/>
+      </svg>
+      <span>Bilingual Summary</span>
+    </a>
+
+    <a class="nav-item" href="conversation-desk.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-4l-4 4-4-4z" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Live Desk</span>
+    </a>
+
+    <div class="sidebar-bottom">
+      <div class="sidebar-status">
+        <div class="status-dot-sm"></div>
+        All systems operational
+      </div>
+      <a class="nav-item" href="login.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+          <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Sign out</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- ==================== MAIN ==================== -->
+  <div class="main">
+
+    <!-- TOP BAR -->
+    <div class="topbar">
+      <div class="topbar-page-title" id="topbarTitle">Overview</div>
+      <div class="topbar-actions">
+        <span class="topbar-time" id="liveTime"></span>
+        <div class="topbar-divider"></div>
+        <button class="topbar-btn topbar-btn-ghost" onclick="showToast('Refreshed')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="15" height="15">
+            <path d="M4 4v5h5M20 20v-5h-5" stroke-linecap="round"/>
+            <path d="M4 9a8 8 0 0114-3.5M20 15a8 8 0 01-14 3.5" stroke-linecap="round"/>
+          </svg>
+          Refresh
+        </button>
+        <button class="topbar-btn topbar-btn-primary" onclick="navigate('conversation')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="15" height="15">
+            <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
+          </svg>
+          New Interaction
+        </button>
+      </div>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content">
+
+      <!-- ===== OVERVIEW ===== -->
+      <div class="section active" id="section-overview">
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-label">Sessions today</div>
+            <div class="stat-value">12</div>
+            <div class="stat-sub"><span class="stat-trend-up">↑ 3</span> vs yesterday</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Avg. duration</div>
+            <div class="stat-value">4.2<span style="font-size:16px;font-weight:400"> min</span></div>
+            <div class="stat-sub"><span class="stat-trend-down">↑ 0.4m</span> vs last week</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Languages used</div>
+            <div class="stat-value">3</div>
+            <div class="stat-sub">Hindi, Marathi, Tamil</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Summaries saved</div>
+            <div class="stat-value">11</div>
+            <div class="stat-sub"><span class="stat-trend-up">100%</span> completion rate</div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <!-- Recent sessions -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Recent sessions</div>
+              <button class="card-action" onclick="navigate('history')">View all</button>
+            </div>
+            <div class="session-item">
+              <div class="session-lang-badge">हि</div>
+              <div class="session-info">
+                <div class="session-title">Loan enquiry — Rajesh Sharma</div>
+                <div class="session-meta">Hindi · 6 min · Summary saved</div>
+              </div>
+              <div class="session-time">11:42 AM</div>
+            </div>
+            <div class="session-item">
+              <div class="session-lang-badge">मा</div>
+              <div class="session-info">
+                <div class="session-title">Account opening — Priya Kulkarni</div>
+                <div class="session-meta">Marathi · 8 min · Summary saved</div>
+              </div>
+              <div class="session-time">10:15 AM</div>
+            </div>
+            <div class="session-item">
+              <div class="session-lang-badge">த</div>
+              <div class="session-info">
+                <div class="session-title">General enquiry — Murugan K.</div>
+                <div class="session-meta">Tamil · 3 min · Summary saved</div>
+              </div>
+              <div class="session-time">9:50 AM</div>
+            </div>
+            <div class="session-item">
+              <div class="session-lang-badge">EN</div>
+              <div class="session-info">
+                <div class="session-title">Account opening — Vikram Patel</div>
+                <div class="session-meta">English · 5 min · Summary saved</div>
+              </div>
+              <div class="session-time">9:30 AM</div>
+            </div>
+          </div>
+
+          <!-- Quick actions -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Quick actions</div>
+            </div>
+            <div class="quick-actions">
+              <button class="quick-action-btn" onclick="navigate('conversation')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <rect x="9" y="3" width="6" height="11" rx="3"/>
+                  <path d="M5 11a7 7 0 0014 0M12 18v3" stroke-linecap="round"/>
+                </svg>
+                Start conversation
+              </button>
+              <button class="quick-action-btn" onclick="navigate('account')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <circle cx="11" cy="11" r="7"/>
+                  <path d="M21 21l-4-4" stroke-linecap="round"/>
+                </svg>
+                Account lookup
+              </button>
+              <button class="quick-action-btn" onclick="navigate('history')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <circle cx="12" cy="12" r="9"/>
+                  <path d="M12 7v5l3 3" stroke-linecap="round"/>
+                </svg>
+                Session history
+              </button>
+              <button class="quick-action-btn" onclick="navigate('summary')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <path d="M4 6h16M4 10h12M4 14h8" stroke-linecap="round"/>
+                </svg>
+                Bilingual summary
+              </button>
+              <button class="quick-action-btn" onclick="window.location.href='conversation-desk.html'">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <path d="M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-4l-4 4-4-4z" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Live desk
+              </button>
+              <button class="quick-action-btn" onclick="showToast('Opening process guide...')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" stroke-linecap="round"/>
+                  <rect x="9" y="3" width="6" height="4" rx="1" stroke-linecap="round"/>
+                  <path d="M9 12h6M9 16h4" stroke-linecap="round"/>
+                </svg>
+                Process guide
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== NEW CONVERSATION ===== -->
+      <div class="section" id="section-conversation">
+        <div class="conversation-start">
+          <div class="step-header">
+            <span class="step-label">New interaction</span>
+            <h1 class="step-title">Start the conversation</h1>
+            <p class="step-subtitle">Tap the mic to begin. The customer's language will be detected automatically, or choose manually.</p>
+          </div>
+
+          <div class="listen-card" id="listenCard">
+            <div class="listen-idle" id="listenIdle">
+              <button class="mic-button" id="micButton" aria-label="Start listening">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <rect x="9" y="3" width="6" height="11" rx="3"/>
+                  <path d="M5 11a7 7 0 0014 0M12 18v3" stroke-linecap="round"/>
+                </svg>
+              </button>
+              <p class="mic-hint">Tap to start listening</p>
+            </div>
+
+            <div class="listen-active" id="listenActive">
+              <div class="waveform">
+                <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+              </div>
+              <p class="listening-text">Listening<span class="dots"><span>.</span><span>.</span><span>.</span></span></p>
+            </div>
+
+            <div class="detected-result" id="detectedResult">
+              <div class="detected-row">
+                <div class="detected-info">
+                  <span class="detected-label">Detected language</span>
+                  <div class="detected-chip" id="detectedChip">
+                    <span class="chip-flag">मा</span>
+                    <span id="detectedLangName">Marathi</span>
+                  </div>
+                </div>
+                <button class="change-link" id="changeLangBtn">Not correct? Change</button>
+              </div>
+              <div class="lang-grid" id="langGrid">
+                <button class="lang-option" data-lang="Hindi" data-code="हि">Hindi</button>
+                <button class="lang-option" data-lang="Marathi" data-code="मा">Marathi</button>
+                <button class="lang-option" data-lang="Tamil" data-code="த">Tamil</button>
+                <button class="lang-option" data-lang="Telugu" data-code="తె">Telugu</button>
+                <button class="lang-option" data-lang="English" data-code="EN">English</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="process-section" id="processSection">
+            <p class="process-label">What does the customer need help with?</p>
+            <div class="process-grid">
+              <button class="process-card" data-process="Loan enquiry">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zM12 6v6l4 2" stroke-linecap="round"/>
+                </svg>
+                <span>Loan enquiry</span>
+              </button>
+              <button class="process-card" data-process="Account opening">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <circle cx="12" cy="8" r="3.5"/>
+                  <path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke-linecap="round"/>
+                  <path d="M18 8h3M19.5 6.5v3" stroke-linecap="round"/>
+                </svg>
+                <span>Account opening</span>
+              </button>
+              <button class="process-card" data-process="General enquiry">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <circle cx="12" cy="12" r="9"/>
+                  <path d="M12 17v-1.5c0-1 .6-1.5 1.5-2.2.9-.7 1.5-1.4 1.5-2.3a3 3 0 10-6 0" stroke-linecap="round"/>
+                  <circle cx="12" cy="17.5" r="0.4" fill="currentColor"/>
+                </svg>
+                <span>General enquiry</span>
+              </button>
+              <button class="process-card" data-process="Other">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <circle cx="6" cy="12" r="1.4" fill="currentColor" stroke="none"/>
+                  <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>
+                  <circle cx="18" cy="12" r="1.4" fill="currentColor" stroke="none"/>
+                </svg>
+                <span>Other</span>
+              </button>
+            </div>
+          </div>
+
+          <button class="btn-begin" id="btnBegin" disabled onclick="window.location.href='conversation-desk.html'">
+            Begin conversation
+          </button>
+        </div>
+      </div>
+
+      <!-- ===== ACCOUNT LOOKUP ===== -->
+      <div class="section" id="section-account">
+        <div class="lookup-search-bar">
+          <input class="lookup-input" type="text" id="accountInput" placeholder="Enter account number, name, or Aadhaar…" />
+          <select class="lookup-select" id="lookupType">
+            <option value="account">Account No.</option>
+            <option value="name">Name</option>
+            <option value="aadhaar">Aadhaar</option>
+            <option value="mobile">Mobile</option>
+          </select>
+          <button class="lookup-btn" onclick="doLookup()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+              <circle cx="11" cy="11" r="7"/>
+              <path d="M21 21l-4-4" stroke-linecap="round"/>
+            </svg>
+            Search
+          </button>
+        </div>
+
+        <div class="account-result" id="accountResult">
+
+          <div class="translate-strip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M3 5h12M9 3v2M12.6 18.6L15 12l2.4 6.6M14.1 16.5h1.8" stroke-linecap="round"/>
+              <path d="M21 5h-6l-3.6 9.6" stroke-linecap="round"/>
+            </svg>
+            <span class="translate-strip-text">Customer prefers <strong>Marathi</strong>. Account details will be read out in Marathi if spoken.</span>
+            <button class="translate-strip-btn" onclick="showToast('Reading account summary in Marathi...')">Read aloud →</button>
+          </div>
+
+          <!-- Account header -->
+          <div class="account-header-card">
+            <div class="account-avatar-lg">RS</div>
+            <div class="account-id-info">
+              <div class="account-name-lg">Rajesh Suresh Sharma</div>
+              <div class="account-no">ACCT · 4523 8811 2204 7700</div>
+            </div>
+            <div class="account-header-stats">
+              <div class="ah-stat">
+                <div class="ah-stat-label">Balance</div>
+                <div class="ah-stat-value green">₹1,24,832</div>
+              </div>
+              <div class="ah-stat">
+                <div class="ah-stat-label">Account type</div>
+                <div class="ah-stat-value">Savings</div>
+              </div>
+              <div class="ah-stat">
+                <div class="ah-stat-label">CIBIL score</div>
+                <div class="ah-stat-value gold">742</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabs -->
+          <div class="account-tabs">
+            <button class="account-tab active" data-tab="transactions">Transactions</button>
+            <button class="account-tab" data-tab="loans">Loans</button>
+            <button class="account-tab" data-tab="kyc">KYC Status</button>
+          </div>
+
+          <!-- Transactions -->
+          <div class="account-tab-content active" id="tab-transactions">
+            <div class="card">
+              <table class="txn-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>Balance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>17 Jun 2026</td>
+                    <td>UPI — Swiggy Order</td>
+                    <td><span class="txn-type-badge txn-debit">Debit</span></td>
+                    <td class="txn-amount-negative">– ₹380</td>
+                    <td>₹1,24,832</td>
+                  </tr>
+                  <tr>
+                    <td>16 Jun 2026</td>
+                    <td>Salary Credit — TCS Ltd</td>
+                    <td><span class="txn-type-badge txn-credit">Credit</span></td>
+                    <td class="txn-amount-positive">+ ₹68,000</td>
+                    <td>₹1,25,212</td>
+                  </tr>
+                  <tr>
+                    <td>15 Jun 2026</td>
+                    <td>NEFT — LIC Premium</td>
+                    <td><span class="txn-type-badge txn-debit">Debit</span></td>
+                    <td class="txn-amount-negative">– ₹4,200</td>
+                    <td>₹57,212</td>
+                  </tr>
+                  <tr>
+                    <td>14 Jun 2026</td>
+                    <td>ATM Withdrawal — Pune Main</td>
+                    <td><span class="txn-type-badge txn-debit">Debit</span></td>
+                    <td class="txn-amount-negative">– ₹5,000</td>
+                    <td>₹61,412</td>
+                  </tr>
+                  <tr>
+                    <td>12 Jun 2026</td>
+                    <td>IMPS — Sharma Family</td>
+                    <td><span class="txn-type-badge txn-credit">Credit</span></td>
+                    <td class="txn-amount-positive">+ ₹10,000</td>
+                    <td>₹66,412</td>
+                  </tr>
+                  <tr>
+                    <td>10 Jun 2026</td>
+                    <td>Electricity Bill — MSEDCL</td>
+                    <td><span class="txn-type-badge txn-debit">Debit</span></td>
+                    <td class="txn-amount-negative">– ₹1,140</td>
+                    <td>₹56,412</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Loans -->
+          <div class="account-tab-content" id="tab-loans">
+            <div class="loan-card">
+              <div class="loan-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M3 10l9-6 9 6M5 10v9h14v-9M9 19v-5h6v5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="loan-info">
+                <div class="loan-type">Home Loan</div>
+                <div class="loan-meta">Sanctioned ₹28,00,000 · 20 yr tenure · HDFC Ref #HL2021-8823</div>
+              </div>
+              <div class="loan-right">
+                <div class="loan-emi">₹21,400 / mo</div>
+                <div class="loan-emi-label">Outstanding: ₹19,42,000</div>
+                <span class="loan-status loan-active">Active</span>
+              </div>
+            </div>
+            <div class="loan-card">
+              <div class="loan-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2z" stroke-linecap="round"/>
+                  <path d="M9 12l2 2 4-4" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <div class="loan-info">
+                <div class="loan-type">Personal Loan</div>
+                <div class="loan-meta">Sanctioned ₹2,00,000 · 3 yr tenure · Ref #PL2023-441</div>
+              </div>
+              <div class="loan-right">
+                <div class="loan-emi">—</div>
+                <div class="loan-emi-label">Fully repaid Jun 2025</div>
+                <span class="loan-status loan-closed">Closed</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- KYC -->
+          <div class="account-tab-content" id="tab-kyc">
+            <div class="kyc-grid">
+              <div class="kyc-item">
+                <div class="kyc-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="3" y="5" width="18" height="14" rx="2"/>
+                    <path d="M3 10h18" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="kyc-doc-label">Aadhaar</div>
+                  <div class="kyc-doc-value">XXXX XXXX 7713</div>
+                </div>
+                <span class="kyc-status-badge kyc-verified">Verified</span>
+              </div>
+              <div class="kyc-item">
+                <div class="kyc-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M9 12h6M9 16h4M17 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2z" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="kyc-doc-label">PAN Card</div>
+                  <div class="kyc-doc-value">BSHPS4321K</div>
+                </div>
+                <span class="kyc-status-badge kyc-verified">Verified</span>
+              </div>
+              <div class="kyc-item">
+                <div class="kyc-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="5" y="3" width="14" height="18" rx="2"/>
+                    <circle cx="12" cy="9" r="3"/>
+                    <path d="M6.5 20c.5-2.5 2.5-4 5.5-4s5 1.5 5.5 4" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="kyc-doc-label">Photograph</div>
+                  <div class="kyc-doc-value">On file (2024)</div>
+                </div>
+                <span class="kyc-status-badge kyc-verified">Verified</span>
+              </div>
+              <div class="kyc-item">
+                <div class="kyc-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M3 21h18M5 21V9l7-5 7 5v12" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="kyc-doc-label">Address Proof</div>
+                  <div class="kyc-doc-value">Aadhaar linked</div>
+                </div>
+                <span class="kyc-status-badge kyc-verified">Verified</span>
+              </div>
+              <div class="kyc-item">
+                <div class="kyc-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M22 16.92V19a2 2 0 01-2.18 2A19.8 19.8 0 013.09 5.18 2 2 0 015 3h2.09a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 10a16 16 0 006.91 6.91l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 17.92v-.01z" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="kyc-doc-label">Mobile</div>
+                  <div class="kyc-doc-value">+91 98765 XXXXX</div>
+                </div>
+                <span class="kyc-status-badge kyc-verified">Verified</span>
+              </div>
+              <div class="kyc-item">
+                <div class="kyc-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke-linecap="round"/>
+                    <path d="M22 6l-10 7L2 6" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="kyc-doc-label">Email</div>
+                  <div class="kyc-doc-value">r.sha****@gmail.com</div>
+                </div>
+                <span class="kyc-status-badge kyc-pending">Pending</span>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /account-result -->
+      </div>
+
+      <!-- ===== SESSION HISTORY ===== -->
+      <div class="section" id="section-history">
+        <div class="history-filters">
+          <button class="filter-chip active">All</button>
+          <button class="filter-chip">Today</button>
+          <button class="filter-chip">Hindi</button>
+          <button class="filter-chip">Marathi</button>
+          <button class="filter-chip">Tamil</button>
+          <button class="filter-chip">Telugu</button>
+          <button class="filter-chip">Loan enquiry</button>
+          <button class="filter-chip">Account opening</button>
+        </div>
+        <div class="history-table-wrap">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Date & Time</th>
+                <th>Customer</th>
+                <th>Language</th>
+                <th>Process</th>
+                <th>Duration</th>
+                <th>Summary</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>17 Jun 2026, 11:42 AM</td>
+                <td>Rajesh Sharma</td>
+                <td><span class="lang-pill">Hindi</span></td>
+                <td>Loan enquiry</td>
+                <td>6 min</td>
+                <td>✓ Saved</td>
+                <td><button class="view-link" onclick="showToast('Opening session summary...')">View →</button></td>
+              </tr>
+              <tr>
+                <td>17 Jun 2026, 10:15 AM</td>
+                <td>Priya Kulkarni</td>
+                <td><span class="lang-pill">Marathi</span></td>
+                <td>Account opening</td>
+                <td>8 min</td>
+                <td>✓ Saved</td>
+                <td><button class="view-link" onclick="showToast('Opening session summary...')">View →</button></td>
+              </tr>
+              <tr>
+                <td>17 Jun 2026, 9:50 AM</td>
+                <td>Murugan K.</td>
+                <td><span class="lang-pill">Tamil</span></td>
+                <td>General enquiry</td>
+                <td>3 min</td>
+                <td>✓ Saved</td>
+                <td><button class="view-link" onclick="showToast('Opening session summary...')">View →</button></td>
+              </tr>
+              <tr>
+                <td>17 Jun 2026, 9:30 AM</td>
+                <td>Vikram Patel</td>
+                <td><span class="lang-pill">English</span></td>
+                <td>Account opening</td>
+                <td>5 min</td>
+                <td>✓ Saved</td>
+                <td><button class="view-link" onclick="showToast('Opening session summary...')">View →</button></td>
+              </tr>
+              <tr>
+                <td>16 Jun 2026, 3:22 PM</td>
+                <td>Anita Reddy</td>
+                <td><span class="lang-pill">Telugu</span></td>
+                <td>Loan enquiry</td>
+                <td>9 min</td>
+                <td>✓ Saved</td>
+                <td><button class="view-link" onclick="showToast('Opening session summary...')">View →</button></td>
+              </tr>
+              <tr>
+                <td>16 Jun 2026, 2:05 PM</td>
+                <td>Deepak Nair</td>
+                <td><span class="lang-pill">Hindi</span></td>
+                <td>General enquiry</td>
+                <td>4 min</td>
+                <td>✓ Saved</td>
+                <td><button class="view-link" onclick="showToast('Opening session summary...')">View →</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== BILINGUAL SUMMARY ===== -->
+      <div class="section" id="section-summary">
+        <div class="two-col">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">English Summary</div>
+              <button class="card-action" onclick="showToast('Copied to clipboard')">Copy</button>
+            </div>
+            <p style="font-size:14px;line-height:1.75;color:var(--slate)">
+              Customer <strong style="color:var(--navy)">Rajesh Sharma</strong> visited the branch on 17 June 2026 at 11:42 AM to inquire about a home loan. Staff member verified customer identity (Aadhaar confirmed). Customer requested information on loan eligibility for ₹30,00,000 at a 20-year tenure. Staff explained current interest rate of 8.65% p.a. and EMI estimate of ₹26,400/month. Customer expressed interest and was informed about required documents: income proof, property papers, and 6-month bank statement. Customer will visit again within 7 days with documents.
+            </p>
+            <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);display:flex;gap:10px">
+              <button class="topbar-btn topbar-btn-primary" style="flex:1" onclick="showToast('Saved to Firestore')">Save to records</button>
+              <button class="topbar-btn topbar-btn-ghost" onclick="showToast('Printed')">Print</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">हिंदी सारांश</div>
+              <button class="card-action" onclick="showToast('Read aloud in Hindi...')">🔊 Read aloud</button>
+            </div>
+            <p style="font-size:14px;line-height:1.9;color:var(--slate);font-family:'Noto Sans Devanagari',sans-serif">
+              ग्राहक <strong style="color:var(--navy)">राजेश शर्मा</strong> ने 17 जून 2026 को सुबह 11:42 बजे शाखा का दौरा किया और होम लोन के बारे में जानकारी ली। स्टाफ ने आधार के माध्यम से पहचान सत्यापित की। ग्राहक ने ₹30,00,000 के लोन के लिए 20 वर्षीय अवधि पर पात्रता जाननी चाही। स्टाफ ने 8.65% वार्षिक ब्याज दर और ₹26,400 प्रति माह EMI की जानकारी दी। ग्राहक ने रुचि दिखाई और आवश्यक दस्तावेज़ — आय प्रमाण, संपत्ति के कागज़, 6 महीने का बैंक स्टेटमेंट — की सूची दी गई। ग्राहक 7 दिनों में दस्तावेज़ लेकर आएंगे।
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /dashboard-root -->
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+    <circle cx="12" cy="12" r="10"/>
+    <path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <span id="toastText">Done</span>
+</div>
+
+<script src="../js/dashboard.js"></script>
+</body>
+</html>

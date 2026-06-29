@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VoiceAssist AI — Staff Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/login.css">
+</head>
+<body>
+<div class="container">
+  <div class="brand-panel">
+    <div class="brand-panel-inner">
+      <div class="brand-mark">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#D4AF6A" stroke-width="1.5">
+            <path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="brand-name">VoiceAssist AI</div>
+      </div>
+      <div class="brand-divider"></div>
+      <p class="brand-tagline">Multilingual voice assistance for frontline branch staff. Real-time translation, banking-context intelligence, and guided service workflows.</p>
+      <div class="brand-illustration" aria-hidden="true">
+        <svg viewBox="0 0 360 220" fill="none">
+          <rect x="20" y="150" width="320" height="8" rx="1" fill="#1B2D54"/>
+          <rect x="40" y="158" width="10" height="40" fill="#1B2D54"/>
+          <rect x="310" y="158" width="10" height="40" fill="#1B2D54"/>
+          <rect x="130" y="95" width="100" height="58" rx="3" stroke="#D4AF6A" stroke-width="1.5"/>
+          <rect x="170" y="153" width="20" height="10" fill="#1B2D54" stroke="#D4AF6A" stroke-width="1"/>
+          <line x1="140" y1="108" x2="200" y2="108" stroke="#D4AF6A" stroke-width="1" opacity="0.6"/>
+          <line x1="140" y1="118" x2="190" y2="118" stroke="#D4AF6A" stroke-width="1" opacity="0.4"/>
+          <line x1="140" y1="128" x2="210" y2="128" stroke="#D4AF6A" stroke-width="1" opacity="0.4"/>
+          <circle cx="95" cy="108" r="14" stroke="#D4AF6A" stroke-width="1.5"/>
+          <path d="M70 150 Q70 120 95 120 Q120 120 120 150" stroke="#D4AF6A" stroke-width="1.5"/>
+          <circle cx="270" cy="108" r="14" stroke="#8B93A1" stroke-width="1.5" opacity="0.7"/>
+          <path d="M245 150 Q245 120 270 120 Q295 120 295 150" stroke="#8B93A1" stroke-width="1.5" opacity="0.7"/>
+          <g class="wave-pulse">
+            <path d="M150 100 Q160 95 170 100" stroke="#D4AF6A" stroke-width="1.2" stroke-linecap="round"/>
+            <path d="M150 112 Q160 106 170 112" stroke="#D4AF6A" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+          </g>
+          <g class="wave-pulse-delay">
+            <path d="M190 100 Q200 95 210 100" stroke="#8B93A1" stroke-width="1.2" stroke-linecap="round"/>
+            <path d="M190 112 Q200 106 210 112" stroke="#8B93A1" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+          </g>
+        </svg>
+        <p class="illustration-caption">Real-time interpretation at the branch desk</p>
+      </div>
+      <div class="brand-meta">
+        <div class="brand-meta-item">
+          <span class="brand-meta-label">System status</span>
+          <span class="brand-meta-value"><span class="status-dot"></span>Operational</span>
+        </div>
+        <div class="brand-meta-item">
+          <span class="brand-meta-label">Access</span>
+          <span class="brand-meta-value">Staff only</span>
+        </div>
+        <div class="brand-meta-item">
+          <span class="brand-meta-label">Version</span>
+          <span class="brand-meta-value">2.5</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="form-panel">
+    <div class="form-wrap">
+      <div class="form-header">
+        <div class="form-title">Staff sign in</div>
+        <div class="form-subtitle">Use your bank employee credentials to access the branch desk assistant.</div>
+      </div>
+      <form id="loginForm" novalidate>
+        <div class="field-group">
+          <label class="field-label" for="empId">Employee ID</label>
+          <div class="field-input-wrap">
+            <input class="field-input" type="text" id="empId" placeholder="e.g. EMP104782" autocomplete="username" />
+            <span class="field-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke-linecap="round"/></svg>
+            </span>
+          </div>
+          <span class="field-error" id="empIdError">Enter your employee ID</span>
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="password">Password</label>
+          <div class="field-input-wrap">
+            <input class="field-input" type="password" id="password" placeholder="Enter your password" autocomplete="current-password" />
+            <button type="button" class="field-toggle" id="togglePassword" aria-label="Show password">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <span class="field-error" id="passwordError">Enter your password</span>
+        </div>
+        <div class="field-group">
+          <div class="security-check" id="securityCheck">
+            <div class="security-check-left">
+              <div class="security-checkbox" id="securityCheckbox" tabindex="0" role="checkbox" aria-checked="false">
+                <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <div class="spinner" id="securitySpinner"></div>
+              </div>
+              <span class="security-label" id="securityLabel">I am an authorized staff member</span>
+            </div>
+            <div class="security-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l8 4v5c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V6l8-4z" stroke-linejoin="round"/></svg>
+              <span>SecureCheck</span>
+            </div>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="checkbox-wrap">
+            <input type="checkbox" id="remember" />
+            <label class="checkbox-label" for="remember">Stay signed in</label>
+          </div>
+          <a class="forgot-link" href="#">Forgot password?</a>
+        </div>
+        <button type="submit" class="btn-primary" id="submitBtn">
+          <span class="btn-text">Sign in</span>
+          <div class="btn-spinner" id="btnSpinner"></div>
+        </button>
+      </form>
+      <div class="divider-row">
+        <div class="divider-line"></div>
+        <span class="divider-text">Identity verification</span>
+        <div class="divider-line"></div>
+      </div>
+      <div class="sso-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2l8 4v5c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V6l8-4z" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div class="sso-note-text">Sign-in is verified through your bank's existing staff directory. A one-time code may be requested for added security.</div>
+      </div>
+      <div class="form-footer">For access issues, contact your branch IT administrator.</div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <span id="toastText">Verified successfully</span>
+</div>
+<script src="../js/login.js"></script>
+</body>
+</html>
+

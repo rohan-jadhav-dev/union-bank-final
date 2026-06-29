@@ -1,0 +1,118 @@
+Union Bank of India — Branch Staff Reference Guide
+
+ACCOUNT TYPES AND FEATURES
+
+Savings Account (Regular):
+Minimum balance: ₹1,000 (urban), ₹500 (semi-urban), ₹0 (rural/PMJDY)
+Interest rate: 2.75% per annum
+Features: Debit card, internet banking, mobile banking, cheque book
+Documents required: Aadhaar card, PAN card, passport photo, address proof
+
+Current Account:
+Minimum balance: ₹10,000 (urban), ₹5,000 (semi-urban)
+No interest paid on balance
+Features: Unlimited transactions, overdraft facility, trade finance
+For: Business owners, traders, companies
+
+Fixed Deposit (FD) Rates (2026):
+7 days to 45 days: 3.00%
+46 days to 90 days: 4.50%
+91 days to 180 days: 5.50%
+181 days to 1 year: 6.00%
+1 year to 2 years: 7.00%
+2 years to 3 years: 6.75%
+Senior citizen additional: 0.50% extra
+
+Recurring Deposit (RD):
+Minimum: ₹100 per month
+Tenure: 6 months to 10 years
+Rate: Same as FD for equivalent tenure
+
+LOAN PRODUCTS
+
+Home Loan:
+Interest rate: 8.50% to 9.75% p.a. (floating, based on CIBIL)
+Maximum amount: ₹2 crore (urban), ₹75 lakh (semi-urban)
+Tenure: Up to 30 years
+Processing fee: 0.50% of loan amount (max ₹15,000)
+Documents: Income proof (3 months salary slip or 2 years ITR), property documents, Aadhaar, PAN, bank statement (6 months)
+CIBIL score required: Minimum 700
+
+Personal Loan:
+Interest rate: 10.50% to 14.00% p.a.
+Maximum amount: ₹15 lakh
+Tenure: 1 to 5 years
+Processing fee: 1% of loan amount
+Documents: Salary slip (3 months), bank statement (6 months), Aadhaar, PAN
+CIBIL score required: Minimum 650
+
+Education Loan:
+For studies in India: Up to ₹10 lakh
+For studies abroad: Up to ₹20 lakh
+No collateral for loans up to ₹7.5 lakh
+Interest rate: 9.00% to 11.00% p.a.
+Moratorium: Course period + 1 year
+
+Gold Loan:
+Per gram: ₹3,500 to ₹4,800 (based on purity)
+LTV: Up to 75% of gold value
+Tenure: Up to 12 months
+Interest rate: 8.80% p.a.
+Processing fee: ₹250 flat
+
+DIGITAL BANKING SERVICES
+
+Union Bank Mobile App (Union Mobile):
+Features: Account balance, mini statement, fund transfer, bill payment, FD booking, loan EMI payment
+Registration: Mobile number linked to account required
+
+Internet Banking:
+Registration: Visit branch with account number + registered mobile
+Features: NEFT, RTGS, IMPS transfers, statement download, cheque stop, FD management
+
+UPI:
+VPA format: mobilenumber@unionbank
+Limit: ₹1 lakh per transaction, ₹5 lakh per day
+
+TRANSFER LIMITS AND TIMINGS
+
+NEFT:
+Timings: Monday–Saturday 8 AM to 7 PM (except 2nd and 4th Saturday, holidays)
+Batches every 30 minutes
+Limit: No upper limit (bank may set internal limits)
+
+RTGS:
+Timings: Monday–Friday 7 AM to 6 PM, Saturday 7 AM to 1 PM
+Minimum amount: ₹2 lakh
+Suitable for high-value transfers
+
+IMPS:
+Available 24×7 including holidays
+Limit: ₹5 lakh per transaction
+Charges: ₹2.50 to ₹15 based on amount
+
+KYC REQUIREMENTS
+
+Full KYC (for regular accounts):
+- Proof of Identity: Aadhaar / Passport / Voter ID / Driving License
+- Proof of Address: Aadhaar / Utility bill (not older than 2 months) / Bank statement
+- Recent photograph (passport size)
+- PAN card (mandatory for transactions above ₹50,000)
+
+Re-KYC:
+Required every 2 years for high-risk customers
+Every 8 years for low-risk customers
+Can be done at branch or via Video KYC
+
+Video KYC:
+Available on Union Bank app
+Documents: Original Aadhaar must be shown on camera
+No branch visit required
+
+GRIEVANCE AND ESCALATION
+
+Branch complaint: Talk to Branch Manager
+Phone banking: 1800 22 2244 (toll-free)
+Email: unioncare@unionbankofindia.com
+Online: https://www.unionbankofindia.co.in/english/Grievance.aspx
+Banking Ombudsman: For unresolved complaints after 30 days
