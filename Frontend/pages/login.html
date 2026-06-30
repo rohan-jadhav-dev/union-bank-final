@@ -141,38 +141,7 @@
         <div class="form-footer">For access issues, contact your branch IT administrator.</div>
       </div>
 
-      <!-- ===================== STEP 2: FACE VERIFICATION ===================== -->
-      <div id="faceStep" style="display:none;">
-        <div class="form-header">
-          <div class="form-title">Face verification</div>
-          <div class="form-subtitle">Look at the camera to confirm your identity. This step never stores your photo.</div>
-        </div>
-
-        <div class="face-frame-wrap">
-          <video id="faceVideo" autoplay muted playsinline class="face-video"></video>
-          <div class="face-frame-overlay" id="faceOverlay"></div>
-        </div>
-
-        <div class="security-check" id="faceCheckRow" style="margin-top:18px;">
-          <div class="security-check-left">
-            <div class="security-checkbox" id="faceCheckbox">
-              <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <div class="spinner" id="faceSpinner"></div>
-            </div>
-            <span class="security-label" id="faceLabel">Position your face in frame</span>
-          </div>
-          <div class="security-badge">
-            <span id="faceStatus">Waiting…</span>
-          </div>
-        </div>
-
-        <button type="button" class="btn-primary" id="retryFaceBtn" style="margin-top:18px; display:none;">
-          <span class="btn-text">Retry face check</span>
-        </button>
-        <button type="button" class="forgot-link" id="backToCredsBtn" style="margin-top:14px; background:none; border:none; cursor:pointer; display:block; text-align:center; width:100%;">
-          ← Back to sign in
-        </button>
-      </div>
+      <!-- ===================== STEP 2: FACE VERIFICATION (disabled for demo — see login.js) ===================== -->
 
     </div>
   </div>
@@ -183,7 +152,6 @@
   <span id="toastText">Verified successfully</span>
 </div>
 
-<script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 <script src="../js/login.js"></script>
 </body>
 </html>

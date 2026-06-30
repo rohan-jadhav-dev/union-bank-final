@@ -10,9 +10,6 @@ const MAX_LOGIN_ATTEMPTS = 3;
 let failedAttempts = 0;
 
 // ===================== ELEMENT REFERENCES =====================
-const credentialsStep = document.getElementById('credentialsStep');
-const faceStep = document.getElementById('faceStep');
-
 const loginForm = document.getElementById('loginForm');
 const empIdInput = document.getElementById('empId');
 const passwordInput = document.getElementById('password');
@@ -30,20 +27,9 @@ const btnText = submitBtn.querySelector('.btn-text');
 const toast = document.getElementById('toast');
 const toastText = document.getElementById('toastText');
 
-const faceVideo = document.getElementById('faceVideo');
-const faceLabel = document.getElementById('faceLabel');
-const faceStatus = document.getElementById('faceStatus');
-const faceCheckbox = document.getElementById('faceCheckbox');
-const faceSpinner = document.getElementById('faceSpinner');
-const retryFaceBtn = document.getElementById('retryFaceBtn');
-const backToCredsBtn = document.getElementById('backToCredsBtn');
-
 let isVerified = false;
 let isVerifying = false;
-let faceVerified = false;
 let pendingStaff = null;
-let faceStream = null;
-let faceInterval = null;
 
 // ===================== PASSWORD TOGGLE =====================
 togglePasswordBtn.addEventListener('click', () => {
@@ -112,7 +98,7 @@ function logAuditEvent(empId, role, status) {
   //   body: JSON.stringify({ empId, role, status }) });
 }
 
-// ===================== STEP 1 → STEP 2 TRANSITION =====================
+// ===================== LOGIN SUBMIT =====================
 loginForm.addEventListener('submit', (e) => {
   e.preventDefault();
   let hasError = false;
@@ -147,13 +133,12 @@ loginForm.addEventListener('submit', (e) => {
   }
 
   submitBtn.disabled = true;
-  btnText.textContent = 'Verifying credentials';
+  btnText.textContent = 'Signing in';
   btnSpinner.classList.add('show');
 
   setTimeout(() => {
     btnSpinner.classList.remove('show');
     btnText.textContent = 'Continue';
-    submitBtn.disabled = false;
 
     const empId = empIdInput.value.trim().toUpperCase();
     const staff = STAFF_DIRECTORY[empId];
@@ -161,6 +146,7 @@ loginForm.addEventListener('submit', (e) => {
     if (!staff || staff.password !== passwordInput.value.trim()) {
       failedAttempts++;
       logAuditEvent(empId, 'unknown', 'failed');
+      submitBtn.disabled = false;
 
       if (failedAttempts >= MAX_LOGIN_ATTEMPTS) {
         setFieldError(passwordInput, authError, 'Too many failed attempts. Account locked — contact branch IT.');
@@ -174,133 +160,14 @@ loginForm.addEventListener('submit', (e) => {
       return;
     }
 
-    // credentials valid — move to face step
+    // credentials valid — log in directly, no face step
     pendingStaff = { empId, ...staff };
-    credentialsStep.style.display = 'none';
-    faceStep.style.display = 'block';
-    startFaceCheck();
-  }, 1200);
-});
-
-// ===================== STEP 2: FACE VERIFICATION =====================
-async function startFaceCheck() {
-  faceVerified = false;
-  faceCheckbox.classList.remove('verified');
-  faceCheckbox.classList.add('checking');
-  faceLabel.textContent = 'Position your face in frame';
-  faceStatus.textContent = 'Scanning…';
-  retryFaceBtn.style.display = 'none';
-  backToCredsBtn.style.display = 'block';
-
-  // Step A: load detection model — separated so model failures aren't mislabeled as camera failures
-  try {
-    if (!faceapi.nets.tinyFaceDetector.isLoaded) {
-      await faceapi.nets.tinyFaceDetector.loadFromUri(
-        'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights'
-      );
-    }
-  } catch (modelErr) {
-    console.error('Face model failed to load:', modelErr);
-    blockLogin('model_load_failed', 'Verification model failed to load — check network/ad-blocker', 'Model error');
-    return;
-  }
-
-  // Step B: request camera — separate try so we can tell model errors from camera errors
-  try {
-    faceStream = await navigator.mediaDevices.getUserMedia({ video: {} });
-    faceVideo.srcObject = faceStream;
-
-    // Some browser/OS combos don't reliably autoplay even muted video —
-    // force playback explicitly and wait until frames are actually ready.
-    try {
-      await faceVideo.play();
-    } catch (playErr) {
-      console.warn('Explicit video.play() failed, relying on autoplay:', playErr);
-    }
-    if (faceVideo.readyState < 2) {
-      await new Promise((resolve) => {
-        faceVideo.addEventListener('loadeddata', resolve, { once: true });
-      });
-    }
-
-    faceInterval = setInterval(async () => {
-      if (faceVerified) return;
-      try {
-        const result = await faceapi.detectSingleFace(
-          faceVideo,
-          new faceapi.TinyFaceDetectorOptions()
-        );
-        if (result) {
-          clearInterval(faceInterval);
-          stopFaceStream();
-          faceVerified = true;
-          faceCheckbox.classList.remove('checking');
-          faceCheckbox.classList.add('verified');
-          faceLabel.textContent = 'Face verified';
-          faceStatus.textContent = '✓ Confirmed';
-          logAuditEvent(pendingStaff.empId, pendingStaff.role, 'face_verified');
-          finalizeLogin();
-        }
-      } catch (err) {
-        // detection hiccup, keep trying until timeout below
-      }
-    }, 700);
-
-    // timeout fallback — verification did not succeed, so login is blocked, not granted
-    setTimeout(() => {
-      if (!faceVerified) {
-        clearInterval(faceInterval);
-        stopFaceStream();
-        blockLogin('timeout', 'Could not verify face within the time limit', 'Timed out');
-      }
-    }, 8000);
-
-  } catch (err) {
-    // log the real error name so this is debuggable, instead of a generic message
-    console.error('Camera access failed:', err.name, err.message);
-    blockLogin(
-      `camera_${err.name || 'unknown'}`,
-      `Camera unavailable (${err.name || 'unknown'}) — face verification could not run`,
-      'Camera error'
-    );
-  }
-}
-
-// Any failure path (model load, camera access, or detection timeout) lands here.
-// None of these grant access — face verification must actually succeed to log in.
-function blockLogin(reasonCode, label, statusText) {
-  faceVerified = false;
-  faceCheckbox.classList.remove('checking', 'verified');
-  faceLabel.textContent = label;
-  faceStatus.textContent = statusText;
-  retryFaceBtn.style.display = 'block';
-  submitBtn.disabled = false;
-
-  logAuditEvent(pendingStaff.empId, pendingStaff.role, `face_failed_${reasonCode}`);
-  showToast('Identity could not be verified. Please retry or contact branch IT.', true);
-}
-
-function stopFaceStream() {
-  if (faceStream) {
-    faceStream.getTracks().forEach(t => t.stop());
-    faceStream = null;
-  }
-}
-
-retryFaceBtn.addEventListener('click', startFaceCheck);
-
-backToCredsBtn.addEventListener('click', () => {
-  clearInterval(faceInterval);
-  stopFaceStream();
-  faceStep.style.display = 'none';
-  credentialsStep.style.display = 'block';
+    finalizeLogin();
+  }, 900);
 });
 
 // ===================== FINALIZE: SESSION + ROLE REDIRECT =====================
-// Only ever called after faceVerified === true via a real successful detection.
 function finalizeLogin() {
-  if (!faceVerified) return; // defensive guard, should be unreachable
-
   const now = Date.now();
   const session = {
     empId: pendingStaff.empId,
