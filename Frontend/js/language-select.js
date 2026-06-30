@@ -115,8 +115,7 @@ async function processDetectionAudio() {
     formData.append('language', 'auto');
     formData.append('process_type', 'General enquiry');
 
-    const res = await fetch('http://localhost:8000/api/conversation/customer-speak', {
-      method: 'POST',
+const res = await fetch('https://rohan667-voiceassist-ai-backend-kj.hf.space/api/conversation/customer-speak', {      method: 'POST',
       body: formData
     });
     const data = await res.json();
