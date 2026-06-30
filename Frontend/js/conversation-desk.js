@@ -1,1278 +1,1000 @@
+// dashboard.js — VoiceAssist AI (merged: new UI + old logic)
 
-// Manual-step edition: no auto-advance. Staff ticks checklist items and
-// clicks "Next" themselves. Top auto-strip removed; step indicator + checklist
-// + Back/Next now live entirely in the staff panel.
-//
-// PATCH (this version): added cleanModelText() to strip stray JSON / markdown
-// fences / "Here is the response:" preambles that the backend LLM sometimes
-// returns instead of a clean string. Applied at every place a translation or
-// transcript string from the backend gets shown or stored.
-//
-// PATCH 2 (this version): added LEAD AUTO-FILL — after a session ends,
-// alongside the bilingual summary, conversation data is sent to a new
-// backend endpoint that extracts structured form fields (name, loan type,
-// income, etc.) using the LLM. Staff reviews/corrects the auto-filled form,
-// then clicks "Send to Bank" to submit it as a lead via /submit-lead.
-//
-// PATCH 3 (this version): "Save to Records" no longer just toasts and
-// returns to the dashboard. It now stores the conversation in sessionStorage
-// (the same keys lead-form.html reads) and redirects straight to
-// lead-form.html, where the lead is auto-extracted/auto-filled and staff
-// only needs to review and click "Send to Bank".
+// ── LIVE CLOCK ────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('liveTime').textContent = now.toLocaleTimeString('en-IN', {
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+  });
+}
+updateClock();
+setInterval(updateClock, 1000);
 
-const API_BASE = "https://rohan667-voiceassist-ai-backend-kj.hf.space/api/conversation";
-
-const LANG_META = {
-  "Hindi":   { flag: "हि", tag: "हिन्दी" },
-  "Marathi": { flag: "मा", tag: "मराठी" },
-  "Tamil":   { flag: "த",  tag: "தமிழ்" },
-  "Telugu":  { flag: "తె", tag: "తెలుగు" },
-  "English": { flag: "EN", tag: "English" },
+// ── SIDEBAR NAVIGATION ────────────────────────────────────────────────────────
+const sectionTitles = {
+  overview: 'Overview',
+  conversation: 'New Conversation',
+  account: 'Account Lookup',
+  "lead-generation": 'Lead Generation',
+  history: 'Session History',
+  summary: 'Bilingual Summary',
+  "open-account": 'Open New Account',
+  "credit-card": 'Apply for Credit Card',
+  "cash-transaction": 'Deposit / Withdraw'
 };
 
-const PROCESS_STEPS = {
-  "Loan enquiry":      ["Greeting", "Loan Options", "Eligibility", "Documents", "Next Steps"],
-  "Account opening":   ["Greeting", "Account Type", "KYC Details", "Documents", "Activate"],
-  "Balance enquiry":   ["Greeting", "Verify Identity", "Show Balance", "Done"],
-  "Credit card apply": ["Greeting", "Eligibility", "Card Selection", "Documents", "Apply"],
-  "General enquiry":   ["Greeting", "Understand", "Answer", "Resolved"],
-};
+function navigate(sectionId) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item[data-section]').forEach(n => n.classList.remove('active'));
+  const section = document.getElementById('section-' + sectionId);
+  if (section) section.classList.add('active');
+  const navItem = document.querySelector(`.nav-item[data-section="${sectionId}"]`);
+  if (navItem) navItem.classList.add('active');
+  document.getElementById('topbarTitle').textContent = sectionTitles[sectionId] || sectionId;
+  if (sectionId === 'history')  loadSessionHistory();
+  if (sectionId === 'summary')  loadBilingualSummary();
+  if (sectionId === 'overview') loadOverviewStats();
+  if (sectionId === 'lead-generation') loadLeads();
+  if (sectionId === 'cash-transaction') loadCbsAccountsIntoSelects();
+}
 
-// Per-step checklist items. Staff taps each box as they cover it with the
-// customer. This was previously defined but never rendered — now it drives
-// the manual checklist UI in the staff pane.
-const STEP_CHECKLISTS = {
-  "Loan enquiry": [
-    ["Customer greeted in their language"],
-    ["Interest rate explained", "Loan type confirmed (Home/Personal/Car/Education)", "Tenure preference confirmed"],
-    ["Monthly income confirmed", "Occupation / employment type confirmed", "ITR or salary slips checked",
-     "Last 6 months bank statement reviewed", "CIBIL score checked", "Existing EMI obligations checked"],
-    ["Aadhaar collected", "PAN collected", "Salary slips / bank statement collected",
-     "Property documents collected (if home loan)"],
-    ["Processing fee explained", "Disbursement timeline explained", "Application forwarded to bank portal"],
-  ],
-  "Account opening": [
-    ["Customer greeted in their language"],
-    ["Account type confirmed (Savings/Current/PMJDY/FD)", "Min balance & interest explained"],
-    ["Name, DOB, address confirmed", "Mobile number confirmed for OTP", "Nominee name & relation confirmed"],
-    ["Aadhaar collected", "PAN collected", "2 photographs collected", "Address proof collected"],
-    ["Initial deposit received", "Passbook & debit card issued", "Net banking / UPI set up"],
-  ],
-  "Balance enquiry": [
-    ["Customer greeted in their language"],
-    ["Account number last 4 digits confirmed", "OTP verified on registered mobile"],
-    ["Balance shown to customer", "Last 5 transactions shown (if requested)"],
-    ["Passbook update offered", "Net banking / UPI enrollment offered"],
-  ],
-  "Credit card apply": [
-    ["Customer greeted in their language"],
-    ["Annual income confirmed", "Existing cards checked", "CIBIL score checked"],
-    ["Card type recommended (Classic/Platinum/Signature)", "Customer selected a card"],
-    ["Aadhaar collected", "PAN collected", "Salary slips / ITR collected", "Photograph collected"],
-    ["Application submitted", "Delivery timeline explained (15 working days)"],
-  ],
-  "General enquiry": [
-    ["Customer greeted in their language"],
-    ["Query understood — clarifying questions asked if needed"],
-    ["Accurate answer provided from knowledge base"],
-    ["Customer confirms query resolved"],
-  ],
-};
-
-const GREETINGS = {
-  "Loan enquiry": {
-    "Hindi":   "नमस्ते! Union Bank of India में आपका स्वागत है। आज मैं आपकी loan के बारे में कैसे मदद कर सकता हूँ?",
-    "Marathi": "नमस्कार! Union Bank of India मध्ये आपले स्वागत आहे। आज मी तुम्हाला loan बद्दल कशी मदत करू शकतो?",
-    "Tamil":   "வணக்கம்! Union Bank of India-வில் உங்களை வரவேற்கிறோம். இன்று கடன் பற்றி உங்களுக்கு எவ்வாறு உதவலாம்?",
-    "Telugu":  "నమస్కారం! Union Bank of India కి స్వాగతం. ఈ రోజు రుణం గురించి మీకు ఎలా సహాయపడగలను?",
-    "English": "Welcome to Union Bank of India! How can I assist you with your loan enquiry today?",
-  },
-  "Account opening": {
-    "Hindi":   "नमस्ते! Union Bank of India में आपका स्वागत है। नया खाता खोलने के लिए आप सही जगह पर आए हैं!",
-    "Marathi": "नमस्कार! Union Bank of India मध्ये आपले स्वागत आहे। नवीन खाते उघडण्यासाठी आपण योग्य ठिकाणी आलात!",
-    "Tamil":   "வணக்கம்! புதிய வங்கி கணக்கு திறக்க Union Bank of India-வில் நீங்கள் சரியான இடத்திற்கு வந்துள்ளீர்கள்!",
-    "Telugu":  "నమస్కారం! కొత్త ఖాతా తెరవడానికి Union Bank of India లో మీరు సరైన చోటికి వచ్చారు!",
-    "English": "Welcome to Union Bank of India! You're in the right place to open a new bank account today.",
-  },
-  "Balance enquiry": {
-    "Hindi":   "नमस्ते! Union Bank of India में आपका स्वागत है। मैं आपका account balance जाँचने में मदद करूँगा।",
-    "Marathi": "नमस्कार! Union Bank of India मध्ये आपले स्वागत आहे। मी तुमचे account balance तपासण्यास मदत करतो.",
-    "Tamil":   "வணக்கம்! உங்கள் கணக்கு இருப்பை சரிபார்க்க உதவுகிறேன்.",
-    "Telugu":  "నమస్కారం! మీ ఖాతా బ్యాలెన్స్ తనిఖీ చేయడంలో సహాయపడతాను.",
-    "English": "Welcome to Union Bank of India! I'll help you check your account balance today.",
-  },
-  "Credit card apply": {
-    "Hindi":   "नमस्ते! Union Bank of India में आपका स्वागत है। Credit card apply करने में मैं आपकी मदद करूँगा।",
-    "Marathi": "नमस्कार! Union Bank of India मध्ये आपले स्वागत आहे. Credit card साठी apply करण्यास मी मदत करतो.",
-    "Tamil":   "வணக்கம்! கிரெடிட் கார்டு விண்ணப்பிக்க உதவுகிறேன்.",
-    "Telugu":  "నమస్కారం! క్రెడిట్ కార్డు దరఖాస్తుకు సహాయపడతాను.",
-    "English": "Welcome to Union Bank of India! I'll help you apply for a credit card today.",
-  },
-  "General enquiry": {
-    "Hindi":   "नमस्ते! Union Bank of India में आपका स्वागत है। आज मैं आपकी कैसे मदद कर सकता हूँ?",
-    "Marathi": "नमस्कार! Union Bank of India मध्ये आपले स्वागत आहे. मी तुम्हाला कशी मदत करू?",
-    "Tamil":   "வணக்கம்! இன்று உங்களுக்கு எவ்வாறு உதவலாம்?",
-    "Telugu":  "నమస్కారం! ఈ రోజు మీకు ఎలా సహాయపడగలను?",
-    "English": "Welcome to Union Bank of India! How can I help you today?",
-  },
-};
-
-const STATIC_QUICK_REPLIES = {
-  "Loan enquiry": [
-    [
-      "How can I help you today?",
-      "Which type of loan are you interested in?",
-      "Are you an existing Union Bank customer?",
-    ],
-    [
-      "🏠 Home Loan — 8.35% p.a., up to 30 years, max ₹10 crore",
-      "💳 Personal Loan — 11.40% p.a., up to ₹15 lakh, 5 years",
-      "🚗 Car Loan — 8.70% p.a., up to 90% on-road price, 7 years",
-      "🎓 Education Loan — 9.90% p.a., up to ₹20 lakh abroad",
-      "🏗️ Loan Against Property — 9.25% p.a., up to ₹5 crore",
-      "Which loan type would you like?",
-      "Tenure options: 5 / 10 / 15 / 20 / 30 years",
-      "Would you prefer a shorter or longer tenure?",
-      "Shorter tenure means higher EMI but less total interest",
-      "Longer tenure means lower EMI but more total interest",
-      "What loan amount are you looking for?",
-    ],
-    [
-      "What is your monthly income?",
-      "Are you salaried or self-employed?",
-      "Do you have any existing loan EMIs?",
-      "What is your approximate CIBIL score?",
-      "How many years of work experience do you have?",
-      "Do you have a co-applicant for this loan?",
-      "Minimum CIBIL score required is 700",
-      "Minimum monthly income required is ₹25,000",
-      "Your EMI should not exceed 50% of monthly income",
-    ],
-    [
-      "Please bring Aadhaar Card original + photocopy",
-      "PAN Card original + photocopy needed",
-      "Last 3 months salary slips required",
-      "Last 6 months bank statement required",
-      "Form 16 / Income Tax Return needed",
-      "Property sale agreement required (home loan)",
-      "NOC from builder required (home loan)",
-      "Employment certificate required",
-      "Self-employed: please bring last 2 years ITR",
-    ],
-    [
-      "Processing fee is 0.5% of loan amount — one time payment",
-      "Approval takes 7–10 working days after document submission",
-      "Loan disbursed directly to builder or seller account",
-      "You will get an SMS once your loan is approved",
-      "Our loan officer will call you within 24 hours",
-      "You can track your application status on our app",
-      "Is there anything else I can help you with?",
-    ],
-  ],
-  "Account opening": [
-    [
-      "What brings you to the branch today?",
-      "Are you looking to open a new account?",
-      "Do you already bank with us?",
-    ],
-    [
-      "💰 Savings Account — ₹1000 min balance, 2.75% interest p.a.",
-      "🏢 Current Account — ₹5000 min balance, unlimited transactions",
-      "🆓 PMJDY Zero-Balance — free RuPay card + ₹2L accident insurance",
-      "📈 Fixed Deposit — up to 7.00% interest, 7 days to 10 years",
-      "👴 Senior Citizen Savings — 3.25% interest, extra benefits",
-      "👨‍👩‍👧 Joint Account — two or more holders, shared access",
-      "FD tenure options: 1 / 3 / 5 / 10 years",
-      "Which account type would you prefer?",
-    ],
-    [
-      "Please fill KYC form — need Aadhaar, PAN, nominee details",
-      "What is your full name as per Aadhaar?",
-      "What is your date of birth?",
-      "What is your current address?",
-      "What is the nominee name and relation to you?",
-      "Is your Aadhaar linked to mobile number for OTP verification?",
-      "What is your occupation?",
-    ],
-    [
-      "Aadhaar Card original + photocopy",
-      "PAN Card original + photocopy",
-      "2 passport size photographs",
-      "Address proof (utility bill, < 3 months old)",
-      "Address proof (rental agreement) accepted too",
-    ],
-    [
-      "Initial deposit ₹1000 — account activates in 30 minutes",
-      "You will receive passbook and debit card today",
-      "Net banking and UPI will be set up immediately",
-      "Your account number will be shared via SMS",
-      "Would you like a chequebook as well?",
-    ],
-  ],
-  "Balance enquiry": [
-    [
-      "Welcome! How can I help you today?",
-      "Would you like to check your account balance?",
-    ],
-    [
-      "Please share your account number last 4 digits",
-      "OTP will be sent to your registered mobile number",
-      "Please confirm your registered mobile number",
-      "Could you confirm your name as per the account?",
-    ],
-    [
-      "Your balance is being fetched — one moment please",
-      "Would you like last 5 transactions as well?",
-      "Would you like a mini statement printed?",
-      "Your available balance is shown on screen",
-    ],
-    [
-      "Would you like passbook update today?",
-      "SMS BAL to 09223008586 anytime to check balance",
-      "Download Union Bank Mobile app for 24x7 access",
-      "Is there anything else I can help you with?",
-    ],
-  ],
-  "Credit card apply": [
-    [
-      "What kind of credit card are you looking for?",
-      "Do you already hold a Union Bank account?",
-    ],
-    [
-      "What is your annual income?",
-      "Do you currently have any credit cards?",
-      "What is your approximate CIBIL score?",
-      "Are you salaried or self-employed?",
-      "Minimum annual income required is ₹2.5 lakh",
-      "Minimum CIBIL score required is 700",
-    ],
-    [
-      "Union Classic — Free, 1% cashback on all spends",
-      "Union Platinum — ₹499/year, 2X rewards, airport lounge access",
-      "Union Signature — ₹2999/year, 3X rewards, unlimited lounge",
-      "Union Travel Card — ₹999/year, 5X miles on travel spends",
-      "Which card would you like to apply for?",
-    ],
-    [
-      "Aadhaar Card + PAN Card required",
-      "Last 3 months salary slips required",
-      "ITR for last 2 years (if self-employed)",
-      "1 passport size photograph required",
-      "Last 3 months bank statement required",
-    ],
-    [
-      "Application submitted — credit limit SMS in 7 days",
-      "Card delivery takes 15 working days to your address",
-      "Activate card via net banking or branch visit",
-      "You can set your PIN at any Union Bank ATM",
-      "Is there anything else I can help you with?",
-    ],
-  ],
-  "General enquiry": [
-    [
-      "How can I help you today?",
-      "Which banking service do you need information about?",
-    ],
-    [
-      "Could you give me more details about your query?",
-      "Let me check that for you — one moment",
-      "Is this regarding an existing account or a new service?",
-    ],
-    [
-      "Here is the information you requested",
-      "Would you like me to explain that in more detail?",
-      "Let me connect you to the right department for this",
-    ],
-    [
-      "Is there anything else I can help you with?",
-      "Your query has been resolved successfully",
-      "Thank you for visiting Union Bank of India",
-    ],
-  ],
-};
-
-const GUIDE_HINTS = {
-  "Loan enquiry": [
-    "Step 1: Greet customer warmly — session just started",
-    "Step 2: Show loan options, rates, and tenure choices",
-    "Step 3: Check eligibility — income, employment, EMIs, CIBIL score",
-    "Step 4: Give full document checklist based on loan type selected",
-    "Step 5: Explain processing fee and disbursement timeline",
-  ],
-  "Account opening": [
-    "Step 1: Greet customer — ask what brings them to the branch today",
-    "Step 2: Explain account types and FD tenure options",
-    "Step 3: Fill KYC — name, DOB, address, mobile number, nominee details",
-    "Step 4: Collect Aadhaar, PAN, 2 photos, address proof",
-    "Step 5: Initial deposit, activate account, issue passbook and debit card",
-  ],
-  "Balance enquiry": [
-    "Step 1: Greet customer — welcome them to the branch",
-    "Step 2: Verify identity — account last 4 digits + OTP on registered mobile",
-    "Step 3: Share balance and last 5 transactions",
-    "Step 4: Offer passbook update or net banking / UPI enrollment",
-  ],
-  "Credit card apply": [
-    "Step 1: Greet customer — ask what kind of card they need",
-    "Step 2: Check eligibility — annual income min ₹2.5L, CIBIL min 700",
-    "Step 3: Recommend a card based on spends and lifestyle",
-    "Step 4: Collect Aadhaar, PAN, salary slips, passport photo",
-    "Step 5: Submit application — explain delivery timeline",
-  ],
-  "General enquiry": [
-    "Step 1: Greet customer warmly",
-    "Step 2: Understand their query — ask clarifying questions if needed",
-    "Step 3: Provide accurate information from Union Bank knowledge base",
-    "Step 4: Confirm resolved — offer further help",
-  ],
-};
-
-const KYC_CHECKLIST = {
-  "Loan enquiry": [
-    "✅ Aadhaar Card (original + photocopy)",
-    "✅ PAN Card (original + photocopy)",
-    "✅ Last 3 months salary slips",
-    "✅ Last 6 months bank statement",
-    "✅ Form 16 / Income Tax Return",
-    "✅ Property documents (sale agreement, NOC from builder)",
-    "✅ Employment certificate",
-  ],
-  "Account opening": [
-    "✅ Aadhaar Card (original + photocopy)",
-    "✅ PAN Card (original + photocopy)",
-    "✅ 2 Passport size photographs",
-    "✅ Address proof (utility bill / rental agreement < 3 months)",
-    "✅ Mobile number (to be registered)",
-    "✅ Initial deposit — min ₹1000 savings",
-    "✅ Nominee details (name, relation, DOB)",
-  ],
-  "Credit card apply": [
-    "✅ Aadhaar Card + PAN Card",
-    "✅ Last 3 months salary slips",
-    "✅ ITR for last 2 years (if self-employed)",
-    "✅ 1 Passport size photograph",
-    "✅ Last 3 months bank statement",
-  ],
-};
-
-const LEAD_FORM_FIELDS = {
-  "Loan enquiry": [
-    { key: "customer_name",    label: "Customer Name" },
-    { key: "phone",            label: "Phone Number" },
-    { key: "loan_type",        label: "Loan Type" },
-    { key: "loan_amount",      label: "Loan Amount Requested" },
-    { key: "tenure",           label: "Tenure Preference" },
-    { key: "monthly_income",   label: "Monthly Income" },
-    { key: "employment_type",  label: "Employment Type" },
-    { key: "cibil_score",      label: "CIBIL Score (approx)" },
-    { key: "existing_emi",     label: "Existing EMI Obligations" },
-  ],
-  "Account opening": [
-    { key: "customer_name",     label: "Customer Name" },
-    { key: "dob",                label: "Date of Birth" },
-    { key: "phone",              label: "Phone Number" },
-    { key: "address",            label: "Address" },
-    { key: "account_type",       label: "Account Type" },
-    { key: "nominee_name",       label: "Nominee Name" },
-    { key: "nominee_relation",   label: "Nominee Relation" },
-  ],
-  "Balance enquiry": [
-    { key: "customer_name",   label: "Customer Name" },
-    { key: "account_last4",   label: "Account No. (last 4)" },
-  ],
-  "Credit card apply": [
-    { key: "customer_name",   label: "Customer Name" },
-    { key: "phone",           label: "Phone Number" },
-    { key: "annual_income",   label: "Annual Income" },
-    { key: "cibil_score",     label: "CIBIL Score (approx)" },
-    { key: "card_selected",   label: "Card Selected" },
-  ],
-  "General enquiry": [
-    { key: "customer_name",   label: "Customer Name" },
-    { key: "query_summary",   label: "Query Summary" },
-  ],
-};
-
-const TTS_TIMEOUT_MS = 6000;
-const SPEECH_SYNTH_LOCALE = {
-  "Hindi": "hi-IN", "Marathi": "mr-IN", "Tamil": "ta-IN", "Telugu": "te-IN", "English": "en-IN",
-};
-
-const params = new URLSearchParams(window.location.search);
-const selectedLanguage = (params.get("lang") || sessionStorage.getItem("va_lang") || "Hindi").trim();
-const selectedProcess  = (params.get("process") || sessionStorage.getItem("va_process") || "General enquiry").trim();
-
-let conversationLog = [];
-let sessionStart    = Date.now();
-let timerInterval   = null;
-let stepIndex       = 0;
-let isRecording     = false;
-let mediaRecorder   = null;
-let audioChunks     = [];
-let staffRecording  = false;
-let staffRecorder   = null;
-let staffChunks     = [];
-let kycShown        = false;
-let smartReplies    = [];
-
-let checklistState  = {};
-
-document.addEventListener("DOMContentLoaded", () => {
-  try { initUI(); }            catch (e) { console.error("[Init] initUI:", e); }
-  try { startTimer(); }        catch (e) { console.error("[Init] startTimer:", e); }
-  try { bindEvents(); }        catch (e) { console.error("[Init] bindEvents:", e); }
-  try { startConversation(); } catch (e) { console.error("[Init] startConversation:", e); }
+document.querySelectorAll('.nav-item[data-section]').forEach(item => {
+  item.addEventListener('click', (e) => {
+    e.preventDefault();
+    navigate(item.dataset.section);
+  });
 });
 
-function cleanModelText(raw) {
-  if (raw === null || raw === undefined) return raw;
-  let t = String(raw).trim();
-  if (!t) return t;
-
-  const looksJsonWrapped =
-    t.includes("```") ||
-    /"english_translation"|"customer_text"|"translated_text"|"text"\s*:/.test(t) ||
-    (t.includes("{") && t.includes("}"));
-  if (!looksJsonWrapped) return t;
-
-  let stripped = t
-    .replace(/^[^{]*?```(?:json)?/is, "")
-    .replace(/```[^]*$/i, "")
-    .trim();
-
-  if (!stripped.startsWith("{")) {
-    const start = t.indexOf("{");
-    const end = t.lastIndexOf("}");
-    if (start !== -1 && end !== -1 && end > start) {
-      stripped = t.slice(start, end + 1);
-    }
-  }
-
-  if (!stripped.startsWith("{")) return t;
-
-  try {
-    const obj = JSON.parse(stripped);
-    return (
-      obj.english_translation ??
-      obj.customer_text ??
-      obj.translated_text ??
-      obj.text ??
-      t
-    );
-  } catch (e) {
-    console.warn("[cleanModelText] failed to parse model JSON, showing raw text:", e);
-    return t;
-  }
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+function showToast(message, isError = false) {
+  const toast = document.getElementById('toast');
+  const toastText = document.getElementById('toastText');
+  toastText.textContent = message;
+  toast.style.background = isError ? 'var(--error)' : 'var(--blue-3)';
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2600);
 }
 
-function initUI() {
-  const meta = LANG_META[selectedLanguage] || LANG_META["Hindi"];
-  document.getElementById("langChipFlag").textContent = meta.flag;
-  document.getElementById("langChipName").textContent = selectedLanguage;
-  document.getElementById("customerLangTag").textContent = meta.tag;
-  document.getElementById("intentChipText").textContent = selectedProcess;
-  if (selectedProcess !== "General enquiry") document.getElementById("intentChip").classList.add("show");
-  document.getElementById("regionalLabel").textContent = `${selectedLanguage} Summary`;
-
-  const strip = document.getElementById("processStrip");
-  if (strip) strip.style.display = "none";
-
-  lockStaffInput(false);
-  updateGuideHint(0);
-  updateStepIndicator();
-  updateManualStepButtons();
-  renderStepChecklist();
+// ── ACCOUNT LOOKUP ────────────────────────────────────────────────────────────
+function doLookup() {
+  const val = document.getElementById('accountInput').value.trim();
+  if (!val) { showToast('Enter a search value first', true); return; }
+  const btn = document.querySelector('.lookup-btn');
+  btn.textContent = 'Searching…';
+  btn.disabled = true;
+  setTimeout(() => {
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="15" height="15"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg> Search`;
+    btn.disabled = false;
+    document.getElementById('accountResult').classList.add('show');
+    showToast('Account found — Rajesh Sharma');
+  }, 900);
 }
 
-function lockStaffInput(locked) {
-  const row = document.getElementById("staffInputRow");
-  if (!row) return;
-  row.style.opacity = locked ? "0.4" : "1";
-  row.style.pointerEvents = locked ? "none" : "all";
-  const s = document.getElementById("staffStatusText");
-  if (s) s.textContent = locked ? "Not ready" : "Ready";
-}
-
-function startConversation() {
-  lockStaffInput(false);
-  setCustomerStatus("", "Ready");
-  setStaffStatus("", "Ready");
-  const meta = LANG_META[selectedLanguage] || {};
-  const emptyHint = document.getElementById("customerEmpty");
-  if (emptyHint) {
-    const p = emptyHint.querySelector("p");
-    if (p) p.textContent = `Tap the mic to record the customer in ${meta.tag || selectedLanguage}`;
-  }
-  updateGuideHint(0);
-  autoGreetCustomer();
-}
-
-async function autoGreetCustomer() {
-  const greetingMap = GREETINGS[selectedProcess] || GREETINGS["General enquiry"];
-  const greetingText = greetingMap[selectedLanguage] || greetingMap["English"];
-
-  hideEl("staffEmpty");
-  const wrap = document.createElement("div");
-  wrap.className = "staff-bubble-wrap";
-  wrap.innerHTML = `
-    <div class="bubble-staff" style="border-left:3px solid var(--gold)">
-      <span style="font-size:11px;color:var(--gold);display:block;margin-bottom:4px">👋 Auto Greeting</span>
-      ${escHtml(greetingText)}
-    </div>
-    <div class="bubble-staff-meta">
-      <span>${formatTime()}</span>
-      <span class="engine-tag">auto</span>
-    </div>`;
-  document.getElementById("staffTranscript").appendChild(wrap);
-  document.getElementById("staffTranscript").scrollTop = 99999;
-
-  try {
-    const form = new FormData();
-    form.append("staff_text", greetingText);
-    form.append("target_language", selectedLanguage);
-    const res  = await fetch(`${API_BASE}/staff-reply`, { method: "POST", body: form });
-    const data = await res.json();
-    if (data.audio_b64) playAudio(data.audio_b64);
-    else speakWithBrowserSynthesis(greetingText, selectedLanguage);
-  } catch (e) {
-    speakWithBrowserSynthesis(greetingText, selectedLanguage);
-  }
-
-  conversationLog.push({ role: "staff", text: greetingText, translation: greetingText });
-
-  showStaticQuickReplies();
-}
-
-async function updateStepFromLLM() {
-  if (conversationLog.length === 0) return;
-  try {
-    const res = await fetch(`${API_BASE}/detect-step`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        conversation: conversationLog,
-        process_type: selectedProcess,
-        current_step: stepIndex
-      })
-    });
-    const data = await res.json();
-    if (!data.success) return;
-
-    if (data.missing_info && data.missing_info.length > 0) {
-      addInfoBadge(`📋 Still needed: ${data.missing_info.join(", ")}`);
-    }
-    if (data.next_question) showNextQuestionHint(cleanModelText(data.next_question));
-
-    await fetchSmartQuickReplies();
-  } catch (e) {
-    console.warn("[SmartStep] failed, using static:", e);
-    showStaticQuickReplies();
-  }
-}
-
-async function fetchSmartQuickReplies() {
-  try {
-    const res = await fetch(`${API_BASE}/smart-replies`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        conversation: conversationLog.slice(-6),
-        process_type: selectedProcess,
-        step_index: stepIndex,
-        customer_language: selectedLanguage
-      })
-    });
-    const data = await res.json();
-    if (data.success && data.replies && data.replies.length > 0) {
-      smartReplies = data.replies.map(cleanModelText);
-      showQuickReplies(smartReplies);
-      return;
-    }
-  } catch (e) { console.warn("[SmartReplies] fallback to static"); }
-  showStaticQuickReplies();
-}
-
-function updateStepIndicator() {
-  const steps = PROCESS_STEPS[selectedProcess] || PROCESS_STEPS["General enquiry"];
-  const el = document.getElementById("stepIndicator");
-  if (el) el.textContent = `Step ${stepIndex + 1} of ${steps.length}: ${steps[stepIndex] || ""}`;
-}
-
-function updateManualStepButtons() {
-  const steps = PROCESS_STEPS[selectedProcess] || PROCESS_STEPS["General enquiry"];
-  const backBtn = document.getElementById("manualBackBtn");
-  const nextBtn = document.getElementById("manualNextBtn");
-  if (backBtn) {
-    const atStart = stepIndex <= 0;
-    backBtn.disabled = atStart;
-    backBtn.style.opacity = atStart ? "0.4" : "1";
-    backBtn.style.cursor = atStart ? "not-allowed" : "pointer";
-  }
-  if (nextBtn) {
-    const atEnd = stepIndex >= steps.length - 1;
-    nextBtn.textContent = atEnd ? "Finished ✓" : "Next ✓";
-    nextBtn.disabled = atEnd;
-    nextBtn.style.opacity = atEnd ? "0.5" : "1";
-    nextBtn.style.cursor = atEnd ? "not-allowed" : "pointer";
-  }
-}
-
-function manualNextStep() {
-  const steps = PROCESS_STEPS[selectedProcess] || [];
-  if (stepIndex >= steps.length - 1) return;
-
-  stepIndex += 1;
-
-  updateGuideHint(stepIndex);
-  updateStepIndicator();
-  updateManualStepButtons();
-  renderStepChecklist();
-
-  const stepName = steps[stepIndex] || "";
-  if ((stepName === "KYC Details" || stepName === "Documents") && !kycShown) {
-    kycShown = true;
-    showKycChecklist();
-  }
-
-  showStaticQuickReplies();
-  showToast(`✓ Moved to: ${stepName}`);
-}
-
-function manualBackStep() {
-  if (stepIndex <= 0) return;
-
-  stepIndex -= 1;
-
-  updateGuideHint(stepIndex);
-  updateStepIndicator();
-  updateManualStepButtons();
-  renderStepChecklist();
-
-  const steps = PROCESS_STEPS[selectedProcess] || [];
-  showStaticQuickReplies();
-  showToast(`← Back to: ${steps[stepIndex] || ""}`);
-}
-
-function renderStepChecklist() {
-  document.getElementById("stepChecklistBar")?.remove();
-
-  const checklists = STEP_CHECKLISTS[selectedProcess] || STEP_CHECKLISTS["General enquiry"];
-  const items = checklists[Math.min(stepIndex, checklists.length - 1)] || [];
-  if (items.length === 0) return;
-
-  if (!checklistState[stepIndex]) checklistState[stepIndex] = new Set();
-  const checkedSet = checklistState[stepIndex];
-
-  const bar = document.createElement("div");
-  bar.id = "stepChecklistBar";
-  bar.style.cssText = `padding:12px 20px 4px;background:var(--white);
-    border-top:1px solid var(--border);`;
-
-  const steps = PROCESS_STEPS[selectedProcess] || [];
-  const lbl = document.createElement("div");
-  lbl.style.cssText = `font-size:10.5px;text-transform:uppercase;
-    letter-spacing:0.07em;color:var(--slate-light);font-weight:600;margin-bottom:8px;
-    display:flex;align-items:center;justify-content:space-between;`;
-  lbl.innerHTML = `<span>📋 Checklist — ${escHtml(steps[stepIndex] || "")}</span>
-    <span id="checklistProgress" style="color:var(--gold);font-weight:700;"></span>`;
-  bar.appendChild(lbl);
-
-  const list = document.createElement("div");
-  list.style.cssText = `display:flex;flex-direction:column;gap:6px;`;
-
-  items.forEach((label, i) => {
-    const row = document.createElement("label");
-    row.style.cssText = `display:flex;align-items:flex-start;gap:8px;cursor:pointer;
-      font-size:12.5px;color:var(--navy);line-height:1.4;user-select:none;`;
-
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.checked = checkedSet.has(i);
-    cb.style.cssText = `margin-top:2px;width:15px;height:15px;accent-color:var(--gold);cursor:pointer;flex-shrink:0;`;
-    cb.addEventListener("change", () => {
-      if (cb.checked) checkedSet.add(i); else checkedSet.delete(i);
-      updateChecklistProgress(items.length);
-      row.style.color = cb.checked ? "var(--slate-light)" : "var(--navy)";
-      row.style.textDecoration = cb.checked ? "line-through" : "none";
-    });
-
-    const span = document.createElement("span");
-    span.textContent = label;
-
-    if (cb.checked) { row.style.color = "var(--slate-light)"; row.style.textDecoration = "line-through"; }
-
-    row.appendChild(cb);
-    row.appendChild(span);
-    list.appendChild(row);
+const accountInputEl = document.getElementById('accountInput');
+if (accountInputEl) {
+  accountInputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') doLookup();
   });
-
-  bar.appendChild(list);
-  const controls = document.querySelector(".pane:last-child .pane-controls");
-  if (controls) controls.insertBefore(bar, controls.firstChild);
-
-  updateChecklistProgress(items.length);
 }
 
-function updateChecklistProgress(total) {
-  const el = document.getElementById("checklistProgress");
-  if (!el) return;
-  const checkedSet = checklistState[stepIndex] || new Set();
-  el.textContent = `${checkedSet.size}/${total}`;
-}
-
-function updateGuideHint(step) {
-  const hints = GUIDE_HINTS[selectedProcess] || GUIDE_HINTS["General enquiry"];
-  const hint = hints[Math.min(step, hints.length - 1)];
-  const el = document.getElementById("guideHint");
-  const txt = document.getElementById("guideHintText");
-  if (el && txt && hint) { txt.textContent = hint; el.style.display = "flex"; }
-}
-
-function showNextQuestionHint(question) {
-  document.getElementById("nextQuestionHint")?.remove();
-  const div = document.createElement("div");
-  div.id = "nextQuestionHint";
-  div.style.cssText = `margin:6px 20px;padding:8px 14px;border-radius:8px;
-    background:rgba(56,189,248,0.10);border-left:3px solid #38bdf8;
-    font-size:12.5px;color:var(--navy);`;
-  div.innerHTML = `<span style="color:#38bdf8;font-weight:600">💡 Suggested: </span>${escHtml(question)}`;
-  const controls = document.querySelector(".pane:last-child .pane-controls");
-  if (controls) controls.insertBefore(div, controls.firstChild);
-}
-
-function showQuickReplies(replies) {
-  document.getElementById("quickRepliesBar")?.remove();
-  document.getElementById("nextQuestionHint")?.remove();
-  if (!replies || replies.length === 0) { showStaticQuickReplies(); return; }
-  renderQuickReplyBar(replies, "⚡ Smart replies — tap to send instantly");
-}
-
-function showStaticQuickReplies() {
-  document.getElementById("quickRepliesBar")?.remove();
-  const allReplies = STATIC_QUICK_REPLIES[selectedProcess] || STATIC_QUICK_REPLIES["General enquiry"];
-  const stepReplies = allReplies[Math.min(stepIndex, allReplies.length - 1)] || [];
-  if (stepReplies.length === 0) return;
-  renderQuickReplyBar(stepReplies, "⚡ Quick replies — tap to send instantly");
-}
-
-function renderQuickReplyBar(replies, label) {
-  if (!replies || replies.length === 0) return;
-  const bar = document.createElement("div");
-  bar.id = "quickRepliesBar";
-  bar.style.cssText = `display:flex;gap:8px;flex-wrap:wrap;max-height:160px;overflow-y:auto;
-    padding:10px 20px 8px;background:var(--white);border-top:1px solid var(--border);`;
-
-  const lbl = document.createElement("div");
-  lbl.style.cssText = `width:100%;font-size:10.5px;text-transform:uppercase;
-    letter-spacing:0.07em;color:var(--slate-light);font-weight:600;margin-bottom:2px;`;
-  lbl.textContent = label;
-  bar.appendChild(lbl);
-
-  replies.forEach(text => {
-    const btn = document.createElement("button");
-    btn.textContent = text;
-    btn.style.cssText = `padding:6px 14px;border-radius:99px;border:1px solid var(--gold);
-      background:rgba(184,146,61,0.08);color:var(--navy);font-size:12.5px;cursor:pointer;
-      font-family:inherit;transition:all 150ms ease;white-space:nowrap;`;
-    btn.onmouseover = () => { btn.style.background = "rgba(184,146,61,0.22)"; btn.style.transform = "scale(1.03)"; };
-    btn.onmouseout  = () => { btn.style.background = "rgba(184,146,61,0.08)"; btn.style.transform = "scale(1)"; };
-    btn.onclick = () => { document.getElementById("staffInput").value = text; sendStaffReply(); };
-    bar.appendChild(btn);
+document.querySelectorAll('.account-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.account-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.account-tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
   });
+});
 
-  const controls = document.querySelector(".pane:last-child .pane-controls");
-  if (controls) controls.insertBefore(bar, controls.firstChild);
-}
+document.querySelectorAll('.filter-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+  });
+});
 
-function showKycChecklist() {
-  const checklist = KYC_CHECKLIST[selectedProcess];
-  if (!checklist) return;
-  document.getElementById("kycPopup")?.remove();
-  const popup = document.createElement("div");
-  popup.id = "kycPopup";
-  popup.style.cssText = `position:fixed;bottom:100px;right:24px;z-index:300;
-    background:var(--white);border:1px solid var(--gold);border-radius:10px;
-    padding:16px 18px;width:280px;box-shadow:0 8px 24px rgba(15,30,61,0.15);
-    animation:bubbleIn 300ms ease-out;`;
-  popup.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-      <div style="font-size:13px;font-weight:600;color:var(--navy);">📋 Document Checklist</div>
-      <button onclick="document.getElementById('kycPopup').remove()"
-        style="background:none;border:none;cursor:pointer;color:var(--slate-light);font-size:16px;">×</button>
-    </div>
-    <div style="font-size:12px;color:var(--slate);line-height:2;">
-      ${checklist.map(i => `<div>${i}</div>`).join("")}
-    </div>
-    <div style="margin-top:10px;font-size:11px;color:var(--gold);font-weight:500;">
-      Show this checklist to the customer
-    </div>`;
-  document.body.appendChild(popup);
-  setTimeout(() => popup.remove(), 15000);
-}
+// ── LANGUAGE + PROCESS STATE ──────────────────────────────────────────────────
+let selectedLang = null;
+let selectedProcess = null;
+let langDetected = false;
+let processSelected = false;
+let lastTranscript = "";
 
-function startTimer() {
-  timerInterval = setInterval(() => {
-    const e = Math.floor((Date.now() - sessionStart) / 1000);
-    document.getElementById("timerDisplay").textContent =
-      `${String(Math.floor(e/60)).padStart(2,"0")}:${String(e%60).padStart(2,"0")}`;
-  }, 1000);
-}
+const LANG_META = {
+  "Hindi":   { flag: "हि", code: "हि" },
+  "Marathi": { flag: "मा", code: "मा" },
+  "Tamil":   { flag: "த",  code: "த" },
+  "Telugu":  { flag: "తె", code: "తె" },
+  "English": { flag: "EN", code: "EN" },
+};
 
-async function toggleCustomerRecording() {
-  if (isRecording) stopCustomerRecording();
-  else await startCustomerRecording();
-}
+const SILENCE_THRESHOLD = 8;
+const MIN_TRANSCRIPT_CHARS = 3;
+const MIN_RECORD_MS = 600;
 
-async function startCustomerRecording() {
-  let stream;
-  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-  catch (err) {
-    showToast(err.name === "NotAllowedError" ? "Microphone permission denied." : `Mic error: ${err.message}`, true);
+// ── MIC FLOW — Real STT language detection ────────────────────────────────────
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+let recordStartTime = 0;
+let audioCtxForMeter = null;
+let analyser = null;
+let maxObservedVolume = 0;
+let volumeCheckInterval = null;
+
+const micButton = document.getElementById('micButton');
+const listenIdle = document.getElementById('listenIdle');
+const listenActive = document.getElementById('listenActive');
+const detectedResult = document.getElementById('detectedResult');
+const processSection = document.getElementById('processSection');
+const btnBegin = document.getElementById('btnBegin');
+const changeLangBtn = document.getElementById('changeLangBtn');
+const langGrid = document.getElementById('langGrid');
+
+micButton && micButton.addEventListener('click', async () => {
+  if (isRecording) {
+    stopRecording();
     return;
   }
   try {
-    const mime = getSupportedMimeType();
-    mediaRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = getSupportedMimeType();
+    mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
     audioChunks = [];
+    maxObservedVolume = 0;
+    recordStartTime = Date.now();
+
+    audioCtxForMeter = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtxForMeter.createMediaStreamSource(stream);
+    analyser = audioCtxForMeter.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser);
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    volumeCheckInterval = setInterval(() => {
+      analyser.getByteFrequencyData(dataArray);
+      const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+      if (avg > maxObservedVolume) maxObservedVolume = avg;
+    }, 100);
+
     mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
-    mediaRecorder.onstop = () => processCustomerAudio();
+    mediaRecorder.onstop = processDetectionAudio;
     mediaRecorder.start(100);
     isRecording = true;
-    const mic  = document.getElementById("customerMicBtn");
-    const hint = document.getElementById("customerMicHint");
-    if (mic)  mic.classList.add("recording");
-    if (hint) { hint.textContent = "Recording… Tap to stop"; hint.classList.add("recording"); }
-    setCustomerStatus("listening", "Listening…");
-    hideEl("customerEmpty");
-    addCustomerWaveform();
-    document.getElementById("quickRepliesBar")?.remove();
+
+    listenIdle.style.display = 'none';
+    listenActive.classList.add('show');
+    listenActive.style.display = 'flex';
+
+    setTimeout(() => { if (isRecording) stopRecording(); }, 4000);
+
   } catch (err) {
-    showToast(`Recording setup failed: ${err.message}`, true);
-    stream.getTracks().forEach(t => t.stop());
+    showManualLangPicker();
   }
-}
+});
 
-function stopCustomerRecording() {
-  if (mediaRecorder && mediaRecorder.state !== "inactive") {
-    mediaRecorder.stop();
-    mediaRecorder.stream.getTracks().forEach(t => t.stop());
-  }
-  isRecording = false;
-  const mic  = document.getElementById("customerMicBtn");
-  const hint = document.getElementById("customerMicHint");
-  if (mic)  mic.classList.remove("recording");
-  if (hint) { hint.textContent = "Tap to record customer"; hint.classList.remove("recording"); }
-  setCustomerStatus("processing", "Processing…");
-}
-
-function isUnclearTranscript(text) {
-  if (!text) return true;
-  const trimmed = text.trim();
-  return trimmed.length < 3;
-}
-
-async function processCustomerAudio() {
-  removeEl("customerWaveform");
-  showEl("customerProcessing");
-  try {
-    const mime = getSupportedMimeType();
-    const blob = new Blob(audioChunks, { type: mime || "audio/webm" });
-    const wav  = await convertToWav(blob);
-    const form = new FormData();
-    form.append("audio", wav, "customer.wav");
-    form.append("language", selectedLanguage);
-    form.append("process_type", selectedProcess);
-
-    const res  = await fetch(`${API_BASE}/customer-speak`, { method: "POST", body: form });
-    const data = await res.json();
-    hideEl("customerProcessing");
-
-    const cleanCustomerText  = cleanModelText(data.customer_text);
-    const cleanTranslation   = cleanModelText(data.english_translation);
-    const cleanIntent        = cleanModelText(data.intent);
-
-    if (data.success && cleanCustomerText) {
-
-      if (isUnclearTranscript(cleanCustomerText)) {
-        addCustomerBubble(cleanCustomerText, "(unclear — ask customer to repeat)", data.stt_engine, null);
-        conversationLog.push({ role: "customer", text: cleanCustomerText, translation: "(unclear)" });
-        setCustomerStatus("", "Ready");
-        showStaticQuickReplies();
-        showToast("Audio unclear — ask the customer to repeat", true);
-        return;
-      }
-
-      addCustomerBubble(cleanCustomerText, cleanTranslation, data.stt_engine, cleanIntent);
-      if (cleanIntent && cleanIntent !== "General enquiry") {
-        document.getElementById("intentChipText").textContent = cleanIntent;
-        document.getElementById("intentChip").classList.add("show");
-      }
-      conversationLog.push({ role: "customer", text: cleanCustomerText, translation: cleanTranslation });
-
-      await updateStepFromLLM();
-      setCustomerStatus("done", "Transcribed");
-    } else {
-      showToast(data.error || "Could not transcribe. Try again.", true);
-      setCustomerStatus("", "Ready");
+function stopRecording() {
+  const elapsed = Date.now() - recordStartTime;
+  const doStop = () => {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+      mediaRecorder.stream.getTracks().forEach(t => t.stop());
     }
-  } catch (err) {
-    hideEl("customerProcessing");
-    showToast("Backend error. Is port 8000 running?", true);
-    setCustomerStatus("", "Ready");
-  }
-}
-
-async function sendStaffReply() {
-  const input = document.getElementById("staffInput");
-  const text  = input.value.trim();
-  if (!text) return;
-  const btn = document.getElementById("staffSendBtn");
-  btn.disabled = true; btn.classList.add("loading");
-  showEl("staffProcessing"); hideEl("staffEmpty");
-  try {
-    const form = new FormData();
-    form.append("staff_text", text);
-    form.append("target_language", selectedLanguage);
-    const res  = await fetch(`${API_BASE}/staff-reply`, { method: "POST", body: form });
-    const data = await res.json();
-    hideEl("staffProcessing");
-    btn.disabled = false; btn.classList.remove("loading");
-    if (data.success) {
-      const cleanTranslated = cleanModelText(data.translated_text);
-      addStaffBubble(text, cleanTranslated, data.tts_engine);
-      if (data.audio_b64) playAudio(data.audio_b64);
-      else speakWithBrowserSynthesis(cleanTranslated, selectedLanguage);
-      conversationLog.push({ role: "staff", text, translation: cleanTranslated });
-      input.value = ""; input.style.height = "auto";
-      setStaffStatus("done", "Sent");
-      setTimeout(() => setStaffStatus("", "Ready"), 2000);
-      document.getElementById("nextQuestionHint")?.remove();
-    } else { showToast(data.error || "Translation failed", true); }
-  } catch (err) {
-    hideEl("staffProcessing");
-    btn.disabled = false; btn.classList.remove("loading");
-    showToast("Backend error. Is port 8000 running?", true);
-  }
-}
-
-async function toggleStaffRecording() {
-  const btn = document.getElementById("staffMicBtn");
-  if (staffRecording) {
-    if (staffRecorder && staffRecorder.state !== "inactive") {
-      staffRecorder.stop(); staffRecorder.stream.getTracks().forEach(t => t.stop());
-    }
-    staffRecording = false; btn.classList.remove("recording");
-  } else {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mime = getSupportedMimeType();
-      staffRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
-      staffChunks = [];
-      staffRecorder.ondataavailable = e => { if (e.data.size > 0) staffChunks.push(e.data); };
-      staffRecorder.onstop = async () => {
-        btn.classList.remove("recording"); staffRecording = false;
-        const blob = new Blob(staffChunks, { type: mime || "audio/webm" });
-        const wav  = await convertToWav(blob);
-        const form = new FormData(); form.append("audio", wav, "staff.wav");
-        try {
-          const res  = await fetch(`${API_BASE}/staff-speak`, { method: "POST", body: form });
-          const data = await res.json();
-          if (data.success && data.text) {
-            document.getElementById("staffInput").value = cleanModelText(data.text);
-            document.getElementById("staffInput").dispatchEvent(new Event("input"));
-          }
-        } catch (e) { showToast("Staff mic failed", true); }
-      };
-      staffRecorder.start(100); staffRecording = true; btn.classList.add("recording");
-    } catch (e) { showToast("Mic denied", true); }
-  }
-}
-
-function addInfoBadge(msg) {
-  document.getElementById("infoBadge")?.remove();
-  const div = document.createElement("div");
-  div.id = "infoBadge";
-  div.style.cssText = `margin:4px 20px;padding:6px 12px;border-radius:6px;
-    background:rgba(251,191,36,0.12);border-left:3px solid #fbbf24;
-    font-size:12px;color:var(--navy);`;
-  div.textContent = msg;
-  const controls = document.querySelector(".pane:last-child .pane-controls");
-  if (controls) controls.insertBefore(div, controls.firstChild);
-  setTimeout(() => div.remove(), 8000);
-}
-
-async function fetchLeadForm() {
-  const fields = LEAD_FORM_FIELDS[selectedProcess] || LEAD_FORM_FIELDS["General enquiry"];
-  const leadContainer = document.getElementById("leadFormBody");
-  if (leadContainer) {
-    leadContainer.innerHTML = `<div style="color:var(--slate-light);font-size:12px;">Extracting lead details…</div>`;
-  }
-
-  try {
-    const res = await fetch(`${API_BASE}/extract-lead`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        conversation: conversationLog.map(t => ({ role: t.role, text: t.text, translation: t.translation })),
-        process_type: selectedProcess,
-        fields: fields.map(f => f.key),
-      })
-    });
-    const data = await res.json();
-    if (data.success && data.lead) {
-      renderLeadForm(fields, data.lead);
-    } else {
-      renderLeadForm(fields, {});
-      showToast("Could not auto-extract lead — fill manually", true);
-    }
-  } catch (e) {
-    renderLeadForm(fields, {});
-    showToast("Lead extraction failed — fill manually", true);
-  }
-}
-
-function renderLeadForm(fields, leadData) {
-  const container = document.getElementById("leadFormBody");
-  if (!container) return;
-  container.innerHTML = "";
-
-  fields.forEach(f => {
-    const raw = leadData[f.key];
-    const value = (raw === undefined || raw === null) ? "" : cleanModelText(String(raw));
-
-    const row = document.createElement("div");
-    row.style.cssText = "margin-bottom:10px;";
-    row.innerHTML = `
-      <label style="display:block;font-size:11px;color:var(--slate-light);
-        text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">${escHtml(f.label)}</label>
-      <input type="text" data-field="${escHtml(f.key)}" value="${escHtml(value)}"
-        style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;
-        font-size:13px;font-family:inherit;color:var(--navy);"
-        placeholder="${value ? "" : "Not captured — enter manually"}" />`;
-    container.appendChild(row);
-  });
-}
-
-async function submitLead() {
-  const inputs = document.querySelectorAll("#leadFormBody input[data-field]");
-  if (inputs.length === 0) { showToast("No lead form to submit", true); return; }
-
-  const lead = {};
-  inputs.forEach(inp => { lead[inp.dataset.field] = inp.value.trim(); });
-
-  const btn = document.getElementById("submitLeadBtn");
-  if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
-
-  try {
-    const res = await fetch(`${API_BASE}/submit-lead`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        process_type: selectedProcess,
-        customer_language: selectedLanguage,
-        lead,
-        session_duration: document.getElementById("timerDisplay")?.textContent || "",
-      })
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast("Lead sent to bank ✓");
-      if (btn) btn.textContent = "Sent ✓";
-    } else {
-      showToast(data.error || "Submit failed", true);
-      if (btn) { btn.disabled = false; btn.textContent = "Send to Bank"; }
-    }
-  } catch (e) {
-    showToast("Network error sending lead", true);
-    if (btn) { btn.disabled = false; btn.textContent = "Send to Bank"; }
-  }
-}
-
-async function endSession() {
-  if (conversationLog.length === 0) { showToast("No conversation yet", true); return; }
-  clearInterval(timerInterval);
-  document.getElementById("summaryModal").classList.add("show");
-  document.getElementById("englishSummary").textContent = "Generating…";
-  document.getElementById("regionalSummary").textContent = "Translating…";
-  document.getElementById("summaryMeta").textContent =
-    `${selectedLanguage} · ${selectedProcess} · ${document.getElementById("timerDisplay").textContent}`;
-
-  const leadBtn = document.getElementById("submitLeadBtn");
-  if (leadBtn) { leadBtn.disabled = false; leadBtn.textContent = "Send to Bank"; }
-
-  await Promise.all([fetchSummary(), fetchLeadForm()]);
-}
-
-async function fetchSummary() {
-  try {
-    const res  = await fetch(`${API_BASE}/summary`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        conversation: conversationLog.map(t => ({ role: t.role, text: t.text })),
-        customer_language: selectedLanguage,
-        process_type: selectedProcess
-      })
-    });
-    const data = await res.json();
-    if (data.success) {
-      document.getElementById("englishSummary").textContent = cleanModelText(data.english_summary);
-      document.getElementById("regionalSummary").textContent = cleanModelText(data.regional_summary);
-      if (data.action_items && data.action_items.length > 0) {
-        document.getElementById("englishSummary").textContent +=
-          "\n\nACTION ITEMS:\n" + data.action_items.map(a => `• ${cleanModelText(a)}`).join("\n");
-      }
-    } else {
-      document.getElementById("englishSummary").textContent = "Error: " + (data.error || "");
-    }
-  } catch (e) {
-    document.getElementById("englishSummary").textContent = "Network error.";
-  }
-}
-
-function closeSummary() { document.getElementById("summaryModal").classList.remove("show"); startTimer(); }
-function newSession()   { window.location.href = "dashboard.html"; }
-
-// ═══════════════════════════════════════════════════════════
-// PATCH 3: SAVE TO RECORDS → redirect straight to lead-form.html
-// Stores the conversation (and everything lead-form.html needs) into
-// sessionStorage using the SAME keys lead-form.html already reads on
-// load, then redirects there immediately. lead-form.html auto-extracts
-// and auto-fills the form on its own — staff just reviews and clicks
-// "Send to Bank". Nothing here auto-submits the lead.
-// ═══════════════════════════════════════════════════════════
-function saveToRecords() {
-  const duration = document.getElementById("timerDisplay")?.textContent || "";
-
-  showToast("Summary saved — opening lead form ✓");
-
-  sessionStorage.setItem("va_lead_conversation", JSON.stringify(conversationLog));
-  sessionStorage.setItem("va_lead_process", selectedProcess);
-  sessionStorage.setItem("va_lead_language", selectedLanguage);
-  sessionStorage.setItem("va_lead_duration", duration);
-
-  setTimeout(() => { window.location.href = "lead-form.html"; }, 900);
-}
-
-function bindEvents() {
-  const bind = (id, ev, fn) => {
-    const el = document.getElementById(id);
-    if (!el) { console.error(`[bindEvents] #${id} not found`); return; }
-    el.addEventListener(ev, fn);
+    if (volumeCheckInterval) { clearInterval(volumeCheckInterval); volumeCheckInterval = null; }
+    if (audioCtxForMeter) { audioCtxForMeter.close().catch(() => {}); audioCtxForMeter = null; }
+    isRecording = false;
   };
-  bind("customerMicBtn", "click", toggleCustomerRecording);
-  bind("staffSendBtn",   "click", sendStaffReply);
-  bind("staffMicBtn",    "click", toggleStaffRecording);
-  bind("endSessionBtn",  "click", endSession);
-  bind("saveRecordBtn",  "click", saveToRecords);
-  bind("manualNextBtn",  "click", manualNextStep);
-  bind("manualBackBtn",  "click", manualBackStep);
-  bind("submitLeadBtn",  "click", submitLead);
-  const inp = document.getElementById("staffInput");
-  if (inp) {
-    inp.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendStaffReply(); } });
-    inp.addEventListener("input",   () => { inp.style.height = "auto"; inp.style.height = Math.min(inp.scrollHeight, 120) + "px"; });
+
+  if (elapsed < MIN_RECORD_MS) {
+    setTimeout(doStop, MIN_RECORD_MS - elapsed);
+  } else {
+    doStop();
   }
 }
 
-function addCustomerBubble(orig, trans, engine, intent) {
-  hideEl("customerEmpty");
-  const wrap = document.createElement("div");
-  wrap.className = "transcript-bubble";
-  wrap.innerHTML = `<div class="bubble-original">${escHtml(orig)}</div>
-    ${trans ? `<div class="bubble-translation">🌐 ${escHtml(trans)}</div>` : ""}
-    <div class="bubble-meta"><span>${formatTime()}</span><span class="engine-tag">${engine}</span>${intent ? `<span class="engine-tag">${escHtml(intent)}</span>` : ""}</div>`;
-  document.getElementById("customerTranscript").appendChild(wrap);
-  document.getElementById("customerTranscript").scrollTop = 99999;
+async function processDetectionAudio() {
+  listenActive.classList.remove('show');
+  listenActive.style.display = 'none';
+
+  if (maxObservedVolume < SILENCE_THRESHOLD) {
+    console.warn('[lang-detect] Skipped — silence detected (maxVolume=' + maxObservedVolume.toFixed(1) + ')');
+    showManualLangPicker();
+    return;
+  }
+
+  showEl('detectedResult');
+  setDetectingState();
+
+  try {
+    const mimeType = getSupportedMimeType();
+    const blob = new Blob(audioChunks, { type: mimeType || 'audio/webm' });
+    const wav = await convertToWav(blob);
+
+    if (wav.size < 2000) {
+      console.warn('[lang-detect] WAV too small after conversion:', wav.size, 'bytes');
+      showManualLangPicker();
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('audio', wav, 'detect.wav');
+    formData.append('language', 'auto');
+    formData.append('process_type', 'General enquiry');
+
+    const res = await fetch('https://rohan667-voiceassist-ai-backend-kj.hf.space/api/conversation/customer-speak', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+
+    const transcript = (data.customer_text || '').trim();
+    console.log('[lang-detect] Raw transcript:', JSON.stringify(transcript));
+    console.log('[lang-detect] Backend-detected language:', data.language);
+
+    if (!data.success || transcript.length < MIN_TRANSCRIPT_CHARS || isLikelyHallucination(transcript)) {
+      console.warn('[lang-detect] Rejected transcript as unreliable:', transcript, data.error || '');
+      showManualLangPicker();
+      if (data.error) showToast(data.error, true);
+      return;
+    }
+
+    setDetectedLanguage(data.language || 'English', transcript);
+  } catch (e) {
+    console.error('[lang-detect] Network/backend error:', e);
+    showManualLangPicker();
+    showToast('Could not reach backend. Is it running on port 8000?', true);
+  }
 }
 
-function addStaffBubble(orig, trans, engine) {
-  hideEl("staffEmpty");
-  const wrap = document.createElement("div");
-  wrap.className = "staff-bubble-wrap";
-  wrap.innerHTML = `<div class="bubble-staff">${escHtml(orig)}</div>
-    ${trans ? `<div class="bubble-staff-translated">→ ${escHtml(trans)}</div>` : ""}
-    <div class="bubble-staff-meta"><span>${formatTime()}</span><span class="engine-tag">${engine || "llm"}</span></div>`;
-  document.getElementById("staffTranscript").appendChild(wrap);
-  document.getElementById("staffTranscript").scrollTop = 99999;
+function isLikelyHallucination(text) {
+  const cleaned = text.replace(/[।.,!?\s]/g, '');
+  if (cleaned.length < MIN_TRANSCRIPT_CHARS) return true;
+  const words = text.trim().split(/\s+/);
+  const uniqueWords = new Set(words.map(w => w.toLowerCase()));
+  if (words.length >= 3 && uniqueWords.size === 1) return true;
+  return false;
 }
 
-function addCustomerWaveform() {
-  const d = document.createElement("div");
-  d.className = "waveform-inline show"; d.id = "customerWaveform";
-  d.innerHTML = "<span></span><span></span><span></span><span></span><span></span>";
-  document.getElementById("customerTranscript").appendChild(d);
-  document.getElementById("customerTranscript").scrollTop = 99999;
+function setDetectingState() {
+  const nameEl = document.getElementById('detectedLangName');
+  const flagEl = document.querySelector('.chip-flag');
+  const transcriptWrap = document.getElementById('detectedTranscriptWrap');
+  if (nameEl) nameEl.textContent = 'Detecting…';
+  if (flagEl) flagEl.textContent = '…';
+  if (transcriptWrap) transcriptWrap.style.display = 'none';
 }
 
-function hideEl(id) { const e = document.getElementById(id); if (e) e.style.display = "none"; }
-function showEl(id) { const e = document.getElementById(id); if (e) e.classList.add("show"); }
-function removeEl(id) { document.getElementById(id)?.remove(); }
-function setCustomerStatus(state, text) {
-  document.getElementById("customerDot").className = "pane-status-dot" + (state ? " " + state : "");
-  document.getElementById("customerStatusText").textContent = text;
-}
-function setStaffStatus(state, text) {
-  document.getElementById("staffDot").className = "pane-status-dot" + (state ? " " + state : "");
-  document.getElementById("staffStatusText").textContent = text;
+function showManualLangPicker() {
+  selectedLang = null;
+  lastTranscript = "";
+  detectedResult.classList.add('show');
+  detectedResult.style.display = 'flex';
+  langGrid.classList.add('open');
+  processSection.classList.add('show');
+  const nameEl = document.getElementById('detectedLangName');
+  if (nameEl) nameEl.textContent = 'Select language';
+  const flagEl = document.querySelector('.chip-flag');
+  if (flagEl) flagEl.textContent = '—';
+  const transcriptWrap = document.getElementById('detectedTranscriptWrap');
+  if (transcriptWrap) transcriptWrap.style.display = 'none';
+  langDetected = false;
+  checkBegin();
 }
 
-function speakWithBrowserSynthesis(text, language) {
-  return new Promise(resolve => {
-    if (!text || !("speechSynthesis" in window)) { resolve(false); return; }
-    const locale = SPEECH_SYNTH_LOCALE[language] || "en-IN";
-    const utter  = new SpeechSynthesisUtterance(text);
-    utter.lang = locale; utter.rate = 0.95;
-    const go = () => {
-      const voices = window.speechSynthesis.getVoices();
-      const chosen = voices.find(v => v.lang === locale) || voices.find(v => v.lang?.startsWith(locale.split("-")[0]));
-      if (chosen) utter.voice = chosen;
-      if (!voices.length) { resolve(false); return; }
-      utter.onend = () => resolve(true); utter.onerror = () => resolve(false);
-      window.speechSynthesis.cancel(); window.speechSynthesis.speak(utter);
-    };
-    if (window.speechSynthesis.getVoices().length > 0) go();
-    else { window.speechSynthesis.onvoiceschanged = go; setTimeout(go, 500); }
+function setDetectedLanguage(langName, transcript) {
+  selectedLang = langName;
+  lastTranscript = transcript || "";
+  const meta = LANG_META[langName] || LANG_META['English'];
+
+  document.getElementById('detectedLangName').textContent = langName;
+  document.querySelector('.chip-flag').textContent = meta.flag;
+
+  const transcriptWrap = document.getElementById('detectedTranscriptWrap');
+  const transcriptText = document.getElementById('detectedTranscriptText');
+  if (transcriptWrap && transcriptText) {
+    if (lastTranscript) {
+      transcriptText.textContent = lastTranscript;
+      transcriptWrap.style.display = 'block';
+    } else {
+      transcriptWrap.style.display = 'none';
+    }
+  }
+
+  detectedResult.classList.add('show');
+  detectedResult.style.display = 'flex';
+  processSection.classList.add('show');
+  langDetected = true;
+  checkBegin();
+}
+
+changeLangBtn && changeLangBtn.addEventListener('click', () => {
+  langGrid.classList.toggle('open');
+});
+
+document.querySelectorAll('.lang-option').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.lang-option').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    const langName = btn.dataset.lang;
+    selectedLang = langName;
+    document.getElementById('detectedLangName').textContent = langName;
+    document.querySelector('.chip-flag').textContent = btn.dataset.code;
+    const transcriptWrap = document.getElementById('detectedTranscriptWrap');
+    if (transcriptWrap) transcriptWrap.style.display = 'none';
+    langGrid.classList.remove('open');
+    langDetected = true;
+    checkBegin();
   });
+});
+
+document.querySelectorAll('.process-card').forEach(card => {
+  card.addEventListener('click', () => {
+    document.querySelectorAll('.process-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    selectedProcess = card.dataset.process;
+    processSelected = true;
+    checkBegin();
+  });
+});
+
+function checkBegin() {
+  if (langDetected && processSelected && selectedLang) {
+    btnBegin.disabled = false;
+  } else {
+    btnBegin.disabled = true;
+  }
 }
 
-function playAudio(b64) {
-  const p = document.getElementById("audioPlayer");
-  p.src = `data:audio/wav;base64,${b64}`;
-  p.play().catch(() => { p.src = `data:audio/mpeg;base64,${b64}`; p.play().catch(() => {}); });
+// ── BEGIN CONVERSATION ─────────────────────────────────────────────────────
+btnBegin && btnBegin.addEventListener('click', () => {
+  if (btnBegin.disabled) return;
+
+  const langEl = document.getElementById('detectedLangName');
+  const actualLang = langEl ? langEl.textContent.trim() : selectedLang;
+
+  const procCard = document.querySelector('.process-card.selected');
+  const actualProcess = procCard ? procCard.dataset.process : selectedProcess;
+
+  sessionStorage.setItem('va_lang', actualLang);
+  sessionStorage.setItem('va_process', actualProcess);
+  if (lastTranscript) sessionStorage.setItem('va_first_utterance', lastTranscript);
+
+  window.location.href = `conversation-desk.html?lang=${encodeURIComponent(actualLang)}&process=${encodeURIComponent(actualProcess)}`;
+});
+
+// ── DOM HELPERS ───────────────────────────────────────────────────────────────
+function showEl(id) {
+  const e = document.getElementById(id);
+  if (e) { e.classList.add('show'); e.style.display = 'flex'; }
 }
 
+// ── WAV CONVERSION ─────────────────────────────────────────────────────────
 function getSupportedMimeType() {
-  for (const t of ["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/mp4"])
-    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t)) return t;
-  return "";
+  const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+  for (const type of types) {
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(type)) return type;
+  }
+  return '';
 }
 
 async function convertToWav(blob) {
   try {
-    const ab  = await blob.arrayBuffer();
-    const ctx = new AudioContext({ sampleRate: 16000 });
-    const dec = await ctx.decodeAudioData(ab);
-    const s = dec.getChannelData(0), n = s.length;
-    const buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
-    const ws = (o, str) => { for (let i=0;i<str.length;i++) v.setUint8(o+i, str.charCodeAt(i)); };
-    ws(0,"RIFF"); v.setUint32(4,36+n*2,true); ws(8,"WAVE");
-    ws(12,"fmt "); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
-    v.setUint32(24,16000,true); v.setUint32(28,32000,true); v.setUint16(32,2,true); v.setUint16(34,16,true);
-    ws(36,"data"); v.setUint32(40,n*2,true);
-    let off=44;
-    for (let i=0;i<n;i++,off+=2) { const x=Math.max(-1,Math.min(1,s[i])); v.setInt16(off,x<0?x*0x8000:x*0x7FFF,true); }
-    await ctx.close();
-    return new Blob([buf], { type:"audio/wav" });
-  } catch(e) { return blob; }
+    const arrayBuffer = await blob.arrayBuffer();
+    const audioCtx = new AudioContext({ sampleRate: 16000 });
+    const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+    const numSamples = decoded.length;
+    const buffer = new ArrayBuffer(44 + numSamples * 2);
+    const view = new DataView(buffer);
+    const samples = decoded.getChannelData(0);
+    function ws(o, s) { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); }
+    ws(0,'RIFF'); view.setUint32(4,36+numSamples*2,true); ws(8,'WAVE');
+    ws(12,'fmt '); view.setUint32(16,16,true); view.setUint16(20,1,true);
+    view.setUint16(22,1,true); view.setUint32(24,16000,true); view.setUint32(28,32000,true);
+    view.setUint16(32,2,true); view.setUint16(34,16,true);
+    ws(36,'data'); view.setUint32(40,numSamples*2,true);
+    let off = 44;
+    for (let i = 0; i < numSamples; i++, off += 2) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+    await audioCtx.close();
+    return new Blob([buffer], { type: 'audio/wav' });
+  } catch (e) { return blob; }
 }
 
-function escHtml(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
-function formatTime() { return new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit",hour12:true}); }
-function showToast(msg, isError=false) {
-  const t = document.getElementById("toast");
-  document.getElementById("toastText").textContent = msg;
-  t.style.background = isError ? "var(--error)" : "var(--navy)";
-  t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), 3000);
+// ── LOAD SESSION HISTORY FROM localStorage ────────────────────────────────────
+function loadSessionHistory() {
+  let sessions = [];
+  try {
+    const raw = localStorage.getItem('va_sessions');
+    if (raw) sessions = JSON.parse(raw);
+  } catch(e) { sessions = []; }
+
+  const tbody = document.querySelector('#section-history .history-table tbody');
+  if (!tbody) return;
+
+  if (sessions.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:32px">
+      No sessions saved yet. Complete a conversation and click "Save to Records".
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = sessions.map(s => `
+    <tr>
+      <td>${s.date || ''}, ${s.time || ''}</td>
+      <td>${s.process || ''}</td>
+      <td><span class="lang-pill">${s.language || ''}</span></td>
+      <td>${s.process || ''}</td>
+      <td>${s.duration || ''}</td>
+      <td>✓ Saved</td>
+      <td><button class="view-link" onclick="viewSession('${s.id}')">View →</button></td>
+    </tr>
+  `).join('');
 }
+
+// ── LOAD BILINGUAL SUMMARY FROM localStorage ──────────────────────────────────
+function loadBilingualSummary() {
+  let sessions = [];
+  try {
+    const raw = localStorage.getItem('va_sessions');
+    if (raw) sessions = JSON.parse(raw);
+  } catch(e) { sessions = []; }
+
+  const section = document.getElementById('section-summary');
+  if (!section) return;
+
+  if (sessions.length === 0) {
+    section.innerHTML = `<div style="text-align:center;padding:60px;color:var(--text-muted)">
+      No summaries saved yet. Complete a conversation and save it to see bilingual summaries here.
+    </div>`;
+    return;
+  }
+
+  const latest = sessions[0];
+  section.innerHTML = `
+    <div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <label style="font-size:13px;color:var(--text-dim);font-weight:600">Session:</label>
+      <select id="summarySessionPicker" onchange="renderSummaryById(this.value)"
+        style="border:1px solid rgba(0,0,0,0.08);border-radius:8px;padding:6px 12px;font-size:13px;font-family:inherit;color:var(--text);background:#fff">
+        ${sessions.map((s,i) => `<option value="${s.id}">${s.date} ${s.time} — ${s.process} (${s.language})</option>`).join('')}
+      </select>
+    </div>
+    <div id="summaryCards"></div>`;
+
+  renderSummaryById(latest.id);
+}
+
+function renderSummaryById(sessionId) {
+  let sessions = [];
+  try { sessions = JSON.parse(localStorage.getItem('va_sessions') || '[]'); } catch(e) {}
+  const s = sessions.find(x => x.id === sessionId);
+  if (!s) return;
+
+  const container = document.getElementById('summaryCards');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="two-col">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">English Summary</div>
+          <button class="card-action" onclick="navigator.clipboard.writeText(document.getElementById('engSumText').textContent);showToast('Copied!')">Copy</button>
+        </div>
+        <p id="engSumText" style="font-size:14px;line-height:1.75;color:var(--text-dim);white-space:pre-wrap">${escHtml(s.englishSummary || '')}</p>
+        <div style="margin-top:12px;font-size:11px;color:var(--text-muted)">${s.language} · ${s.process} · ${s.duration} · ${s.date}</div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">${s.language} Summary</div>
+        </div>
+        <p id="regSumText" style="font-size:14px;line-height:1.9;color:var(--text-dim)">${escHtml(s.regionalSummary || '')}</p>
+      </div>
+    </div>`;
+}
+
+// ── LOAD OVERVIEW STATS FROM localStorage ─────────────────────────────────────
+function loadOverviewStats() {
+  let sessions = [];
+  try { sessions = JSON.parse(localStorage.getItem('va_sessions') || '[]'); } catch(e) {}
+
+  const today = new Date().toDateString();
+  const todaySessions = sessions.filter(s => new Date(s.timestamp).toDateString() === today);
+  const avgDur = todaySessions.length
+    ? (todaySessions.reduce((a,s) => a + (s.durationMinutes||0), 0) / todaySessions.length).toFixed(1)
+    : 0;
+  const langs = [...new Set(sessions.map(s => s.language))];
+
+  const statGrid = document.querySelector('#section-overview .stat-grid');
+  if (statGrid) {
+    statGrid.innerHTML = `
+      <div class="stat-card">
+        <div class="stat-label">Sessions today</div>
+        <div class="stat-value">${todaySessions.length}</div>
+        <div class="stat-sub">Total saved: ${sessions.length}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avg. duration</div>
+        <div class="stat-value">${avgDur}<span style="font-size:16px;font-weight:400"> min</span></div>
+        <div class="stat-sub">Today's sessions</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Languages used</div>
+        <div class="stat-value">${langs.length}</div>
+        <div class="stat-sub">${langs.join(', ') || '—'}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Summaries saved</div>
+        <div class="stat-value">${sessions.length}</div>
+        <div class="stat-sub">${sessions.length > 0 ? '100%' : '0%'} completion rate</div>
+      </div>`;
+  }
+
+  const twoCol = document.querySelector('#section-overview .two-col');
+  if (!twoCol) return;
+
+  const recentCard = twoCol.querySelector('.card');
+  if (!recentCard) return;
+
+  const LANG_FLAGS = { Hindi:'हि', Marathi:'मा', Tamil:'த', Telugu:'తె', English:'EN' };
+
+  if (sessions.length === 0) {
+    recentCard.innerHTML = `
+      <div class="card-header">
+        <div class="card-title">Recent sessions</div>
+      </div>
+      <div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px">
+        No sessions yet. Start a conversation to see history here.
+      </div>`;
+    return;
+  }
+
+  recentCard.innerHTML = `
+    <div class="card-header">
+      <div class="card-title">Recent sessions</div>
+      <button class="card-action" onclick="navigate('history')">View all</button>
+    </div>
+    ${sessions.slice(0,4).map(s => `
+      <div class="session-item" style="cursor:pointer" onclick="viewSession('${s.id}')">
+        <div class="session-lang-badge">${LANG_FLAGS[s.language] || s.language?.slice(0,2) || '?'}</div>
+        <div class="session-info">
+          <div class="session-title">${escHtml(s.process)}</div>
+          <div class="session-meta">${escHtml(s.language)} · ${s.duration} · Summary saved</div>
+        </div>
+        <div class="session-time">${s.time}</div>
+      </div>`).join('')}`;
+}
+
+// ── VIEW INDIVIDUAL SESSION ───────────────────────────────────────────────────
+function viewSession(sessionId) {
+  navigate('summary');
+  setTimeout(() => {
+    const picker = document.getElementById('summarySessionPicker');
+    if (picker) { picker.value = sessionId; renderSummaryById(sessionId); }
+  }, 100);
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── LEAD GENERATION ────────────────────────────────────────────────────────
+// Pulls REAL leads from the backend (/api/conversation/leads), which is fed
+// by the "Send to Bank" button on the Live Desk conversation summary modal.
+// Backend doesn't return a lead-quality score, so we compute one client-side
+// from field completeness — this is just for sorting hot/warm/cold, not a
+// claim about actual creditworthiness.
+
+const LEADS_API_BASE = "https://rohan667-voiceassist-ai-backend-kj.hf.space/api/conversation";
+
+function getLeadTagLabel(tag) {
+  if (tag === 'hot') return 'Hot lead';
+  if (tag === 'warm') return 'Warm lead';
+  return 'Needs follow-up';
+}
+
+function mapBackendLead(record) {
+  const lead = record.lead || {};
+  const name = (lead.customer_name && lead.customer_name.trim()) || lead.query_summary || 'Unknown customer';
+  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '??';
+
+  const interestParts = [];
+  if (lead.loan_type) interestParts.push(lead.loan_type);
+  if (lead.account_type) interestParts.push(lead.account_type);
+  if (lead.card_selected) interestParts.push(lead.card_selected);
+  const interest = interestParts.length ? interestParts.join(', ') : (record.process_type || 'General enquiry');
+
+  const lang = record.customer_language || '—';
+  const phone = lead.phone || lead.account_last4 || '—';
+
+  const values = Object.values(lead);
+  const filled = values.filter(v => v && String(v).trim()).length;
+  const score = values.length ? Math.round((filled / values.length) * 100) : 0;
+
+  let tag = 'cold';
+  if (score >= 70) tag = 'hot';
+  else if (score >= 40) tag = 'warm';
+
+  let date = '—';
+  if (record.timestamp) {
+    try {
+      date = new Date(record.timestamp).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    } catch (e) {}
+  }
+
+  return { name, initials, interest, lang, score, tag, phone, date, raw: record };
+}
+
+async function loadLeads() {
+  const section = document.getElementById('section-lead-generation');
+  if (!section) return;
+
+  const listEl = section.querySelector('#leadList');
+  const statRow = section.querySelector('.lead-stat-row');
+
+  if (listEl) {
+    listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px">Loading leads…</div>`;
+  }
+
+  let rawLeads = [];
+  let fetchFailed = false;
+  try {
+    const res = await fetch(`${LEADS_API_BASE}/leads`);
+    const data = await res.json();
+    if (data.success && Array.isArray(data.leads)) {
+      rawLeads = data.leads;
+    } else {
+      fetchFailed = true;
+    }
+  } catch (e) {
+    console.warn('[loadLeads] failed to fetch leads from backend:', e);
+    fetchFailed = true;
+  }
+
+  const leads = rawLeads.map(mapBackendLead).reverse(); // newest first
+
+  const hot = leads.filter(l => l.tag === 'hot').length;
+  const warm = leads.filter(l => l.tag === 'warm').length;
+  const cold = leads.filter(l => l.tag === 'cold').length;
+
+  if (statRow) {
+    statRow.innerHTML = `
+      <div class="stat-card">
+        <div class="stat-label">Total leads</div>
+        <div class="stat-value">${leads.length}</div>
+        <div class="stat-sub">From customer conversations</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Hot leads</div>
+        <div class="stat-value">${hot}</div>
+        <div class="stat-sub"><span class="stat-trend-up">Follow up today</span></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Warm leads</div>
+        <div class="stat-value">${warm}</div>
+        <div class="stat-sub">Nurture this week</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Incomplete</div>
+        <div class="stat-value">${cold}</div>
+        <div class="stat-sub">Missing details</div>
+      </div>`;
+  }
+
+  if (!listEl) return;
+
+  if (fetchFailed) {
+    listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--error);font-size:13px">
+      Could not reach the leads server. Check that the backend is running and try again.
+    </div>`;
+    return;
+  }
+
+  if (leads.length === 0) {
+    listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px">
+      No leads yet. Leads appear here automatically when staff click "Send to Bank" at the end of a conversation on the Live Desk.
+    </div>`;
+    return;
+  }
+
+  listEl.innerHTML = leads.map((l, i) => `
+    <div class="lead-card">
+      <div class="lead-avatar">${escHtml(l.initials)}</div>
+      <div class="lead-info">
+        <div class="lead-name">${escHtml(l.name)} &nbsp; <span class="lead-tag lead-tag-${l.tag}">${getLeadTagLabel(l.tag)}</span></div>
+        <div class="lead-meta">${escHtml(l.interest)} · ${escHtml(l.lang)} · ${escHtml(l.phone)} · ${escHtml(l.date)}</div>
+      </div>
+      <div class="lead-score">
+        <div class="lead-score-value">${l.score}</div>
+        <div class="lead-score-label">Complete</div>
+      </div>
+      <div class="lead-actions">
+        <button class="lead-action-btn lead-action-call" onclick="showToast('Calling ${escHtml(l.name)}…')">Call</button>
+        <button class="lead-action-btn" onclick="showLeadDetails(${i})">Details</button>
+      </div>
+    </div>
+  `).join('');
+
+  window._leadsCache = leads;
+}
+
+function showLeadDetails(index) {
+  const leads = window._leadsCache || [];
+  const l = leads[index];
+  if (!l) return;
+  const lead = l.raw.lead || {};
+  const rows = Object.entries(lead)
+    .filter(([k, v]) => v && String(v).trim())
+    .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`)
+    .join('\n');
+  alert(`Lead details — ${l.raw.process_type || ''}\n\n${rows || 'No additional details captured.'}\n\nSession duration: ${l.raw.session_duration || '—'}`);
+}
+
+async function saveManualLead() {
+  const nameEl = document.getElementById('manualLeadName');
+  const phoneEl = document.getElementById('manualLeadPhone');
+  const interestEl = document.getElementById('manualLeadInterest');
+  const notesEl = document.getElementById('manualLeadNotes');
+
+  const name = nameEl ? nameEl.value.trim() : '';
+  if (!name) { showToast('Enter a customer name first', true); return; }
+
+  const lead = {
+    customer_name: name,
+    phone: phoneEl ? phoneEl.value.trim() : '',
+    query_summary: notesEl ? notesEl.value.trim() : '',
+  };
+  const interest = interestEl ? interestEl.value : 'General enquiry';
+
+  const btn = document.getElementById('manualLeadSaveBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  try {
+    const res = await fetch(`${LEADS_API_BASE}/submit-lead`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        process_type: interest,
+        customer_language: 'English',
+        lead,
+        session_duration: '',
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Lead saved ✓');
+      if (nameEl) nameEl.value = '';
+      if (phoneEl) phoneEl.value = '';
+      if (notesEl) notesEl.value = '';
+      loadLeads();
+    } else {
+      showToast(data.error || 'Failed to save lead', true);
+    }
+  } catch (e) {
+    showToast('Network error saving lead', true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Save Lead'; }
+  }
+}
+
+// ── CBS (CORE BANKING SERVICES) — Open Account / Credit Card / Deposit-Withdraw ──
+// These flows don't have a live core-banking backend, so they behave like the
+// rest of this dashboard's "offline demo" pieces (e.g. doLookup): submissions
+// are validated client-side, persisted to localStorage so Session History /
+// Overview style screens stay consistent across reloads, and confirmed with a
+// toast + reference number. Swap the TODO sections for real API calls once a
+// CBS endpoint exists.
+
+function genRefNo(prefix) {
+  const n = Math.floor(100000 + Math.random() * 900000);
+  return `${prefix}${n}`;
+}
+
+function getCbsAccounts() {
+  try { return JSON.parse(localStorage.getItem('va_cbs_accounts') || '[]'); } catch (e) { return []; }
+}
+function setCbsAccounts(list) {
+  localStorage.setItem('va_cbs_accounts', JSON.stringify(list));
+}
+
+// Seed one demo account (Rajesh Sharma, looked up elsewhere in the portal) so
+// Deposit/Withdraw has something to act on out of the box.
+function ensureSeedAccount() {
+  const accounts = getCbsAccounts();
+  if (accounts.length === 0) {
+    accounts.push({
+      accountNo: '4523881122047700',
+      name: 'Rajesh Suresh Sharma',
+      type: 'Savings',
+      balance: 124832,
+    });
+    setCbsAccounts(accounts);
+  }
+}
+ensureSeedAccount();
+
+// ---- Open New Account ----
+function submitOpenAccount() {
+  const name = document.getElementById('oaName')?.value.trim();
+  const mobile = document.getElementById('oaMobile')?.value.trim();
+  const aadhaar = document.getElementById('oaAadhaar')?.value.trim();
+  const accType = document.getElementById('oaAccType')?.value;
+  const initialDeposit = parseFloat(document.getElementById('oaInitialDeposit')?.value || '0');
+
+  if (!name) { showToast('Enter customer name first', true); return; }
+  if (!mobile || mobile.length < 10) { showToast('Enter a valid mobile number', true); return; }
+  if (!aadhaar || aadhaar.replace(/\s/g,'').length < 12) { showToast('Enter a valid 12-digit Aadhaar number', true); return; }
+  if (isNaN(initialDeposit) || initialDeposit < 0) { showToast('Enter a valid initial deposit amount', true); return; }
+
+  const btn = document.getElementById('oaSubmitBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Opening account…'; }
+
+  setTimeout(() => {
+    const accountNo = genRefNo('45239');
+    const accounts = getCbsAccounts();
+    accounts.unshift({ accountNo, name, type: accType, balance: initialDeposit });
+    setCbsAccounts(accounts);
+
+    if (btn) { btn.disabled = false; btn.textContent = 'Open Account'; }
+    showToast(`Account opened — No. ${accountNo}`);
+
+    ['oaName','oaMobile','oaAadhaar','oaInitialDeposit'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+
+    const resultEl = document.getElementById('oaResult');
+    if (resultEl) {
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = `
+        <div class="cbs-success-row">
+          <div>
+            <div class="cbs-success-label">New ${escHtml(accType)} account</div>
+            <div class="cbs-success-value">${escHtml(name)}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="cbs-success-label">Account no.</div>
+            <div class="cbs-success-value">${accountNo}</div>
+          </div>
+        </div>`;
+    }
+    loadCbsAccountsIntoSelects();
+  }, 900);
+}
+
+// ---- Apply for Credit Card ----
+function submitCreditCardApplication() {
+  const name = document.getElementById('ccName')?.value.trim();
+  const accountNo = document.getElementById('ccAccountNo')?.value.trim();
+  const income = parseFloat(document.getElementById('ccIncome')?.value || '0');
+  const cardType = document.getElementById('ccCardType')?.value;
+
+  if (!name) { showToast('Enter customer name first', true); return; }
+  if (!accountNo) { showToast('Enter the linked account number', true); return; }
+  if (isNaN(income) || income <= 0) { showToast('Enter a valid monthly income', true); return; }
+
+  const btn = document.getElementById('ccSubmitBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
+
+  setTimeout(() => {
+    // Simple, transparent eligibility heuristic — not a real credit decision.
+    let status = 'Pending review';
+    let limit = 0;
+    if (income >= 100000) { status = 'Pre-approved'; limit = 300000; }
+    else if (income >= 40000) { status = 'Pre-approved'; limit = 100000; }
+    else if (income >= 20000) { status = 'Pre-approved'; limit = 40000; }
+
+    const appRef = genRefNo('CC');
+
+    if (btn) { btn.disabled = false; btn.textContent = 'Submit Application'; }
+    showToast(`Application ${appRef} submitted — ${status}`);
+
+    const resultEl = document.getElementById('ccResult');
+    if (resultEl) {
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = `
+        <div class="cbs-success-row">
+          <div>
+            <div class="cbs-success-label">${escHtml(cardType)} application</div>
+            <div class="cbs-success-value">${escHtml(name)} · Ref ${appRef}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="cbs-success-label">${status}</div>
+            <div class="cbs-success-value">${limit ? '₹' + limit.toLocaleString('en-IN') + ' limit' : '—'}</div>
+          </div>
+        </div>`;
+    }
+
+    ['ccName','ccAccountNo','ccIncome'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+  }, 1000);
+}
+
+// ---- Deposit / Withdraw ----
+function loadCbsAccountsIntoSelects() {
+  const accounts = getCbsAccounts();
+  const select = document.getElementById('txnAccountSelect');
+  if (!select) return;
+  select.innerHTML = accounts.map(a =>
+    `<option value="${a.accountNo}">${a.accountNo} — ${escHtml(a.name)} (₹${a.balance.toLocaleString('en-IN')})</option>`
+  ).join('') || `<option value="">No accounts found</option>`;
+  updateTxnBalancePreview();
+}
+
+function updateTxnBalancePreview() {
+  const select = document.getElementById('txnAccountSelect');
+  const balEl = document.getElementById('txnCurrentBalance');
+  if (!select || !balEl) return;
+  const accounts = getCbsAccounts();
+  const acc = accounts.find(a => a.accountNo === select.value);
+  balEl.textContent = acc ? `₹${acc.balance.toLocaleString('en-IN')}` : '—';
+}
+
+document.querySelectorAll('.txn-type-toggle .txn-type-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.txn-type-toggle .txn-type-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+function submitTransaction() {
+  const select = document.getElementById('txnAccountSelect');
+  const amountEl = document.getElementById('txnAmount');
+  const activeTypeBtn = document.querySelector('.txn-type-toggle .txn-type-btn.active');
+  const type = activeTypeBtn ? activeTypeBtn.dataset.txnType : 'deposit';
+
+  const accountNo = select?.value;
+  const amount = parseFloat(amountEl?.value || '0');
+
+  if (!accountNo) { showToast('Select an account first', true); return; }
+  if (isNaN(amount) || amount <= 0) { showToast('Enter a valid amount', true); return; }
+
+  const accounts = getCbsAccounts();
+  const acc = accounts.find(a => a.accountNo === accountNo);
+  if (!acc) { showToast('Account not found', true); return; }
+
+  if (type === 'withdraw' && amount > acc.balance) {
+    showToast('Insufficient balance for this withdrawal', true);
+    return;
+  }
+
+  const btn = document.getElementById('txnSubmitBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Processing…'; }
+
+  setTimeout(() => {
+    acc.balance = type === 'deposit' ? acc.balance + amount : acc.balance - amount;
+    setCbsAccounts(accounts);
+
+    const txnRef = genRefNo('TXN');
+    if (btn) { btn.disabled = false; btn.textContent = 'Process Transaction'; }
+    showToast(`${type === 'deposit' ? 'Deposit' : 'Withdrawal'} of ₹${amount.toLocaleString('en-IN')} processed — Ref ${txnRef}`);
+
+    if (amountEl) amountEl.value = '';
+    loadCbsAccountsIntoSelects();
+
+    const resultEl = document.getElementById('txnResult');
+    if (resultEl) {
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = `
+        <div class="cbs-success-row">
+          <div>
+            <div class="cbs-success-label">${type === 'deposit' ? 'Deposit' : 'Withdrawal'} · Ref ${txnRef}</div>
+            <div class="cbs-success-value">${escHtml(acc.name)} — ${accountNo}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="cbs-success-label">New balance</div>
+            <div class="cbs-success-value">₹${acc.balance.toLocaleString('en-IN')}</div>
+          </div>
+        </div>`;
+    }
+  }, 800);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadOverviewStats();
+  loadCbsAccountsIntoSelects();
+});
+window.addEventListener('load', () => {
+  loadOverviewStats();
+});

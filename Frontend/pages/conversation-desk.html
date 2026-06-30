@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -114,6 +113,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);height:100vh;overflow:h
 .customer-mic.recording{background:var(--error);box-shadow:0 0 0 8px rgba(185,28,28,0.15);animation:micPulse 1.2s ease-in-out infinite}
 @keyframes micPulse{0%,100%{box-shadow:0 0 0 6px rgba(185,28,28,0.14)}50%{box-shadow:0 0 0 14px rgba(185,28,28,0.05)}}
 .customer-mic svg{width:24px;height:24px}
+.customer-mic:disabled{opacity:0.4;cursor:not-allowed}
 .mic-hint{font-size:12px;color:var(--slate-light)}
 .mic-hint.recording{color:var(--error);font-weight:500}
 .processing-bar{display:none;align-items:center;gap:8px;padding:7px 18px;background:rgba(184,146,61,0.07);border-bottom:1px solid rgba(184,146,61,0.15);font-size:12px;color:var(--gold);font-weight:500}
@@ -152,9 +152,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);height:100vh;overflow:h
 .staff-textarea{flex:1;border:1px solid var(--border);border-radius:8px;padding:9px 13px;font-size:13.5px;font-family:inherit;color:var(--navy);resize:none;outline:none;line-height:1.5;min-height:42px;max-height:110px;transition:border-color 150ms ease}
 .staff-textarea:focus{border-color:var(--gold)}
 .staff-textarea::placeholder{color:var(--slate-light);font-size:12.5px}
+.staff-textarea:disabled{opacity:0.5;cursor:not-allowed}
 .staff-mic-btn{width:42px;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--bg);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--slate);transition:all 150ms ease;flex-shrink:0}
 .staff-mic-btn:hover{border-color:var(--navy);color:var(--navy)}
 .staff-mic-btn.recording{background:var(--error);border-color:var(--error);color:var(--white)}
+.staff-mic-btn:disabled{opacity:0.4;cursor:not-allowed}
 .staff-mic-btn svg{width:16px;height:16px}
 .staff-send{height:42px;padding:0 15px;background:var(--navy);color:var(--white);border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;transition:background 150ms ease,opacity 150ms ease;white-space:nowrap;flex-shrink:0}
 .staff-send:hover{background:var(--navy-light)}
@@ -260,7 +262,7 @@ audio{display:none}
     <div class="transcript" id="custTranscript">
       <div class="empty-state" id="custEmpty">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3" stroke-linecap="round"/></svg>
-        <p id="custEmptyTxt">Tap the mic to record the customer</p>
+        <p id="custEmptyTxt">Tap the mic to start recording the customer</p>
       </div>
     </div>
     <div class="pane-controls">
@@ -290,7 +292,7 @@ audio{display:none}
     <div class="transcript" id="staffTranscript">
       <div class="empty-state" id="staffEmpty">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-4l-4 4-4-4z" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <p>Waiting for conversation to begin…</p>
+        <p>Conversation will appear here…</p>
       </div>
     </div>
     <div class="pane-controls" id="staffControls">
@@ -579,11 +581,6 @@ const LEAD_FORM_FIELDS = {
 
 // ═══════════════════════════════════════════════════════════
 // CLIENT-SIDE LEAD EXTRACTION FALLBACK
-// Runs locally against the conversation log whenever the backend
-// /extract-lead call fails, times out, or returns blank fields.
-// This guarantees the form fills from anything obviously said in
-// the conversation (e.g. "My name is X", "My date of birth is X")
-// even if the backend's extraction model misses it.
 // ═══════════════════════════════════════════════════════════
 const FIELD_PATTERNS = {
   customer_name: [
@@ -645,7 +642,6 @@ const FIELD_PATTERNS = {
 };
 
 function buildConversationText() {
-  // Prefer English: translation field for customer turns, raw text for staff turns
   return log.map(t => {
     if (t.role === "customer") return t.translation || t.text || "";
     return t.text || t.translation || "";
@@ -693,7 +689,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initUI();
   startTimer();
   bindEvents();
-  setTimeout(autoGreet, 400);
+  autoGreet();
 });
 
 function cleanModelText(raw) {
@@ -727,7 +723,6 @@ function initUI() {
   document.getElementById("custLangTag").textContent = meta.tag;
   document.getElementById("intentText").textContent = PROCESS;
   document.getElementById("regLabel").textContent = `${LANG} Summary`;
-  document.getElementById("custEmptyTxt").textContent = `Tap the mic to record the customer in ${meta.tag}`;
   buildProgressBar();
   updateStepUI();
 }
@@ -1037,12 +1032,7 @@ async function toggleStaffMic() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// LEAD AUTO-FILL — shown inside this page's own summary modal
-// Now: backend extraction + client-side fallback merge.
-// Any field the backend leaves blank gets filled locally from
-// the conversation log via regex (see clientSideExtractLead above).
-// Auto-filled fields get a green "auto" highlight so staff can
-// see at a glance what came from the conversation vs needs typing.
+// LEAD AUTO-FILL
 // ═══════════════════════════════════════════════════════════
 let lastLeadSources = {}; // key -> "backend" | "fallback" | "manual"
 
@@ -1073,8 +1063,6 @@ async function fetchLeadForm() {
     console.warn("[fetchLeadForm] backend extraction failed, using local fallback:", e);
   }
 
-  // Always compute the local fallback so we can fill any gaps,
-  // even when the backend call "succeeds" but returns blanks.
   const fallbackLead = clientSideExtractLead(fields);
 
   const merged = {};
@@ -1198,19 +1186,11 @@ async function fetchSummary(duration) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// ✅ SAVE TO RECORDS — FIXED
-// Previously this saved to localStorage and redirected to dashboard.html,
-// which is NOT what you wanted. It now matches conversation-desk.js:
-// it hands the conversation off to lead-form.html via sessionStorage
-// (same keys lead-form.html reads), then redirects there. lead-form.html
-// auto-extracts and auto-fills the form on its own — staff just reviews
-// and clicks "Send to Bank" on that page.
+// SAVE TO RECORDS → hands off to lead-form.html via sessionStorage
 // ═══════════════════════════════════════════════════════════
 function saveRecords() {
   const duration = document.getElementById("timerDisplay")?.textContent || "";
 
-  // Keep a local copy too (optional, doesn't hurt — dashboard can still
-  // read from this if you build a records list later).
   try {
     const sessionRecord = {
       id: "session_" + Date.now(),
@@ -1229,7 +1209,6 @@ function saveRecords() {
     localStorage.setItem("va_sessions", JSON.stringify(sessions));
   } catch (e) { console.warn("[saveRecords] local history save failed:", e); }
 
-  // Hand off to lead-form.html — SAME keys lead-form.html reads on load.
   sessionStorage.setItem("va_lead_conversation", JSON.stringify(log));
   sessionStorage.setItem("va_lead_process", PROCESS);
   sessionStorage.setItem("va_lead_language", LANG);
