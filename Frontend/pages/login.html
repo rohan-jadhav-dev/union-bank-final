@@ -65,78 +65,125 @@
       </div>
     </div>
   </div>
+
   <div class="form-panel">
     <div class="form-wrap">
-      <div class="form-header">
-        <div class="form-title">Staff sign in</div>
-        <div class="form-subtitle">Use your bank employee credentials to access the branch desk assistant.</div>
-      </div>
-      <form id="loginForm" novalidate>
-        <div class="field-group">
-          <label class="field-label" for="empId">Employee ID</label>
-          <div class="field-input-wrap">
-            <input class="field-input" type="text" id="empId" placeholder="e.g. EMP104782" autocomplete="username" />
-            <span class="field-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke-linecap="round"/></svg>
-            </span>
-          </div>
-          <span class="field-error" id="empIdError">Enter your employee ID</span>
+
+      <!-- ===================== STEP 1: CREDENTIALS ===================== -->
+      <div id="credentialsStep">
+        <div class="form-header">
+          <div class="form-title">Staff sign in</div>
+          <div class="form-subtitle">Use your bank employee credentials to access the branch desk assistant.</div>
         </div>
-        <div class="field-group">
-          <label class="field-label" for="password">Password</label>
-          <div class="field-input-wrap">
-            <input class="field-input" type="password" id="password" placeholder="Enter your password" autocomplete="current-password" />
-            <button type="button" class="field-toggle" id="togglePassword" aria-label="Show password">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
+        <form id="loginForm" novalidate>
+          <div class="field-group">
+            <label class="field-label" for="empId">Employee ID</label>
+            <div class="field-input-wrap">
+              <input class="field-input" type="text" id="empId" placeholder="e.g. EMP104782" autocomplete="username" />
+              <span class="field-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke-linecap="round"/></svg>
+              </span>
+            </div>
+            <span class="field-error" id="empIdError">Enter your employee ID</span>
           </div>
-          <span class="field-error" id="passwordError">Enter your password</span>
-        </div>
-        <div class="field-group">
-          <div class="security-check" id="securityCheck">
-            <div class="security-check-left">
-              <div class="security-checkbox" id="securityCheckbox" tabindex="0" role="checkbox" aria-checked="false">
-                <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                <div class="spinner" id="securitySpinner"></div>
+
+          <div class="field-group">
+            <label class="field-label" for="password">Password</label>
+            <div class="field-input-wrap">
+              <input class="field-input" type="password" id="password" placeholder="Enter your password" autocomplete="current-password" />
+              <button type="button" class="field-toggle" id="togglePassword" aria-label="Show password">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <span class="field-error" id="passwordError">Enter your password</span>
+            <span class="field-error" id="authError">Employee ID or password is incorrect</span>
+          </div>
+
+          <div class="field-group">
+            <div class="security-check" id="securityCheck">
+              <div class="security-check-left">
+                <div class="security-checkbox" id="securityCheckbox" tabindex="0" role="checkbox" aria-checked="false">
+                  <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  <div class="spinner" id="securitySpinner"></div>
+                </div>
+                <span class="security-label" id="securityLabel">I am an authorized staff member</span>
               </div>
-              <span class="security-label" id="securityLabel">I am an authorized staff member</span>
-            </div>
-            <div class="security-badge">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l8 4v5c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V6l8-4z" stroke-linejoin="round"/></svg>
-              <span>SecureCheck</span>
+              <div class="security-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l8 4v5c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V6l8-4z" stroke-linejoin="round"/></svg>
+                <span>SecureCheck</span>
+              </div>
             </div>
           </div>
-        </div>
-        <div class="field-row">
-          <div class="checkbox-wrap">
-            <input type="checkbox" id="remember" />
-            <label class="checkbox-label" for="remember">Stay signed in</label>
+
+          <div class="field-row">
+            <div class="checkbox-wrap">
+              <input type="checkbox" id="remember" />
+              <label class="checkbox-label" for="remember">Stay signed in</label>
+            </div>
+            <a class="forgot-link" href="#">Forgot password?</a>
           </div>
-          <a class="forgot-link" href="#">Forgot password?</a>
+
+          <button type="submit" class="btn-primary" id="submitBtn">
+            <span class="btn-text">Continue</span>
+            <div class="btn-spinner" id="btnSpinner"></div>
+          </button>
+        </form>
+
+        <div class="divider-row">
+          <div class="divider-line"></div>
+          <span class="divider-text">Identity verification</span>
+          <div class="divider-line"></div>
         </div>
-        <button type="submit" class="btn-primary" id="submitBtn">
-          <span class="btn-text">Sign in</span>
-          <div class="btn-spinner" id="btnSpinner"></div>
+        <div class="sso-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2l8 4v5c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V6l8-4z" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div class="sso-note-text">Sign-in is verified through your bank's existing staff directory. A face check confirms it's really you before access is granted.</div>
+        </div>
+        <div class="form-footer">For access issues, contact your branch IT administrator.</div>
+      </div>
+
+      <!-- ===================== STEP 2: FACE VERIFICATION ===================== -->
+      <div id="faceStep" style="display:none;">
+        <div class="form-header">
+          <div class="form-title">Face verification</div>
+          <div class="form-subtitle">Look at the camera to confirm your identity. This step never stores your photo.</div>
+        </div>
+
+        <div class="face-frame-wrap">
+          <video id="faceVideo" autoplay muted playsinline class="face-video"></video>
+          <div class="face-frame-overlay" id="faceOverlay"></div>
+        </div>
+
+        <div class="security-check" id="faceCheckRow" style="margin-top:18px;">
+          <div class="security-check-left">
+            <div class="security-checkbox" id="faceCheckbox">
+              <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <div class="spinner" id="faceSpinner"></div>
+            </div>
+            <span class="security-label" id="faceLabel">Position your face in frame</span>
+          </div>
+          <div class="security-badge">
+            <span id="faceStatus">Waiting…</span>
+          </div>
+        </div>
+
+        <button type="button" class="btn-primary" id="retryFaceBtn" style="margin-top:18px; display:none;">
+          <span class="btn-text">Retry face check</span>
         </button>
-      </form>
-      <div class="divider-row">
-        <div class="divider-line"></div>
-        <span class="divider-text">Identity verification</span>
-        <div class="divider-line"></div>
+        <button type="button" class="forgot-link" id="backToCredsBtn" style="margin-top:14px; background:none; border:none; cursor:pointer; display:block; text-align:center; width:100%;">
+          ← Back to sign in
+        </button>
       </div>
-      <div class="sso-note">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2l8 4v5c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V6l8-4z" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <div class="sso-note-text">Sign-in is verified through your bank's existing staff directory. A one-time code may be requested for added security.</div>
-      </div>
-      <div class="form-footer">For access issues, contact your branch IT administrator.</div>
+
     </div>
   </div>
 </div>
+
 <div class="toast" id="toast">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
   <span id="toastText">Verified successfully</span>
 </div>
+
+<script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 <script src="../js/login.js"></script>
 </body>
 </html>
-

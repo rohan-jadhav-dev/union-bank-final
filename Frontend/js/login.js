@@ -1,9 +1,24 @@
+// ===================== STAFF DIRECTORY (mock — wire to auth.py /login endpoint later) =====================
+const STAFF_DIRECTORY = {
+  'EMP104782': { name: 'Rohan Jadhav', password: 'branch123', role: 'officer',    branch: 'Mumbai Fort' },
+  'EMP109933': { name: 'Aditi Rao',    password: 'super123',  role: 'supervisor', branch: 'Mumbai Fort' },
+  'EMP110045': { name: 'Karan Mehta',  password: 'branch123', role: 'officer',    branch: 'Andheri' }
+};
+
+const SESSION_DURATION_MS = 30 * 60 * 1000; // 30 min idle expiry
+const MAX_LOGIN_ATTEMPTS = 3;
+let failedAttempts = 0;
+
 // ===================== ELEMENT REFERENCES =====================
+const credentialsStep = document.getElementById('credentialsStep');
+const faceStep = document.getElementById('faceStep');
+
 const loginForm = document.getElementById('loginForm');
 const empIdInput = document.getElementById('empId');
 const passwordInput = document.getElementById('password');
 const empIdError = document.getElementById('empIdError');
 const passwordError = document.getElementById('passwordError');
+const authError = document.getElementById('authError');
 const togglePasswordBtn = document.getElementById('togglePassword');
 const securityCheckbox = document.getElementById('securityCheckbox');
 const securityCheck = document.getElementById('securityCheck');
@@ -15,8 +30,20 @@ const btnText = submitBtn.querySelector('.btn-text');
 const toast = document.getElementById('toast');
 const toastText = document.getElementById('toastText');
 
+const faceVideo = document.getElementById('faceVideo');
+const faceLabel = document.getElementById('faceLabel');
+const faceStatus = document.getElementById('faceStatus');
+const faceCheckbox = document.getElementById('faceCheckbox');
+const faceSpinner = document.getElementById('faceSpinner');
+const retryFaceBtn = document.getElementById('retryFaceBtn');
+const backToCredsBtn = document.getElementById('backToCredsBtn');
+
 let isVerified = false;
 let isVerifying = false;
+let faceVerified = false;
+let pendingStaff = null;
+let faceStream = null;
+let faceInterval = null;
 
 // ===================== PASSWORD TOGGLE =====================
 togglePasswordBtn.addEventListener('click', () => {
@@ -33,14 +60,20 @@ function clearFieldError(input, errorEl) {
 
 function setFieldError(input, errorEl, message) {
   input.classList.add('error');
-  errorEl.textContent = message;
+  if (message) errorEl.textContent = message;
   errorEl.classList.add('show');
 }
 
-empIdInput.addEventListener('input', () => clearFieldError(empIdInput, empIdError));
-passwordInput.addEventListener('input', () => clearFieldError(passwordInput, passwordError));
+empIdInput.addEventListener('input', () => {
+  clearFieldError(empIdInput, empIdError);
+  authError.classList.remove('show');
+});
+passwordInput.addEventListener('input', () => {
+  clearFieldError(passwordInput, passwordError);
+  authError.classList.remove('show');
+});
 
-// ===================== SECURITY CHECK =====================
+// ===================== SECURITY CHECK (consent box) =====================
 function runSecurityCheck() {
   if (isVerified || isVerifying) return;
   isVerifying = true;
@@ -69,7 +102,17 @@ function showToast(message, isError = false) {
   setTimeout(() => toast.classList.remove('show'), 2600);
 }
 
-// ===================== FORM SUBMIT =====================
+// ===================== AUDIT LOG (local, swap for POST /log-login later) =====================
+function logAuditEvent(empId, role, status) {
+  const logs = JSON.parse(localStorage.getItem('vai_audit_log') || '[]');
+  logs.push({ empId, role, status, timestamp: new Date().toISOString() });
+  localStorage.setItem('vai_audit_log', JSON.stringify(logs));
+  // Backend hook (uncomment once auth.py endpoint exists):
+  // fetch('/api/log-login', { method: 'POST', headers: {'Content-Type':'application/json'},
+  //   body: JSON.stringify({ empId, role, status }) });
+}
+
+// ===================== STEP 1 → STEP 2 TRANSITION =====================
 loginForm.addEventListener('submit', (e) => {
   e.preventDefault();
   let hasError = false;
@@ -109,10 +152,132 @@ loginForm.addEventListener('submit', (e) => {
 
   setTimeout(() => {
     btnSpinner.classList.remove('show');
-    btnText.textContent = 'Sign in';
+    btnText.textContent = 'Continue';
     submitBtn.disabled = false;
-    showToast('Signed in successfully');
-    // ✅ Redirect to dashboard
-    setTimeout(() => { window.location.href = 'dashboard.html'; }, 800);
-  }, 1400);
+
+    const empId = empIdInput.value.trim().toUpperCase();
+    const staff = STAFF_DIRECTORY[empId];
+
+    if (!staff || staff.password !== passwordInput.value.trim()) {
+      failedAttempts++;
+      logAuditEvent(empId, 'unknown', 'failed');
+
+      if (failedAttempts >= MAX_LOGIN_ATTEMPTS) {
+        setFieldError(passwordInput, authError, 'Too many failed attempts. Account locked — contact branch IT.');
+        submitBtn.disabled = true;
+        return;
+      }
+
+      setFieldError(passwordInput, authError, `Employee ID or password is incorrect (${MAX_LOGIN_ATTEMPTS - failedAttempts} attempt(s) left)`);
+      loginForm.classList.add('shake');
+      setTimeout(() => loginForm.classList.remove('shake'), 400);
+      return;
+    }
+
+    // credentials valid — move to face step
+    pendingStaff = { empId, ...staff };
+    credentialsStep.style.display = 'none';
+    faceStep.style.display = 'block';
+    startFaceCheck();
+  }, 1200);
 });
+
+// ===================== STEP 2: FACE VERIFICATION =====================
+async function startFaceCheck() {
+  faceVerified = false;
+  faceCheckbox.classList.remove('verified');
+  faceCheckbox.classList.add('checking');
+  faceLabel.textContent = 'Position your face in frame';
+  faceStatus.textContent = 'Scanning…';
+  retryFaceBtn.style.display = 'none';
+
+  try {
+    await faceapi.nets.tinyFaceDetector.loadFromUri(
+      'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights'
+    );
+
+    faceStream = await navigator.mediaDevices.getUserMedia({ video: {} });
+    faceVideo.srcObject = faceStream;
+
+    faceInterval = setInterval(async () => {
+      if (faceVerified) return;
+      try {
+        const result = await faceapi.detectSingleFace(
+          faceVideo,
+          new faceapi.TinyFaceDetectorOptions()
+        );
+        if (result) {
+          clearInterval(faceInterval);
+          stopFaceStream();
+          faceVerified = true;
+          faceCheckbox.classList.remove('checking');
+          faceCheckbox.classList.add('verified');
+          faceLabel.textContent = 'Face verified';
+          faceStatus.textContent = '✓ Confirmed';
+          finalizeLogin();
+        }
+      } catch (err) {
+        // detection hiccup, keep trying until timeout below
+      }
+    }, 700);
+
+    // timeout fallback — don't hard-block the demo
+    setTimeout(() => {
+      if (!faceVerified) {
+        clearInterval(faceInterval);
+        stopFaceStream();
+        faceCheckbox.classList.remove('checking');
+        faceLabel.textContent = 'Could not verify face';
+        faceStatus.textContent = 'Timed out';
+        retryFaceBtn.style.display = 'block';
+      }
+    }, 8000);
+
+  } catch (err) {
+    // no camera available — fail open with a logged event, don't trap the user
+    faceCheckbox.classList.remove('checking');
+    faceLabel.textContent = 'Camera unavailable — proceeding with credential verification only';
+    faceStatus.textContent = 'Skipped';
+    faceVerified = true;
+    logAuditEvent(pendingStaff.empId, pendingStaff.role, 'face_skipped_no_camera');
+    finalizeLogin();
+  }
+}
+
+function stopFaceStream() {
+  if (faceStream) {
+    faceStream.getTracks().forEach(t => t.stop());
+    faceStream = null;
+  }
+}
+
+retryFaceBtn.addEventListener('click', startFaceCheck);
+
+backToCredsBtn.addEventListener('click', () => {
+  clearInterval(faceInterval);
+  stopFaceStream();
+  faceStep.style.display = 'none';
+  credentialsStep.style.display = 'block';
+});
+
+// ===================== FINALIZE: SESSION + ROLE REDIRECT =====================
+function finalizeLogin() {
+  const now = Date.now();
+  const session = {
+    empId: pendingStaff.empId,
+    name: pendingStaff.name,
+    role: pendingStaff.role,
+    branch: pendingStaff.branch,
+    loginTime: now,
+    expiresAt: now + SESSION_DURATION_MS
+  };
+  localStorage.setItem('vai_session', JSON.stringify(session));
+  logAuditEvent(pendingStaff.empId, pendingStaff.role, 'success');
+
+  showToast(`Welcome, ${pendingStaff.name}`);
+  setTimeout(() => {
+    window.location.href = pendingStaff.role === 'supervisor'
+      ? 'dashboard.html?view=supervisor'
+      : 'dashboard.html';
+  }, 700);
+}
