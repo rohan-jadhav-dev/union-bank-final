@@ -3,24 +3,28 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>VoiceAssist AI — Dashboard</title>
+<meta name="description" content="Union Bank of India VoiceAssist AI — Branch Staff Portal for multilingual banking conversations." />
+<title>VoiceAssist AI — Branch Portal | Union Bank of India</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../css/base.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../css/dashboard.css">
-<link rel="stylesheet" href="../css/chat-widget.css">
 </head>
 <body>
+
+<!-- Liquid animated blobs -->
+<div class="liquid-blob blob-1"></div>
+<div class="liquid-blob blob-2"></div>
+<div class="liquid-blob blob-3"></div>
+<div class="liquid-blob blob-4"></div>
+<div class="liquid-blob blob-5"></div>
 
 <div class="dashboard-root">
 
   <!-- ==================== SIDEBAR ==================== -->
   <aside class="sidebar">
-    <div class="sidebar-brand" style="flex-direction: column; align-items: flex-start; gap: 8px;">
-      <div style="background: white; padding: 6px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; width: 100%; border: 1px solid rgba(255,255,255,0.1);">
-        <img src="https://www.ideahackathon.com/unionbanklogo.png" alt="Union Bank of India" style="max-height: 48px; max-width: 100%; object-fit: contain;">
-      </div>
+    <div class="sidebar-brand">
+      <img src="../images/ubi_logo.png" alt="Union Bank of India" class="sidebar-brand-logo">
       <div>
         <div class="sidebar-brand-name">VoiceAssist AI</div>
         <div class="sidebar-brand-sub">Branch Portal</div>
@@ -57,14 +61,14 @@
     </a>
 
     <a class="nav-item" data-section="lead-generation" href="#">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-        <path d="M12 3v18" stroke-linecap="round"/>
-        <path d="M3 12h18" stroke-linecap="round"/>
-        <circle cx="12" cy="12" r="8"/>
-      </svg>
-      <span>Lead Generation</span>
-      <span class="nav-badge">NEW</span>
-    </a>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+    <path d="M12 3v18" stroke-linecap="round"/>
+    <path d="M3 12h18" stroke-linecap="round"/>
+    <circle cx="12" cy="12" r="8"/>
+  </svg>
+  <span>Lead Generation</span>
+  <span class="nav-badge">NEW</span>
+</a>
 
     <a class="nav-item" data-section="account" href="#">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
@@ -91,7 +95,7 @@
       <span>Bilingual Summary</span>
     </a>
 
-    <a class="nav-item" href="#" onclick="event.preventDefault(); window.chatWidget && window.chatWidget.open()">
+    <a class="nav-item" href="conversation-desk.html">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
         <path d="M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-4l-4 4-4-4z" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
@@ -115,6 +119,9 @@
   <!-- ==================== MAIN ==================== -->
   <div class="main">
 
+    <!-- RED ACCENT STRIPE -->
+    <div class="topbar-stripe"></div>
+
     <!-- TOP BAR -->
     <div class="topbar">
       <div class="topbar-page-title" id="topbarTitle">Overview</div>
@@ -137,6 +144,16 @@
       </div>
     </div>
 
+    <!-- TICKER BAR -->
+    <div class="dashboard-ticker">
+      <div class="ticker-title">Updates</div>
+      <div class="ticker-content">
+        <div class="ticker-text">
+          ⚠️ Secure Portal: Always sign out of your session when leaving the terminal. &nbsp;&nbsp;&nbsp;&bull;&nbsp;&nbsp;&nbsp; 🚀 Vyom App: Union Bank of India launches Union Vyom Mobile App with 350+ features! &nbsp;&nbsp;&nbsp;&bull;&nbsp;&nbsp;&nbsp; 📅 Alert: Mandatory KYC verification deadline has been extended to 31st August.
+        </div>
+      </div>
+    </div>
+
     <!-- CONTENT -->
     <div class="content">
 
@@ -144,22 +161,22 @@
       <div class="section active" id="section-overview">
         <div class="stat-grid">
           <div class="stat-card">
-            <div class="stat-label">Sessions today</div>
+            <div class="stat-label">Sessions Today</div>
             <div class="stat-value">12</div>
             <div class="stat-sub"><span class="stat-trend-up">↑ 3</span> vs yesterday</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Avg. duration</div>
+            <div class="stat-label">Avg. Duration</div>
             <div class="stat-value">4.2<span style="font-size:16px;font-weight:400"> min</span></div>
             <div class="stat-sub"><span class="stat-trend-down">↑ 0.4m</span> vs last week</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Languages used</div>
+            <div class="stat-label">Languages Used</div>
             <div class="stat-value">3</div>
-            <div class="stat-sub">Hindi, Marathi, Tamil</div>
+            <div class="stat-sub">Hindi · Marathi · Tamil</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Summaries saved</div>
+            <div class="stat-label">Summaries Saved</div>
             <div class="stat-value">11</div>
             <div class="stat-sub"><span class="stat-trend-up">100%</span> completion rate</div>
           </div>
@@ -239,24 +256,25 @@
                 </svg>
                 Bilingual summary
               </button>
-              <button class="quick-action-btn" onclick="navigate('lead-generation')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-                  <path d="M12 3v18" stroke-linecap="round"/>
-                  <path d="M3 12h18" stroke-linecap="round"/>
-                  <circle cx="12" cy="12" r="8"/>
-                </svg>
-                Lead generation
-              </button>
-              <button class="quick-action-btn" onclick="window.chatWidget && window.chatWidget.open()">
+              <button class="quick-action-btn" onclick="window.location.href='conversation-desk.html'">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                   <path d="M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-4l-4 4-4-4z" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
                 Live desk
               </button>
+              <button class="quick-action-btn" onclick="showToast('Opening process guide...')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" stroke-linecap="round"/>
+                  <rect x="9" y="3" width="6" height="4" rx="1" stroke-linecap="round"/>
+                  <path d="M9 12h6M9 16h4" stroke-linecap="round"/>
+                </svg>
+                Process guide
+              </button>
             </div>
           </div>
         </div>
       </div>
+
 
       <!-- ===== NEW CONVERSATION ===== -->
       <div class="section" id="section-conversation">
@@ -345,13 +363,13 @@
             </div>
           </div>
 
-          <button class="btn-begin" id="btnBegin" disabled>
+          <button class="btn-begin" id="btnBegin" disabled onclick="window.location.href='conversation-desk.html'">
             Begin conversation
           </button>
         </div>
       </div>
 
-      <!-- ===== LEAD GENERATION ===== -->
+     <!-- ===== LEAD GENERATION ===== -->
       <div class="section" id="section-lead-generation">
 
         <div class="card">
@@ -360,6 +378,7 @@
           </div>
 
           <div class="stat-grid lead-stat-row">
+            <!-- dashboard.js fills this with Total/Hot/Warm/Incomplete from backend -->
             <div class="stat-card">
               <div class="stat-label">Total leads</div>
               <div class="stat-value">—</div>
@@ -375,7 +394,7 @@
             <div class="card-title">Customer Leads</div>
           </div>
           <div id="leadList">
-            <div style="padding:32px;text-align:center;color:var(--text-muted, var(--slate-light));font-size:13px">Loading leads…</div>
+            <div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px">Loading leads…</div>
           </div>
         </div>
 
@@ -413,7 +432,6 @@
         </div>
 
       </div>
-
       <!-- ===== ACCOUNT LOOKUP ===== -->
       <div class="section" id="section-account">
         <div class="lookup-search-bar">
@@ -657,6 +675,7 @@
         </div><!-- /account-result -->
       </div>
 
+      
       <!-- ===== SESSION HISTORY ===== -->
       <div class="section" id="section-history">
         <div class="history-filters">
@@ -750,8 +769,8 @@
               <div class="card-title">English Summary</div>
               <button class="card-action" onclick="showToast('Copied to clipboard')">Copy</button>
             </div>
-            <p style="font-size:14px;line-height:1.75;color:var(--slate)">
-              Customer <strong style="color:var(--navy)">Rajesh Sharma</strong> visited the branch on 17 June 2026 at 11:42 AM to inquire about a home loan. Staff member verified customer identity (Aadhaar confirmed). Customer requested information on loan eligibility for ₹30,00,000 at a 20-year tenure. Staff explained current interest rate of 8.65% p.a. and EMI estimate of ₹26,400/month. Customer expressed interest and was informed about required documents: income proof, property papers, and 6-month bank statement. Customer will visit again within 7 days with documents.
+            <p style="font-size:14px;line-height:1.75;color:var(--text-dim)">
+              Customer <strong style="color:var(--blue)">Rajesh Sharma</strong> visited the branch on 17 June 2026 at 11:42 AM to inquire about a home loan. Staff member verified customer identity (Aadhaar confirmed). Customer requested information on loan eligibility for ₹30,00,000 at a 20-year tenure. Staff explained current interest rate of 8.65% p.a. and EMI estimate of ₹26,400/month. Customer expressed interest and was informed about required documents: income proof, property papers, and 6-month bank statement. Customer will visit again within 7 days with documents.
             </p>
             <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);display:flex;gap:10px">
               <button class="topbar-btn topbar-btn-primary" style="flex:1" onclick="showToast('Saved to Firestore')">Save to records</button>
@@ -763,8 +782,8 @@
               <div class="card-title">हिंदी सारांश</div>
               <button class="card-action" onclick="showToast('Read aloud in Hindi...')">🔊 Read aloud</button>
             </div>
-            <p style="font-size:14px;line-height:1.9;color:var(--slate);font-family:'Noto Sans Devanagari',sans-serif">
-              ग्राहक <strong style="color:var(--navy)">राजेश शर्मा</strong> ने 17 जून 2026 को सुबह 11:42 बजे शाखा का दौरा किया और होम लोन के बारे में जानकारी ली। स्टाफ ने आधार के माध्यम से पहचान सत्यापित की। ग्राहक ने ₹30,00,000 के लोन के लिए 20 वर्षीय अवधि पर पात्रता जाननी चाही। स्टाफ ने 8.65% वार्षिक ब्याज दर और ₹26,400 प्रति माह EMI की जानकारी दी। ग्राहक ने रुचि दिखाई और आवश्यक दस्तावेज़ — आय प्रमाण, संपत्ति के कागज़, 6 महीने का बैंक स्टेटमेंट — की सूची दी गई। ग्राहक 7 दिनों में दस्तावेज़ लेकर आएंगे।
+            <p style="font-size:14px;line-height:1.9;color:var(--text-dim);font-family:'Noto Sans Devanagari',sans-serif">
+              ग्राहक <strong style="color:var(--blue)">राजेश शर्मा</strong> ने 17 जून 2026 को सुबह 11:42 बजे शाखा का दौरा किया और होम लोन के बारे में जानकारी ली। स्टाफ ने आधार के माध्यम से पहचान सत्यापित की। ग्राहक ने ₹30,00,000 के लोन के लिए 20 वर्षीय अवधि पर पात्रता जाननी चाही। स्टाफ ने 8.65% वार्षिक ब्याज दर और ₹26,400 प्रति माह EMI की जानकारी दी। ग्राहक ने रुचि दिखाई और आवश्यक दस्तावेज़ — आय प्रमाण, संपत्ति के कागज़, 6 महीने का बैंक स्टेटमेंट — की सूची दी गई। ग्राहक 7 दिनों में दस्तावेज़ लेकर आएंगे।
             </p>
           </div>
         </div>
@@ -783,8 +802,6 @@
   <span id="toastText">Done</span>
 </div>
 
-<audio id="cwAudioPlayer"></audio>
 <script src="../js/dashboard.js"></script>
-<script src="../js/chat-widget.js"></script>
 </body>
 </html>
