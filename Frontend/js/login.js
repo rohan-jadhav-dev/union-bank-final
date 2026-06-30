@@ -10,6 +10,9 @@ const MAX_LOGIN_ATTEMPTS = 3;
 let failedAttempts = 0;
 
 // ===================== ELEMENT REFERENCES =====================
+const credentialsStep = document.getElementById('credentialsStep');
+const faceStep = document.getElementById('faceStep');
+
 const loginForm = document.getElementById('loginForm');
 const empIdInput = document.getElementById('empId');
 const passwordInput = document.getElementById('password');
@@ -26,6 +29,12 @@ const btnSpinner = document.getElementById('btnSpinner');
 const btnText = submitBtn.querySelector('.btn-text');
 const toast = document.getElementById('toast');
 const toastText = document.getElementById('toastText');
+
+const faceLabel = document.getElementById('faceLabel');
+const faceStatus = document.getElementById('faceStatus');
+const faceCheckbox = document.getElementById('faceCheckbox');
+const skipFaceBtn = document.getElementById('skipFaceBtn');
+const backToCredsBtn = document.getElementById('backToCredsBtn');
 
 let isVerified = false;
 let isVerifying = false;
@@ -98,7 +107,7 @@ function logAuditEvent(empId, role, status) {
   //   body: JSON.stringify({ empId, role, status }) });
 }
 
-// ===================== LOGIN SUBMIT =====================
+// ===================== STEP 1 → STEP 2 TRANSITION =====================
 loginForm.addEventListener('submit', (e) => {
   e.preventDefault();
   let hasError = false;
@@ -133,12 +142,13 @@ loginForm.addEventListener('submit', (e) => {
   }
 
   submitBtn.disabled = true;
-  btnText.textContent = 'Signing in';
+  btnText.textContent = 'Verifying credentials';
   btnSpinner.classList.add('show');
 
   setTimeout(() => {
     btnSpinner.classList.remove('show');
     btnText.textContent = 'Continue';
+    submitBtn.disabled = false;
 
     const empId = empIdInput.value.trim().toUpperCase();
     const staff = STAFF_DIRECTORY[empId];
@@ -146,7 +156,6 @@ loginForm.addEventListener('submit', (e) => {
     if (!staff || staff.password !== passwordInput.value.trim()) {
       failedAttempts++;
       logAuditEvent(empId, 'unknown', 'failed');
-      submitBtn.disabled = false;
 
       if (failedAttempts >= MAX_LOGIN_ATTEMPTS) {
         setFieldError(passwordInput, authError, 'Too many failed attempts. Account locked — contact branch IT.');
@@ -160,10 +169,27 @@ loginForm.addEventListener('submit', (e) => {
       return;
     }
 
-    // credentials valid — log in directly, no face step
+    // credentials valid — move to face step (UI placeholder only, see below)
     pendingStaff = { empId, ...staff };
-    finalizeLogin();
-  }, 900);
+    credentialsStep.style.display = 'none';
+    faceStep.style.display = 'block';
+    faceLabel.textContent = 'Face verification coming soon';
+    faceStatus.textContent = 'Not yet enabled';
+  }, 1200);
+});
+
+// ===================== STEP 2: FACE VERIFICATION (UI placeholder, no detection logic) =====================
+// Face recognition is not implemented yet — this screen is shown for the UI flow,
+// but the only way past it is the user explicitly clicking Skip below.
+// No camera access, no model loading, no auto-pass of any kind.
+skipFaceBtn.addEventListener('click', () => {
+  logAuditEvent(pendingStaff.empId, pendingStaff.role, 'face_skipped_not_implemented');
+  finalizeLogin();
+});
+
+backToCredsBtn.addEventListener('click', () => {
+  faceStep.style.display = 'none';
+  credentialsStep.style.display = 'block';
 });
 
 // ===================== FINALIZE: SESSION + ROLE REDIRECT =====================

@@ -3,44 +3,48 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>VoiceAssist AI — Staff Portal</title>
+<meta name="description" content="Union Bank of India VoiceAssist AI — Branch Staff Portal sign in." />
+<title>VoiceAssist AI — Staff Portal | Union Bank of India</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../css/base.css">
 <link rel="stylesheet" href="../css/login.css">
 </head>
 <body>
+
+<!-- red accent stripe — matches dashboard topbar-stripe -->
+<div class="login-topbar-stripe"></div>
+
 <div class="container">
   <div class="brand-panel">
     <div class="brand-panel-inner">
       <div class="brand-mark">
-        <div class="brand-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#D4AF6A" stroke-width="1.5">
-            <path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+        <img src="../images/ubi_logo.png" alt="Union Bank of India" class="brand-logo-img" />
+        <div>
+          <div class="brand-name">VoiceAssist AI</div>
+          <div class="brand-sub">Branch Portal</div>
         </div>
-        <div class="brand-name">VoiceAssist AI</div>
       </div>
       <div class="brand-divider"></div>
       <p class="brand-tagline">Multilingual voice assistance for frontline branch staff. Real-time translation, banking-context intelligence, and guided service workflows.</p>
       <div class="brand-illustration" aria-hidden="true">
         <svg viewBox="0 0 360 220" fill="none">
-          <rect x="20" y="150" width="320" height="8" rx="1" fill="#1B2D54"/>
-          <rect x="40" y="158" width="10" height="40" fill="#1B2D54"/>
-          <rect x="310" y="158" width="10" height="40" fill="#1B2D54"/>
-          <rect x="130" y="95" width="100" height="58" rx="3" stroke="#D4AF6A" stroke-width="1.5"/>
-          <rect x="170" y="153" width="20" height="10" fill="#1B2D54" stroke="#D4AF6A" stroke-width="1"/>
-          <line x1="140" y1="108" x2="200" y2="108" stroke="#D4AF6A" stroke-width="1" opacity="0.6"/>
-          <line x1="140" y1="118" x2="190" y2="118" stroke="#D4AF6A" stroke-width="1" opacity="0.4"/>
-          <line x1="140" y1="128" x2="210" y2="128" stroke="#D4AF6A" stroke-width="1" opacity="0.4"/>
-          <circle cx="95" cy="108" r="14" stroke="#D4AF6A" stroke-width="1.5"/>
-          <path d="M70 150 Q70 120 95 120 Q120 120 120 150" stroke="#D4AF6A" stroke-width="1.5"/>
+          <rect x="20" y="150" width="320" height="8" rx="1" fill="#0B1B3A"/>
+          <rect x="40" y="158" width="10" height="40" fill="#0B1B3A"/>
+          <rect x="310" y="158" width="10" height="40" fill="#0B1B3A"/>
+          <rect x="130" y="95" width="100" height="58" rx="3" stroke="#E31E24" stroke-width="1.5"/>
+          <rect x="170" y="153" width="20" height="10" fill="#0B1B3A" stroke="#E31E24" stroke-width="1"/>
+          <line x1="140" y1="108" x2="200" y2="108" stroke="#E31E24" stroke-width="1" opacity="0.6"/>
+          <line x1="140" y1="118" x2="190" y2="118" stroke="#E31E24" stroke-width="1" opacity="0.4"/>
+          <line x1="140" y1="128" x2="210" y2="128" stroke="#E31E24" stroke-width="1" opacity="0.4"/>
+          <circle cx="95" cy="108" r="14" stroke="#E31E24" stroke-width="1.5"/>
+          <path d="M70 150 Q70 120 95 120 Q120 120 120 150" stroke="#E31E24" stroke-width="1.5"/>
           <circle cx="270" cy="108" r="14" stroke="#8B93A1" stroke-width="1.5" opacity="0.7"/>
           <path d="M245 150 Q245 120 270 120 Q295 120 295 150" stroke="#8B93A1" stroke-width="1.5" opacity="0.7"/>
           <g class="wave-pulse">
-            <path d="M150 100 Q160 95 170 100" stroke="#D4AF6A" stroke-width="1.2" stroke-linecap="round"/>
-            <path d="M150 112 Q160 106 170 112" stroke="#D4AF6A" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+            <path d="M150 100 Q160 95 170 100" stroke="#E31E24" stroke-width="1.2" stroke-linecap="round"/>
+            <path d="M150 112 Q160 106 170 112" stroke="#E31E24" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
           </g>
           <g class="wave-pulse-delay">
             <path d="M190 100 Q200 95 210 100" stroke="#8B93A1" stroke-width="1.2" stroke-linecap="round"/>
@@ -141,7 +145,36 @@
         <div class="form-footer">For access issues, contact your branch IT administrator.</div>
       </div>
 
-      <!-- ===================== STEP 2: FACE VERIFICATION (disabled for demo — see login.js) ===================== -->
+      <!-- ===================== STEP 2: FACE VERIFICATION ===================== -->
+      <div id="faceStep" style="display:none;">
+        <div class="form-header">
+          <div class="form-title">Face verification</div>
+          <div class="form-subtitle">Look at the camera to confirm your identity. This step never stores your photo.</div>
+        </div>
+
+        <div class="face-frame-wrap">
+          <div class="face-frame-overlay" id="faceOverlay"></div>
+        </div>
+
+        <div class="security-check" id="faceCheckRow" style="margin-top:18px;">
+          <div class="security-check-left">
+            <div class="security-checkbox" id="faceCheckbox">
+              <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="security-label" id="faceLabel">Face verification coming soon</span>
+          </div>
+          <div class="security-badge">
+            <span id="faceStatus">Not yet enabled</span>
+          </div>
+        </div>
+
+        <button type="button" class="forgot-link" id="skipFaceBtn" style="margin-top:18px; background:none; border:none; cursor:pointer; display:block; text-align:center; width:100%; font-size:13px; color: var(--navy); font-weight:500;">
+          Skip and continue →
+        </button>
+        <button type="button" class="forgot-link" id="backToCredsBtn" style="margin-top:14px; background:none; border:none; cursor:pointer; display:block; text-align:center; width:100%;">
+          ← Back to sign in
+        </button>
+      </div>
 
     </div>
   </div>
