@@ -1,8 +1,9 @@
-javascript
+// conversation-desk.js — VoiceAssist AI
+// Manual-step edition: no auto-advance. Staff ticks checklist items and
+// clicks "Next" themselves. Top auto-strip removed; step indicator + checklist
+// + Back/Next now live entirely in the staff panel.
 
-// conversation-desk.js — VoiceAssist AI (Final — Smart Greeting + Smart Steps + Manual Checklist Control)
-
-const API_BASE = "http://localhost:8000/api/conversation";
+const API_BASE = "https://rohan667-voiceassist-ai-backend-kj.hf.space/api/conversation";
 
 const LANG_META = {
   "Hindi":   { flag: "हि", tag: "हिन्दी" },
@@ -20,6 +21,9 @@ const PROCESS_STEPS = {
   "General enquiry":   ["Greeting", "Understand", "Answer", "Resolved"],
 };
 
+// Per-step checklist items. Staff taps each box as they cover it with the
+// customer. This was previously defined but never rendered — now it drives
+// the manual checklist UI in the staff pane.
 const STEP_CHECKLISTS = {
   "Loan enquiry": [
     ["Customer greeted in their language"],
@@ -96,109 +100,204 @@ const GREETINGS = {
   },
 };
 
+/* ──────────────────────────────────────────────────────────────────────────
+   QUICK REPLIES — expanded with many more options per step (tenure, rate
+   slabs, document items split out individually, etc.) so staff almost never
+   needs to type.
+   ────────────────────────────────────────────────────────────────────────── */
 const STATIC_QUICK_REPLIES = {
   "Loan enquiry": [
-    [],
+    // Step 1 — Greeting
+    [
+      "How can I help you today?",
+      "Which type of loan are you interested in?",
+      "Are you an existing Union Bank customer?",
+    ],
+    // Step 2 — Loan Options
     [
       "🏠 Home Loan — 8.35% p.a., up to 30 years, max ₹10 crore",
       "💳 Personal Loan — 11.40% p.a., up to ₹15 lakh, 5 years",
       "🚗 Car Loan — 8.70% p.a., up to 90% on-road price, 7 years",
       "🎓 Education Loan — 9.90% p.a., up to ₹20 lakh abroad",
+      "🏗️ Loan Against Property — 9.25% p.a., up to ₹5 crore",
+      "Which loan type would you like?",
+      "Tenure options: 5 / 10 / 15 / 20 / 30 years",
+      "Would you prefer a shorter or longer tenure?",
+      "Shorter tenure means higher EMI but less total interest",
+      "Longer tenure means lower EMI but more total interest",
+      "What loan amount are you looking for?",
     ],
+    // Step 3 — Eligibility
     [
       "What is your monthly income?",
       "Are you salaried or self-employed?",
       "Do you have any existing loan EMIs?",
       "What is your approximate CIBIL score?",
+      "How many years of work experience do you have?",
+      "Do you have a co-applicant for this loan?",
+      "Minimum CIBIL score required is 700",
+      "Minimum monthly income required is ₹25,000",
+      "Your EMI should not exceed 50% of monthly income",
     ],
+    // Step 4 — Documents
     [
       "Please bring Aadhaar Card original + photocopy",
       "PAN Card original + photocopy needed",
-      "Last 3 months salary slips + 6 months bank statement",
-      "Form 16 + property sale agreement + NOC from builder",
+      "Last 3 months salary slips required",
+      "Last 6 months bank statement required",
+      "Form 16 / Income Tax Return needed",
+      "Property sale agreement required (home loan)",
+      "NOC from builder required (home loan)",
+      "Employment certificate required",
+      "Self-employed: please bring last 2 years ITR",
     ],
+    // Step 5 — Next Steps
     [
       "Processing fee is 0.5% of loan amount — one time payment",
       "Approval takes 7–10 working days after document submission",
       "Loan disbursed directly to builder or seller account",
+      "You will get an SMS once your loan is approved",
+      "Our loan officer will call you within 24 hours",
+      "You can track your application status on our app",
+      "Is there anything else I can help you with?",
     ],
   ],
   "Account opening": [
-    [],
+    // Step 1 — Greeting
+    [
+      "What brings you to the branch today?",
+      "Are you looking to open a new account?",
+      "Do you already bank with us?",
+    ],
+    // Step 2 — Account Type
     [
       "💰 Savings Account — ₹1000 min balance, 2.75% interest p.a.",
       "🏢 Current Account — ₹5000 min balance, unlimited transactions",
       "🆓 PMJDY Zero-Balance — free RuPay card + ₹2L accident insurance",
       "📈 Fixed Deposit — up to 7.00% interest, 7 days to 10 years",
+      "👴 Senior Citizen Savings — 3.25% interest, extra benefits",
+      "👨‍👩‍👧 Joint Account — two or more holders, shared access",
+      "FD tenure options: 1 / 3 / 5 / 10 years",
+      "Which account type would you prefer?",
     ],
+    // Step 3 — KYC Details
     [
       "Please fill KYC form — need Aadhaar, PAN, nominee details",
+      "What is your full name as per Aadhaar?",
+      "What is your date of birth?",
+      "What is your current address?",
       "What is the nominee name and relation to you?",
       "Is your Aadhaar linked to mobile number for OTP verification?",
+      "What is your occupation?",
     ],
+    // Step 4 — Documents
     [
       "Aadhaar Card original + photocopy",
       "PAN Card original + photocopy",
-      "2 passport size photographs + address proof (utility bill)",
+      "2 passport size photographs",
+      "Address proof (utility bill, < 3 months old)",
+      "Address proof (rental agreement) accepted too",
     ],
+    // Step 5 — Activate
     [
       "Initial deposit ₹1000 — account activates in 30 minutes",
       "You will receive passbook and debit card today",
       "Net banking and UPI will be set up immediately",
+      "Your account number will be shared via SMS",
+      "Would you like a chequebook as well?",
     ],
   ],
   "Balance enquiry": [
-    [],
+    // Step 1 — Greeting
+    [
+      "Welcome! How can I help you today?",
+      "Would you like to check your account balance?",
+    ],
+    // Step 2 — Verify Identity
     [
       "Please share your account number last 4 digits",
       "OTP will be sent to your registered mobile number",
+      "Please confirm your registered mobile number",
+      "Could you confirm your name as per the account?",
     ],
+    // Step 3 — Show Balance
     [
       "Your balance is being fetched — one moment please",
       "Would you like last 5 transactions as well?",
+      "Would you like a mini statement printed?",
+      "Your available balance is shown on screen",
     ],
+    // Step 4 — Done
     [
       "Would you like passbook update today?",
       "SMS BAL to 09223008586 anytime to check balance",
       "Download Union Bank Mobile app for 24x7 access",
+      "Is there anything else I can help you with?",
     ],
   ],
   "Credit card apply": [
-    [],
+    // Step 1 — Greeting
+    [
+      "What kind of credit card are you looking for?",
+      "Do you already hold a Union Bank account?",
+    ],
+    // Step 2 — Eligibility
     [
       "What is your annual income?",
       "Do you currently have any credit cards?",
       "What is your approximate CIBIL score?",
+      "Are you salaried or self-employed?",
+      "Minimum annual income required is ₹2.5 lakh",
+      "Minimum CIBIL score required is 700",
     ],
+    // Step 3 — Card Selection
     [
       "Union Classic — Free, 1% cashback on all spends",
       "Union Platinum — ₹499/year, 2X rewards, airport lounge access",
       "Union Signature — ₹2999/year, 3X rewards, unlimited lounge",
+      "Union Travel Card — ₹999/year, 5X miles on travel spends",
+      "Which card would you like to apply for?",
     ],
+    // Step 4 — Documents
     [
       "Aadhaar Card + PAN Card required",
-      "Last 3 months salary slips or ITR (self-employed)",
-      "1 passport size photograph",
+      "Last 3 months salary slips required",
+      "ITR for last 2 years (if self-employed)",
+      "1 passport size photograph required",
+      "Last 3 months bank statement required",
     ],
+    // Step 5 — Apply
     [
       "Application submitted — credit limit SMS in 7 days",
       "Card delivery takes 15 working days to your address",
       "Activate card via net banking or branch visit",
+      "You can set your PIN at any Union Bank ATM",
+      "Is there anything else I can help you with?",
     ],
   ],
   "General enquiry": [
-    [],
+    // Step 1 — Greeting
     [
       "How can I help you today?",
       "Which banking service do you need information about?",
     ],
+    // Step 2 — Understand
     [
-      "Let me check that for you — one moment",
       "Could you give me more details about your query?",
+      "Let me check that for you — one moment",
+      "Is this regarding an existing account or a new service?",
     ],
+    // Step 3 — Answer
+    [
+      "Here is the information you requested",
+      "Would you like me to explain that in more detail?",
+      "Let me connect you to the right department for this",
+    ],
+    // Step 4 — Resolved
     [
       "Is there anything else I can help you with?",
       "Your query has been resolved successfully",
+      "Thank you for visiting Union Bank of India",
     ],
   ],
 };
@@ -206,14 +305,14 @@ const STATIC_QUICK_REPLIES = {
 const GUIDE_HINTS = {
   "Loan enquiry": [
     "Step 1: Greet customer warmly — session just started",
-    "Step 2: Show all loan options — Home 8.35%, Personal 11.40%, Car 8.70%, Education 9.90%",
-    "Step 3: Check eligibility — monthly income, employment type, existing EMIs, CIBIL score",
+    "Step 2: Show loan options, rates, and tenure choices",
+    "Step 3: Check eligibility — income, employment, EMIs, CIBIL score",
     "Step 4: Give full document checklist based on loan type selected",
-    "Step 5: Explain 0.5% processing fee and 7–10 day disbursement timeline",
+    "Step 5: Explain processing fee and disbursement timeline",
   ],
   "Account opening": [
     "Step 1: Greet customer — ask what brings them to the branch today",
-    "Step 2: Explain account types — Savings ₹1000 min, Current ₹5000, PMJDY zero-balance, FD up to 7%",
+    "Step 2: Explain account types and FD tenure options",
     "Step 3: Fill KYC — name, DOB, address, mobile number, nominee details",
     "Step 4: Collect Aadhaar, PAN, 2 photos, address proof",
     "Step 5: Initial deposit, activate account, issue passbook and debit card",
@@ -227,9 +326,9 @@ const GUIDE_HINTS = {
   "Credit card apply": [
     "Step 1: Greet customer — ask what kind of card they need",
     "Step 2: Check eligibility — annual income min ₹2.5L, CIBIL min 700",
-    "Step 3: Recommend card — Classic (free) / Platinum (₹499) / Signature (₹2999)",
+    "Step 3: Recommend a card based on spends and lifestyle",
     "Step 4: Collect Aadhaar, PAN, salary slips, passport photo",
-    "Step 5: Submit application — card delivery in 15 working days",
+    "Step 5: Submit application — explain delivery timeline",
   ],
   "General enquiry": [
     "Step 1: Greet customer warmly",
@@ -288,6 +387,8 @@ let staffRecorder   = null;
 let staffChunks     = [];
 let kycShown        = false;
 let smartReplies    = [];
+
+// checklistState[stepIndex] = Set of checked item-indices for that step
 let checklistState  = {};
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -305,9 +406,17 @@ function initUI() {
   document.getElementById("intentChipText").textContent = selectedProcess;
   if (selectedProcess !== "General enquiry") document.getElementById("intentChip").classList.add("show");
   document.getElementById("regionalLabel").textContent = `${selectedLanguage} Summary`;
-  buildProcessStrip(selectedProcess);
+
+  // Top auto-strip removed — no buildProcessStrip() call, and the element
+  // (if still present in HTML) is hidden so nothing auto-advances visually.
+  const strip = document.getElementById("processStrip");
+  if (strip) strip.style.display = "none";
+
   lockStaffInput(false);
   updateGuideHint(0);
+  updateStepIndicator();
+  updateManualStepButtons();
+  renderStepChecklist();
 }
 
 function lockStaffInput(locked) {
@@ -317,27 +426,6 @@ function lockStaffInput(locked) {
   row.style.pointerEvents = locked ? "none" : "all";
   const s = document.getElementById("staffStatusText");
   if (s) s.textContent = locked ? "Not ready" : "Ready";
-}
-
-function buildProcessStrip(process) {
-  const steps = PROCESS_STEPS[process] || PROCESS_STEPS["General enquiry"];
-  const strip = document.getElementById("processStrip");
-  strip.innerHTML = "";
-  steps.forEach((step, i) => {
-    const div = document.createElement("div");
-    div.className = "process-step" + (i === 0 ? " active" : "");
-    div.id = `step-${i}`;
-    div.innerHTML = `
-      <div class="step-num">${i + 1}</div>
-      <div class="step-check">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </div>
-      <span>${step}</span>`;
-    strip.appendChild(div);
-  });
-  strip.classList.add("show");
 }
 
 function startConversation() {
@@ -387,10 +475,14 @@ async function autoGreetCustomer() {
 
   conversationLog.push({ role: "staff", text: greetingText, translation: greetingText });
 
-  advanceStep();
+  // NOTE: previously this called advanceStep() automatically after the
+  // greeting. That's removed — greeting checklist item should be ticked
+  // (or "Next" clicked) by the staff member themselves.
   showStaticQuickReplies();
 }
 
+// Smart-replies / detect-step are still used as *suggestions* — they no
+// longer move the step forward on their own. Only manualNextStep() does.
 async function updateStepFromLLM() {
   if (conversationLog.length === 0) return;
   try {
@@ -407,7 +499,7 @@ async function updateStepFromLLM() {
     if (!data.success) return;
 
     if (data.missing_info && data.missing_info.length > 0) {
-      addInfoBadge(`📋 AI suggests still needed: ${data.missing_info.join(", ")}`);
+      addInfoBadge(`📋 Still needed: ${data.missing_info.join(", ")}`);
     }
     if (data.next_question) showNextQuestionHint(data.next_question);
 
@@ -440,22 +532,146 @@ async function fetchSmartQuickReplies() {
   showStaticQuickReplies();
 }
 
-function advanceStep() {
-  const steps = PROCESS_STEPS[selectedProcess] || [];
-  const done = document.getElementById(`step-${stepIndex}`);
-  if (done) { done.classList.remove("active"); done.classList.add("done"); }
-  stepIndex = Math.min(stepIndex + 1, steps.length - 1);
-  const next = document.getElementById(`step-${stepIndex}`);
-  if (next && !next.classList.contains("done")) next.classList.add("active");
-  updateGuideHint(stepIndex);
+/* ──────────────────────────────────────────────────────────────────────────
+   MANUAL STEP CONTROL — the only thing that moves stepIndex now.
+   ────────────────────────────────────────────────────────────────────────── */
 
-  const stepName = (PROCESS_STEPS[selectedProcess] || [])[stepIndex] || "";
+function updateStepIndicator() {
+  const steps = PROCESS_STEPS[selectedProcess] || PROCESS_STEPS["General enquiry"];
+  const el = document.getElementById("stepIndicator");
+  if (el) el.textContent = `Step ${stepIndex + 1} of ${steps.length}: ${steps[stepIndex] || ""}`;
+}
+
+function updateManualStepButtons() {
+  const steps = PROCESS_STEPS[selectedProcess] || PROCESS_STEPS["General enquiry"];
+  const backBtn = document.getElementById("manualBackBtn");
+  const nextBtn = document.getElementById("manualNextBtn");
+  if (backBtn) {
+    const atStart = stepIndex <= 0;
+    backBtn.disabled = atStart;
+    backBtn.style.opacity = atStart ? "0.4" : "1";
+    backBtn.style.cursor = atStart ? "not-allowed" : "pointer";
+  }
+  if (nextBtn) {
+    const atEnd = stepIndex >= steps.length - 1;
+    nextBtn.textContent = atEnd ? "Finished ✓" : "Next ✓";
+    nextBtn.disabled = atEnd;
+    nextBtn.style.opacity = atEnd ? "0.5" : "1";
+    nextBtn.style.cursor = atEnd ? "not-allowed" : "pointer";
+  }
+}
+
+// Manual "Next ✓" — staff explicitly confirms current step is done.
+function manualNextStep() {
+  const steps = PROCESS_STEPS[selectedProcess] || [];
+  if (stepIndex >= steps.length - 1) return; // already on last step
+
+  stepIndex += 1;
+
+  updateGuideHint(stepIndex);
+  updateStepIndicator();
+  updateManualStepButtons();
+  renderStepChecklist();
+
+  const stepName = steps[stepIndex] || "";
   if ((stepName === "KYC Details" || stepName === "Documents") && !kycShown) {
     kycShown = true;
     showKycChecklist();
   }
+
+  showStaticQuickReplies();
+  showToast(`✓ Moved to: ${stepName}`);
 }
 
+// Manual "← Back" — staff steps back to the previous step.
+function manualBackStep() {
+  if (stepIndex <= 0) return; // already on first step
+
+  stepIndex -= 1;
+
+  updateGuideHint(stepIndex);
+  updateStepIndicator();
+  updateManualStepButtons();
+  renderStepChecklist();
+
+  const steps = PROCESS_STEPS[selectedProcess] || [];
+  showStaticQuickReplies();
+  showToast(`← Back to: ${steps[stepIndex] || ""}`);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   MANUAL CHECKLIST — renders STEP_CHECKLISTS[selectedProcess][stepIndex]
+   as tappable checkboxes above the quick replies. Purely staff-driven;
+   nothing here auto-advances the step.
+   ────────────────────────────────────────────────────────────────────────── */
+
+function renderStepChecklist() {
+  document.getElementById("stepChecklistBar")?.remove();
+
+  const checklists = STEP_CHECKLISTS[selectedProcess] || STEP_CHECKLISTS["General enquiry"];
+  const items = checklists[Math.min(stepIndex, checklists.length - 1)] || [];
+  if (items.length === 0) return;
+
+  if (!checklistState[stepIndex]) checklistState[stepIndex] = new Set();
+  const checkedSet = checklistState[stepIndex];
+
+  const bar = document.createElement("div");
+  bar.id = "stepChecklistBar";
+  bar.style.cssText = `padding:12px 20px 4px;background:var(--white);
+    border-top:1px solid var(--border);`;
+
+  const steps = PROCESS_STEPS[selectedProcess] || [];
+  const lbl = document.createElement("div");
+  lbl.style.cssText = `font-size:10.5px;text-transform:uppercase;
+    letter-spacing:0.07em;color:var(--slate-light);font-weight:600;margin-bottom:8px;
+    display:flex;align-items:center;justify-content:space-between;`;
+  lbl.innerHTML = `<span>📋 Checklist — ${escHtml(steps[stepIndex] || "")}</span>
+    <span id="checklistProgress" style="color:var(--gold);font-weight:700;"></span>`;
+  bar.appendChild(lbl);
+
+  const list = document.createElement("div");
+  list.style.cssText = `display:flex;flex-direction:column;gap:6px;`;
+
+  items.forEach((label, i) => {
+    const row = document.createElement("label");
+    row.style.cssText = `display:flex;align-items:flex-start;gap:8px;cursor:pointer;
+      font-size:12.5px;color:var(--navy);line-height:1.4;user-select:none;`;
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = checkedSet.has(i);
+    cb.style.cssText = `margin-top:2px;width:15px;height:15px;accent-color:var(--gold);cursor:pointer;flex-shrink:0;`;
+    cb.addEventListener("change", () => {
+      if (cb.checked) checkedSet.add(i); else checkedSet.delete(i);
+      updateChecklistProgress(items.length);
+      row.style.color = cb.checked ? "var(--slate-light)" : "var(--navy)";
+      row.style.textDecoration = cb.checked ? "line-through" : "none";
+    });
+
+    const span = document.createElement("span");
+    span.textContent = label;
+
+    if (cb.checked) { row.style.color = "var(--slate-light)"; row.style.textDecoration = "line-through"; }
+
+    row.appendChild(cb);
+    row.appendChild(span);
+    list.appendChild(row);
+  });
+
+  bar.appendChild(list);
+  const controls = document.querySelector(".pane:last-child .pane-controls");
+  // Insert checklist directly above quick replies / processing indicator area
+  if (controls) controls.insertBefore(bar, controls.firstChild);
+
+  updateChecklistProgress(items.length);
+}
+
+function updateChecklistProgress(total) {
+  const el = document.getElementById("checklistProgress");
+  if (!el) return;
+  const checkedSet = checklistState[stepIndex] || new Set();
+  el.textContent = `${checkedSet.size}/${total}`;
+}
 
 function updateGuideHint(step) {
   const hints = GUIDE_HINTS[selectedProcess] || GUIDE_HINTS["General enquiry"];
@@ -496,7 +712,7 @@ function renderQuickReplyBar(replies, label) {
   if (!replies || replies.length === 0) return;
   const bar = document.createElement("div");
   bar.id = "quickRepliesBar";
-  bar.style.cssText = `display:flex;gap:8px;flex-wrap:wrap;
+  bar.style.cssText = `display:flex;gap:8px;flex-wrap:wrap;max-height:160px;overflow-y:auto;
     padding:10px 20px 8px;background:var(--white);border-top:1px solid var(--border);`;
 
   const lbl = document.createElement("div");
@@ -513,7 +729,7 @@ function renderQuickReplyBar(replies, label) {
       font-family:inherit;transition:all 150ms ease;white-space:nowrap;`;
     btn.onmouseover = () => { btn.style.background = "rgba(184,146,61,0.22)"; btn.style.transform = "scale(1.03)"; };
     btn.onmouseout  = () => { btn.style.background = "rgba(184,146,61,0.08)"; btn.style.transform = "scale(1)"; };
-    btn.onclick = () => { document.getElementById("staffInput").value = text; sendStaffReply(); bar.remove(); };
+    btn.onclick = () => { document.getElementById("staffInput").value = text; sendStaffReply(); };
     bar.appendChild(btn);
   });
 
@@ -641,8 +857,9 @@ async function processCustomerAudio() {
         document.getElementById("intentChip").classList.add("show");
       }
       conversationLog.push({ role: "customer", text: data.customer_text, translation: data.english_translation });
-    await updateStepFromLLM();
-await autoCheckStepCompletion();  // ADD THIS
+
+      // Suggestions only — these no longer auto-advance the step.
+      await updateStepFromLLM();
       setCustomerStatus("done", "Transcribed");
     } else {
       showToast(data.error || "Could not transcribe. Try again.", true);
@@ -652,35 +869,6 @@ await autoCheckStepCompletion();  // ADD THIS
     hideEl("customerProcessing");
     showToast("Backend error. Is port 8000 running?", true);
     setCustomerStatus("", "Ready");
-  }
-}
-// After processCustomerAudio() completes, add:
-async function autoCheckStepCompletion() {
-  try {
-    const res = await fetch(`${API_BASE}/step-complete`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        step_index: stepIndex,
-        conversation: conversationLog,
-        process_type: selectedProcess,
-        customer_language: selectedLanguage
-      })
-    });
-    
-    const data = await res.json();
-    
-    // If step is complete, auto-advance
-    if (data.is_complete) {
-      advanceStep();
-      // renderStepChecklist(); // Shows new step checklist auto
-      await fetchSmartQuickReplies();
-    } else if (data.missing_fields) {
-      // Show what's still needed
-      addInfoBadge(`📋 Still need: ${data.missing_fields.join(", ")}`);
-    }
-  } catch (e) {
-    console.warn("[AutoStep] failed:", e);
   }
 }
 
@@ -707,8 +895,8 @@ async function sendStaffReply() {
       input.value = ""; input.style.height = "auto";
       setStaffStatus("done", "Sent");
       setTimeout(() => setStaffStatus("", "Ready"), 2000);
-      document.getElementById("quickRepliesBar")?.remove();
       document.getElementById("nextQuestionHint")?.remove();
+      // Quick replies / checklist stay visible — staff may need to tap several in a row.
     } else { showToast(data.error || "Translation failed", true); }
   } catch (err) {
     hideEl("staffProcessing");

@@ -1,200 +1,1061 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>VoiceAssist AI — Live Desk</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../css/base.css">
-<link rel="stylesheet" href="../css/conversation-desk.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy:#0F1E3D;
+  --navy-light:#1a2f5a;
+  --gold:#B8923D;
+  --gold-light:#D4AF6A;
+  --gold-bg:rgba(184,146,61,0.08);
+  --white:#ffffff;
+  --bg:#F5F4F1;
+  --border:#E2E0DA;
+  --slate:#6B7280;
+  --slate-light:#9CA3AF;
+  --success:#16A34A;
+  --error:#B91C1C;
+  --step-done:#22C55E;
+  --step-active:#B8923D;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:var(--bg);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+
+/* TOPBAR */
+.topbar{height:52px;background:var(--navy);display:flex;align-items:center;padding:0 18px;gap:12px;flex-shrink:0;z-index:100}
+.brand{display:flex;align-items:center;gap:8px;color:var(--white);font-size:13.5px;font-weight:600;font-family:'Source Serif 4',serif;text-decoration:none}
+.brand svg{width:18px;height:18px}
+.divider-v{width:1px;height:18px;background:rgba(255,255,255,0.15)}
+.chip{display:flex;align-items:center;gap:5px;border-radius:99px;padding:3px 11px;font-size:12px;font-weight:500;flex-shrink:0}
+.chip-lang{background:rgba(212,175,106,0.18);border:1px solid rgba(212,175,106,0.35);color:var(--gold-light)}
+.chip-intent{background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7)}
+.chip-intent svg{width:12px;height:12px;color:var(--gold-light)}
+.guide-hint{display:flex;align-items:center;gap:6px;background:rgba(74,157,110,0.18);border:1px solid rgba(74,157,110,0.35);border-radius:6px;padding:3px 10px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.85);max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.guide-hint svg{flex-shrink:0;width:11px;height:11px;color:#4A9D6E}
+.timer-wrap{margin-left:auto;font-size:11.5px;color:rgba(255,255,255,0.4);flex-shrink:0;font-variant-numeric:tabular-nums}
+.timer-wrap span{color:var(--gold-light);font-weight:600}
+.topbar-btn{display:flex;align-items:center;gap:5px;padding:6px 13px;border-radius:6px;font-size:12.5px;font-weight:500;cursor:pointer;border:none;font-family:inherit;transition:all 150ms ease;flex-shrink:0}
+.btn-back{background:rgba(255,255,255,0.1);color:var(--white)}
+.btn-back:hover{background:rgba(255,255,255,0.18)}
+.btn-end{background:var(--error);color:var(--white)}
+.btn-end:hover{background:#991b1b}
+
+/* PROGRESS STEPS */
+.progress-bar{background:var(--white);border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;gap:0;height:54px;flex-shrink:0;overflow:hidden}
+.step-item{display:flex;align-items:center;gap:8px;padding:0 14px;font-size:12px;font-weight:500;color:var(--slate-light);white-space:nowrap;position:relative;transition:color 400ms ease}
+.step-item:not(:last-child)::after{content:'';position:absolute;right:-6px;top:50%;transform:translateY(-50%);width:12px;height:1px;background:var(--border);z-index:1}
+.step-dot{width:22px;height:22px;border-radius:50%;background:var(--border);color:var(--slate);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 400ms cubic-bezier(0.34,1.56,0.64,1);position:relative}
+.step-item.active{color:var(--navy)}
+.step-item.active .step-dot{background:var(--gold);color:var(--white);box-shadow:0 0 0 5px rgba(184,146,61,0.18);animation:pulseDot 2s ease-in-out infinite}
+.step-item.done{color:var(--success)}
+.step-item.done .step-dot{background:var(--step-done);color:var(--white);box-shadow:none}
+.step-item.done .step-dot::after{content:'✓';position:absolute;font-size:11px;font-weight:700}
+.step-item.done .step-num-txt{display:none}
+@keyframes pulseDot{0%,100%{box-shadow:0 0 0 4px rgba(184,146,61,0.15)}50%{box-shadow:0 0 0 9px rgba(184,146,61,0.06)}}
+.step-connector{flex:1;height:1px;background:var(--border);margin:0 4px;min-width:8px;transition:background 400ms ease}
+.step-connector.done{background:var(--step-done)}
+
+/* PANES */
+.panes{display:grid;grid-template-columns:1fr 1fr;flex:1;min-height:0}
+.pane{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--border)}
+.pane:last-child{border-right:none}
+.pane-header{padding:12px 18px 10px;border-bottom:1px solid var(--border);background:var(--white);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.pane-label{font-size:10.5px;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;color:var(--slate-light)}
+.pane-lang{font-size:11px;font-weight:600;background:rgba(184,146,61,0.1);color:var(--gold);padding:2px 8px;border-radius:4px}
+.pane-status{margin-left:auto;font-size:11.5px;font-weight:500;color:var(--slate-light);display:flex;align-items:center;gap:5px}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--border);transition:background 200ms ease}
+.status-dot.listening{background:var(--error);animation:blink 1s ease-in-out infinite}
+.status-dot.processing{background:var(--gold);animation:blink 0.6s ease-in-out infinite}
+.status-dot.done{background:var(--success)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.25}}
+
+/* TRANSCRIPT */
+.transcript{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;color:var(--slate-light);gap:8px;text-align:center;padding:20px}
+.empty-state svg{width:34px;height:34px;opacity:0.35}
+.empty-state p{font-size:12.5px}
+
+/* Bubbles */
+.bubble-customer{animation:popIn 220ms cubic-bezier(0.34,1.56,0.64,1)}
+.bubble-orig{background:var(--white);border:1px solid var(--border);border-radius:10px 10px 10px 2px;padding:11px 14px;font-size:13.5px;line-height:1.6;color:var(--navy)}
+.bubble-trans{margin-top:4px;font-size:12px;color:var(--slate);line-height:1.5;padding:0 4px;font-style:italic}
+.bubble-meta{font-size:10.5px;color:var(--slate-light);margin-top:3px;padding:0 4px;display:flex;align-items:center;gap:6px}
+.eng-tag{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:9.5px;color:var(--slate-light)}
+.staff-wrap{align-self:flex-end;max-width:90%;animation:popIn 220ms cubic-bezier(0.34,1.56,0.64,1)}
+.bubble-staff{background:var(--navy);border-radius:10px 10px 2px 10px;padding:11px 14px;font-size:13.5px;line-height:1.6;color:var(--white)}
+.bubble-staff.greeting{border-left:3px solid var(--gold)}
+.bubble-staff-label{font-size:10.5px;color:var(--gold-light);display:block;margin-bottom:3px}
+.bubble-staff-trans{margin-top:4px;font-size:12px;color:var(--gold-light);padding:0 4px;opacity:0.85}
+.bubble-staff-meta{font-size:10.5px;color:var(--slate-light);margin-top:3px;padding:0 4px;text-align:right;display:flex;align-items:center;justify-content:flex-end;gap:6px}
+@keyframes popIn{from{opacity:0;transform:scale(0.94) translateY(6px)}to{opacity:1;transform:scale(1) translateY(0)}}
+
+/* Waveform */
+.waveform{display:none;align-items:center;gap:3px;padding:8px 12px;background:var(--white);border:1px solid var(--border);border-radius:10px;width:fit-content}
+.waveform.show{display:flex}
+.waveform span{width:3px;border-radius:99px;background:var(--gold);animation:wave 1.2s ease-in-out infinite}
+.waveform span:nth-child(1){height:8px;animation-delay:0s}
+.waveform span:nth-child(2){height:14px;animation-delay:.1s}
+.waveform span:nth-child(3){height:20px;animation-delay:.2s}
+.waveform span:nth-child(4){height:14px;animation-delay:.15s}
+.waveform span:nth-child(5){height:8px;animation-delay:.25s}
+@keyframes wave{0%,100%{transform:scaleY(0.4);opacity:0.5}50%{transform:scaleY(1);opacity:1}}
+
+/* CONTROLS ZONE */
+.pane-controls{border-top:1px solid var(--border);background:var(--white);flex-shrink:0}
+.mic-zone{text-align:center;padding:12px 18px 14px}
+.customer-mic{width:60px;height:60px;border-radius:50%;background:var(--navy);border:none;color:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;margin:0 auto 7px;transition:transform 150ms ease,background 150ms ease,box-shadow 200ms ease;box-shadow:0 2px 10px rgba(15,30,61,0.22)}
+.customer-mic:hover{transform:scale(1.05)}
+.customer-mic.recording{background:var(--error);box-shadow:0 0 0 8px rgba(185,28,28,0.15);animation:micPulse 1.2s ease-in-out infinite}
+@keyframes micPulse{0%,100%{box-shadow:0 0 0 6px rgba(185,28,28,0.14)}50%{box-shadow:0 0 0 14px rgba(185,28,28,0.05)}}
+.customer-mic svg{width:24px;height:24px}
+.mic-hint{font-size:12px;color:var(--slate-light)}
+.mic-hint.recording{color:var(--error);font-weight:500}
+.processing-bar{display:none;align-items:center;gap:8px;padding:7px 18px;background:rgba(184,146,61,0.07);border-bottom:1px solid rgba(184,146,61,0.15);font-size:12px;color:var(--gold);font-weight:500}
+.processing-bar.show{display:flex}
+.proc-dot{width:6px;height:6px;border-radius:50%;background:var(--gold);animation:blink 0.6s ease-in-out infinite}
+
+/* Checklist */
+.checklist-bar{padding:10px 18px 6px;background:rgba(184,146,61,0.04);border-bottom:1px solid var(--border)}
+.checklist-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+.checklist-title{font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:var(--slate-light);font-weight:600}
+.checklist-prog{font-size:11px;font-weight:700;color:var(--gold)}
+.checklist-items{display:flex;flex-direction:column;gap:5px}
+.checklist-item{display:flex;align-items:flex-start;gap:7px;cursor:pointer;font-size:12px;color:var(--navy);line-height:1.45;user-select:none}
+.checklist-item input[type=checkbox]{margin-top:2px;width:14px;height:14px;accent-color:var(--gold);cursor:pointer;flex-shrink:0}
+.checklist-item.checked{color:var(--slate-light);text-decoration:line-through}
+
+/* Step controls */
+.step-controls{display:flex;gap:8px;padding:10px 18px;border-bottom:1px solid var(--border);align-items:center;background:rgba(184,146,61,0.04)}
+.step-back{flex:0.8;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--white);color:var(--slate);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all 150ms ease}
+.step-back:hover:not(:disabled){background:var(--bg)}
+.step-back:disabled{opacity:0.38;cursor:not-allowed}
+.step-indicator{font-size:10.5px;color:var(--slate-light);font-weight:600;text-align:center;flex:1}
+.step-next{flex:0.8;padding:7px 10px;border:1px solid var(--gold);border-radius:6px;background:var(--navy);color:var(--white);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all 150ms ease}
+.step-next:hover:not(:disabled){background:var(--navy-light)}
+.step-next:disabled{opacity:0.45;cursor:not-allowed}
+
+/* Quick replies */
+.qr-bar{padding:9px 18px 7px;background:var(--white);border-bottom:1px solid var(--border)}
+.qr-label{font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:var(--slate-light);font-weight:600;margin-bottom:6px}
+.qr-pills{display:flex;gap:6px;flex-wrap:wrap;max-height:130px;overflow-y:auto}
+.qr-pill{padding:5px 13px;border-radius:99px;border:1px solid var(--gold);background:var(--gold-bg);color:var(--navy);font-size:12px;cursor:pointer;font-family:inherit;transition:all 150ms ease;white-space:nowrap}
+.qr-pill:hover{background:rgba(184,146,61,0.2);transform:scale(1.02)}
+
+/* Staff input */
+.staff-input-row{display:flex;gap:7px;align-items:flex-end;padding:12px 18px}
+.staff-textarea{flex:1;border:1px solid var(--border);border-radius:8px;padding:9px 13px;font-size:13.5px;font-family:inherit;color:var(--navy);resize:none;outline:none;line-height:1.5;min-height:42px;max-height:110px;transition:border-color 150ms ease}
+.staff-textarea:focus{border-color:var(--gold)}
+.staff-textarea::placeholder{color:var(--slate-light);font-size:12.5px}
+.staff-mic-btn{width:42px;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--bg);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--slate);transition:all 150ms ease;flex-shrink:0}
+.staff-mic-btn:hover{border-color:var(--navy);color:var(--navy)}
+.staff-mic-btn.recording{background:var(--error);border-color:var(--error);color:var(--white)}
+.staff-mic-btn svg{width:16px;height:16px}
+.staff-send{height:42px;padding:0 15px;background:var(--navy);color:var(--white);border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;transition:background 150ms ease,opacity 150ms ease;white-space:nowrap;flex-shrink:0}
+.staff-send:hover{background:var(--navy-light)}
+.staff-send:disabled{opacity:0.5;cursor:not-allowed}
+.staff-send svg{width:14px;height:14px}
+.send-spin{width:13px;height:13px;border:1.5px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 600ms linear infinite;display:none}
+.staff-send.loading .send-txt{display:none}
+.staff-send.loading .send-spin{display:block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* TOAST */
+.toast{position:fixed;top:18px;right:22px;display:flex;align-items:center;gap:9px;background:var(--navy);color:var(--white);padding:12px 16px;border-radius:7px;font-size:13px;font-weight:500;transform:translateX(440px);transition:transform 300ms cubic-bezier(0.22,1,0.36,1);z-index:999}
+.toast.show{transform:translateX(0)}
+.toast svg{width:15px;height:15px;color:#4A9D6E;flex-shrink:0}
+.toast.err svg{color:rgba(255,255,255,0.7)}
+.toast.err{background:var(--error)}
+
+/* SUMMARY MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(15,30,61,0.55);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity 300ms ease}
+.modal-overlay.show{opacity:1;pointer-events:all}
+.modal{background:var(--white);border-radius:12px;width:100%;max-width:800px;max-height:88vh;overflow-y:auto;padding:26px;transform:translateY(18px);transition:transform 300ms ease}
+.modal-overlay.show .modal{transform:translateY(0)}
+.modal-title{font-size:17px;font-weight:600;color:var(--navy);margin-bottom:3px}
+.modal-sub{font-size:12.5px;color:var(--slate);margin-bottom:20px}
+.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px}
+.sum-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px}
+.sum-label{font-size:10.5px;text-transform:uppercase;letter-spacing:0.07em;color:var(--slate-light);font-weight:600;margin-bottom:8px}
+.sum-text{font-size:13px;line-height:1.75;color:var(--slate);white-space:pre-wrap}
+.modal-actions{display:flex;gap:9px}
+.modal-primary{flex:1;height:42px;background:var(--success);color:var(--white);border:none;border-radius:7px;font-size:13.5px;font-weight:500;cursor:pointer;font-family:inherit;transition:background 150ms ease}
+.modal-primary:hover{background:#15803d}
+.modal-ghost{height:42px;padding:0 18px;background:transparent;color:var(--slate);border:1px solid var(--border);border-radius:7px;font-size:13.5px;font-weight:500;cursor:pointer;font-family:inherit;transition:background 150ms ease}
+.modal-ghost:hover{background:var(--bg)}
+
+/* Save success state */
+.save-success-banner{display:none;align-items:center;gap:10px;padding:12px 18px;background:rgba(22,163,74,0.1);border:1px solid rgba(22,163,74,0.3);border-radius:8px;margin-bottom:16px;font-size:13px;color:#166534;font-weight:500}
+.save-success-banner.show{display:flex}
+.save-success-banner svg{width:18px;height:18px;flex-shrink:0;color:#16a34a}
+
+audio{display:none}
+</style>
 </head>
 <body>
-<div class="desk-root">
 
-  <!-- TOP BAR -->
-  <div class="desk-topbar">
-    <a class="desk-brand" href="dashboard.html">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#D4AF6A" stroke-width="1.5">
-        <path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      VoiceAssist AI
-    </a>
-    <div class="desk-topbar-divider"></div>
-    <div class="desk-meta">
-      <div class="desk-lang-chip" id="langChip">
-        <span id="langChipFlag">हि</span>
-        <span id="langChipName">Hindi</span>
-      </div>
-      <div class="desk-intent-chip" id="intentChip">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="12" cy="12" r="9"/>
-          <path d="M12 7v5l3 3" stroke-linecap="round"/>
-        </svg>
-        <span id="intentChipText">General enquiry</span>
-      </div>
+<!-- TOPBAR -->
+<div class="topbar">
+  <a class="brand" href="dashboard.html">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#D4AF6A" stroke-width="1.5">
+      <path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    VoiceAssist AI
+  </a>
+  <div class="divider-v"></div>
+  <div class="chip chip-lang">
+    <span id="langFlag">हि</span>
+    <span id="langName">Hindi</span>
+  </div>
+  <div class="chip chip-intent">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" stroke-linecap="round"/></svg>
+    <span id="intentText">Loan enquiry</span>
+  </div>
+  <div class="guide-hint" id="guideHint">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01" stroke-linecap="round"/></svg>
+    <span id="guideText">Session starting…</span>
+  </div>
+  <div class="timer-wrap">Session: <span id="timerDisplay">00:00</span></div>
+  <button class="topbar-btn btn-back" onclick="window.location.href='dashboard.html'">← Dashboard</button>
+  <button class="topbar-btn btn-end" id="endBtn">End &amp; Summarise</button>
+</div>
 
-      <!-- GUIDED HINT -->
-      <div class="desk-guide-hint" id="guideHint" style="display:none;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M12 8v4M12 16h.01" stroke-linecap="round"/>
-        </svg>
-        <span id="guideHintText"></span>
-      </div>
+<!-- PROGRESS STEPS -->
+<div class="progress-bar" id="progressBar"></div>
 
-      <div class="desk-timer">Session: <span id="timerDisplay">00:00</span></div>
+<!-- PANES -->
+<div class="panes">
+  <!-- LEFT: CUSTOMER -->
+  <div class="pane">
+    <div class="pane-header">
+      <div class="pane-label">Customer</div>
+      <div class="pane-lang" id="custLangTag">हिन्दी</div>
+      <div class="pane-status">
+        <div class="status-dot" id="custDot"></div>
+        <span id="custStatusTxt">Ready</span>
+      </div>
     </div>
-    <button class="desk-topbar-btn btn-back" onclick="window.location.href='dashboard.html'">← Dashboard</button>
-    <button class="desk-topbar-btn btn-end" id="endSessionBtn">End &amp; Summarise</button>
+    <div class="transcript" id="custTranscript">
+      <div class="empty-state" id="custEmpty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3" stroke-linecap="round"/></svg>
+        <p id="custEmptyTxt">Tap the mic to record the customer</p>
+      </div>
+    </div>
+    <div class="pane-controls">
+      <div class="processing-bar" id="custProcessing">
+        <div class="proc-dot"></div>
+        Processing speech…
+      </div>
+      <div class="mic-zone">
+        <button class="customer-mic" id="custMic" aria-label="Record customer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3" stroke-linecap="round"/></svg>
+        </button>
+        <div class="mic-hint" id="custMicHint">Tap to record customer</div>
+      </div>
+    </div>
   </div>
 
-  <!-- PROCESS STRIP -->
-  <div class="process-strip" id="processStrip"></div>
-
-  <!-- TWO PANE -->
-  <div class="desk-panes">
-
-    <!-- LEFT: CUSTOMER PANE -->
-    <div class="pane">
-      <div class="pane-header">
-        <div class="pane-label">Customer</div>
-        <div class="pane-lang-tag" id="customerLangTag">हिन्दी</div>
-        <div class="pane-status" id="customerStatus">
-          <div class="pane-status-dot" id="customerDot"></div>
-          <span id="customerStatusText">Ready</span>
-        </div>
-      </div>
-      <div class="pane-transcript" id="customerTranscript">
-        <div class="empty-state" id="customerEmpty">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
-            <rect x="9" y="3" width="6" height="11" rx="3"/>
-            <path d="M5 11a7 7 0 0014 0M12 18v3" stroke-linecap="round"/>
-          </svg>
-          <p>Tap the mic to record the customer</p>
-        </div>
-      </div>
-      <div class="pane-controls">
-        <div class="processing-indicator" id="customerProcessing">
-          <div class="processing-dot"></div>
-          Processing speech…
-        </div>
-        <div class="customer-mic-wrap" id="customerMicWrap">
-          <button class="customer-mic" id="customerMicBtn" aria-label="Record customer speech">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-              <rect x="9" y="3" width="6" height="11" rx="3"/>
-              <path d="M5 11a7 7 0 0014 0M12 18v3" stroke-linecap="round"/>
-            </svg>
-          </button>
-          <div class="customer-mic-hint" id="customerMicHint">Tap to record customer</div>
-        </div>
+  <!-- RIGHT: STAFF -->
+  <div class="pane">
+    <div class="pane-header">
+      <div class="pane-label">You (Staff)</div>
+      <div class="pane-lang" style="background:rgba(15,30,61,0.07);color:var(--navy)">English</div>
+      <div class="pane-status">
+        <div class="status-dot" id="staffDot"></div>
+        <span id="staffStatusTxt">Ready</span>
       </div>
     </div>
-
-    <!-- RIGHT: STAFF PANE -->
-    <div class="pane">
-      <div class="pane-header">
-        <div class="pane-label">You (Staff)</div>
-        <div class="pane-lang-tag" style="background:rgba(15,30,61,0.07);color:var(--navy)">English</div>
-        <div class="pane-status" id="staffStatus">
-          <div class="pane-status-dot" id="staffDot"></div>
-          <span id="staffStatusText">Ready</span>
-        </div>
-      </div>
-      <div class="pane-transcript" id="staffTranscript">
-        <div class="empty-state" id="staffEmpty">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
-            <path d="M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-4l-4 4-4-4z" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <p>Waiting for the conversation to begin…</p>
-        </div>
-      </div>
-      <div class="pane-controls">
-        
-        <!-- ✅ MANUAL STEP CONTROLS (STAFF) -->
-        <div style="display:flex;gap:8px;padding:12px 20px;border-bottom:1px solid var(--border);align-items:center;background:rgba(184,146,61,0.05);">
-          <button id="manualBackBtn" title="Go back to previous step"
-            style="flex:0.8;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--white);color:var(--slate);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all 150ms ease;white-space:nowrap;">
-            ← Back
-          </button>
-          <div style="font-size:11px;color:var(--slate-light);font-weight:600;text-align:center;flex:1;">
-            <span id="stepIndicator">Step 1 of 5</span>
-          </div>
-          <button id="manualNextBtn" title="Confirm & move to next step"
-            style="flex:0.8;padding:8px 10px;border:1px solid var(--gold);border-radius:6px;background:var(--navy);color:var(--white);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all 150ms ease;white-space:nowrap;">
-            Next ✓
-          </button>
-        </div>
-
-        <!-- Quick replies will be injected here -->
-        
-        <div class="processing-indicator" id="staffProcessing">
-          <div class="processing-dot"></div>
-          Translating &amp; generating audio…
-        </div>
-        
-        <div class="staff-input-row" id="staffInputRow">
-          <textarea class="staff-textarea" id="staffInput" placeholder="Type reply in English… or tap a quick reply above" rows="1"></textarea>
-          <button class="staff-mic-btn" id="staffMicBtn" aria-label="Record staff speech">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-              <rect x="9" y="3" width="6" height="11" rx="3"/>
-              <path d="M5 11a7 7 0 0014 0M12 18v3" stroke-linecap="round"/>
-            </svg>
-          </button>
-          <button class="staff-send-btn" id="staffSendBtn">
-            <span class="btn-text">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="15" height="15">
-                <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 19-7z" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              Send &amp; Translate
-            </span>
-            <span class="btn-sending">
-              <div class="send-spinner"></div>
-              Translating…
-            </span>
-          </button>
-        </div>
+    <div class="transcript" id="staffTranscript">
+      <div class="empty-state" id="staffEmpty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-4l-4 4-4-4z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <p>Waiting for conversation to begin…</p>
       </div>
     </div>
-
-  </div><!-- /desk-panes -->
-</div><!-- /desk-root -->
+    <div class="pane-controls" id="staffControls">
+      <div class="step-controls">
+        <button class="step-back" id="backBtn">← Back</button>
+        <div class="step-indicator" id="stepIndicator">Step 1 of 5</div>
+        <button class="step-next" id="nextBtn">Next ✓</button>
+      </div>
+      <div class="processing-bar" id="staffProcessing">
+        <div class="proc-dot"></div>
+        Translating &amp; generating audio…
+      </div>
+      <div class="staff-input-row">
+        <textarea class="staff-textarea" id="staffInput" placeholder="Type reply in English… or tap a quick reply above" rows="1"></textarea>
+        <button class="staff-mic-btn" id="staffMic" aria-label="Record staff speech">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3" stroke-linecap="round"/></svg>
+        </button>
+        <button class="staff-send" id="staffSend">
+          <span class="send-txt" style="display:flex;align-items:center;gap:5px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 19-7z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Send &amp; Translate
+          </span>
+          <div class="send-spin"></div>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <audio id="audioPlayer"></audio>
 
 <!-- TOAST -->
 <div class="toast" id="toast">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-    <circle cx="12" cy="12" r="10"/>
-    <path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/>
-  </svg>
-  <span id="toastText">Done</span>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <span id="toastTxt">Done</span>
 </div>
 
 <!-- SUMMARY MODAL -->
 <div class="modal-overlay" id="summaryModal">
   <div class="modal">
     <div class="modal-title">Session Summary</div>
-    <div class="modal-subtitle" id="summaryMeta">Loading…</div>
-    <div class="modal-two-col">
-      <div class="summary-card">
-        <div class="summary-card-label">English Summary</div>
-        <div class="summary-card-text" id="englishSummary">Generating…</div>
+    <div class="modal-sub" id="summaryMeta">Loading…</div>
+
+    <!-- Save success banner (shown after saving) -->
+    <div class="save-success-banner" id="saveBanner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round"/></svg>
+      Session saved to records! Redirecting to dashboard…
+    </div>
+
+    <div class="modal-grid">
+      <div class="sum-card">
+        <div class="sum-label">English Summary</div>
+        <div class="sum-text" id="engSum">Generating…</div>
       </div>
-      <div class="summary-card">
-        <div class="summary-card-label" id="regionalLabel">Regional Summary</div>
-        <div class="summary-card-text" id="regionalSummary">Generating…</div>
+      <div class="sum-card">
+        <div class="sum-label" id="regLabel">Regional Summary</div>
+        <div class="sum-text" id="regSum">Translating…</div>
       </div>
     </div>
     <div class="modal-actions">
-      <button class="modal-btn-primary" id="saveRecordBtn">Save to Records</button>
-      <button class="modal-btn-ghost" onclick="closeSummary()">Close</button>
-      <button class="modal-btn-ghost" onclick="newSession()">New Session</button>
+      <button class="modal-primary" id="saveRecordBtn" onclick="saveRecords()">
+        💾 Save to Records
+      </button>
+      <button class="modal-ghost" onclick="closeSummary()">Close</button>
+      <button class="modal-ghost" onclick="newSession()">New Session</button>
     </div>
   </div>
 </div>
 
-<script src="../js/conversation-desk.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════
+const API = "http://localhost:8000/api/conversation";
+const params = new URLSearchParams(location.search);
+const LANG    = (params.get("lang")    || sessionStorage.getItem("va_lang")    || "Hindi").trim();
+const PROCESS = (params.get("process") || sessionStorage.getItem("va_process") || "Loan enquiry").trim();
+
+const LANG_META = {
+  Hindi:   { flag:"हि", tag:"हिन्दी" },
+  Marathi: { flag:"मा", tag:"मराठी" },
+  Tamil:   { flag:"த",  tag:"தமிழ்" },
+  Telugu:  { flag:"తె", tag:"తెలుగు" },
+  English: { flag:"EN", tag:"English" },
+};
+
+const STEPS = {
+  "Loan enquiry":      ["Greeting","Loan Options","Eligibility","Documents","Next Steps"],
+  "Account opening":   ["Greeting","Account Type","KYC Details","Documents","Activate"],
+  "Balance enquiry":   ["Greeting","Verify Identity","Show Balance","Done"],
+  "Credit card apply": ["Greeting","Eligibility","Card Selection","Documents","Apply"],
+  "General enquiry":   ["Greeting","Understand","Answer","Resolved"],
+};
+
+const GREETINGS = {
+  "Loan enquiry": {
+    Hindi:"नमस्ते! Union Bank of India में आपका स्वागत है। आज मैं आपकी loan के बारे में कैसे मदद कर सकता हूँ?",
+    Marathi:"नमस्कार! Union Bank of India मध्ये आपले स्वागत आहे. आज कोणत्या loan बद्दल माहिती हवी आहे?",
+    Tamil:"வணக்கம்! Union Bank of India-வில் உங்களை வரவேற்கிறோம். இன்று கடன் பற்றி உதவலாம்?",
+    Telugu:"నమస్కారం! Union Bank of India కి స్వాగతం. ఈ రోజు రుణం గురించి ఎలా సహాయపడగలను?",
+    English:"Welcome to Union Bank of India! How can I assist you with your loan enquiry today?",
+  },
+  "Account opening": {
+    Hindi:"नमस्ते! Union Bank of India में आपका स्वागत है। नया खाता खोलने के लिए आप सही जगह पर आए हैं!",
+    Marathi:"नमस्कार! Union Bank of India मध्ये आपले स्वागत आहे. नवीन खाते उघडण्यासाठी आपण योग्य ठिकाणी आलात!",
+    Tamil:"வணக்கம்! புதிய கணக்கு திறக்க சரியான இடத்திற்கு வந்துள்ளீர்கள்!",
+    Telugu:"నమస్కారం! కొత్త ఖాతా తెరవడానికి Union Bank of India లో స్వాగతం!",
+    English:"Welcome to Union Bank of India! You're in the right place to open a new bank account today.",
+  },
+  "Balance enquiry": {
+    Hindi:"नमस्ते! Union Bank of India में आपका स्वागत है। मैं आपका account balance जाँचने में मदद करूँगा।",
+    Marathi:"नमस्कार! मी तुमचे account balance तपासण्यास मदत करतो.",
+    Tamil:"வணக்கம்! உங்கள் கணக்கு இருப்பை சரிபார்க்க உதவுகிறேன்.",
+    Telugu:"నమస్కారం! మీ ఖాతా బ్యాలెన్స్ తనిఖీ చేయడంలో సహాయపడతాను.",
+    English:"Welcome to Union Bank of India! I'll help you check your account balance today.",
+  },
+  "Credit card apply": {
+    Hindi:"नमस्ते! Credit card apply करने में मैं आपकी मदद करूँगा।",
+    Marathi:"नमस्कार! Credit card साठी apply करण्यास मी मदत करतो.",
+    Tamil:"வணக்கம்! கிரெடிட் கார்டு விண்ணப்பிக்க உதவுகிறேன்.",
+    Telugu:"నమస్కారం! క్రెడిట్ కార్డు దరఖాస్తుకు సహాయపడతాను.",
+    English:"Welcome to Union Bank of India! I'll help you apply for a credit card today.",
+  },
+  "General enquiry": {
+    Hindi:"नमस्ते! Union Bank of India में आपका स्वागत है। आज मैं आपकी कैसे मदद कर सकता हूँ?",
+    Marathi:"नमस्कार! मी तुम्हाला कशी मदत करू?",
+    Tamil:"வணக்கம்! இன்று உங்களுக்கு எவ்வாறு உதவலாம்?",
+    Telugu:"నమస్కారం! ఈ రోజు మీకు ఎలా సహాయపడగలను?",
+    English:"Welcome to Union Bank of India! How can I help you today?",
+  },
+};
+
+const CHECKLISTS = {
+  "Loan enquiry": [
+    ["Customer greeted in their native language"],
+    ["Loan type confirmed (Home/Personal/Car/Education)","Interest rate and EMI explained","Tenure preference confirmed","Loan amount noted"],
+    ["Monthly income confirmed","Salaried or self-employed noted","ITR/salary slips checked","Bank statement reviewed","CIBIL score checked (min 700)","Existing EMIs noted"],
+    ["Aadhaar Card collected","PAN Card collected","Salary slips collected","Bank statement collected","Form 16/ITR collected","Property documents collected (home loan)"],
+    ["Processing fee explained (0.5%)","Application submitted to portal","Disbursement timeline explained (7–10 days)","Contact number verified"],
+  ],
+  "Account opening": [
+    ["Customer greeted in their native language"],
+    ["Account type confirmed (Savings/Current/PMJDY/FD)","Minimum balance and interest explained"],
+    ["Full name as per Aadhaar confirmed","Date of birth confirmed","Address confirmed","Mobile number confirmed","Nominee details confirmed"],
+    ["Aadhaar Card collected","PAN Card collected","2 passport photos collected","Address proof collected (< 3 months)"],
+    ["Initial deposit ₹1000 received","Account number sent via SMS","Passbook and debit card issued","Net banking/UPI set up"],
+  ],
+  "Balance enquiry": [
+    ["Customer greeted in their native language"],
+    ["Account number last 4 digits confirmed","OTP verified on registered mobile"],
+    ["Current balance shown","Last 5 transactions shown (if requested)"],
+    ["Passbook update offered","Net banking/UPI enrollment offered"],
+  ],
+  "Credit card apply": [
+    ["Customer greeted in their native language"],
+    ["Annual income confirmed (min ₹2.5L)","CIBIL score checked (min 700)","Existing cards noted","Employment type noted"],
+    ["Card type recommended","Customer selected card type"],
+    ["Aadhaar + PAN collected","Salary slips collected","ITR collected (if self-employed)","Photograph collected"],
+    ["Application submitted","Credit limit SMS timeline explained (7 days)","Card delivery timeline explained (15 working days)"],
+  ],
+  "General enquiry": [
+    ["Customer greeted in their native language"],
+    ["Query understood — clarifying questions asked if needed"],
+    ["Accurate answer provided from Union Bank knowledge base"],
+    ["Customer confirmed query resolved"],
+  ],
+};
+
+const QUICK_REPLIES = {
+  "Loan enquiry": [
+    ["How can I help you today?","Which loan type are you interested in?","Are you an existing Union Bank customer?"],
+    ["🏠 Home Loan — 8.35% p.a., up to 30 years","💳 Personal Loan — 11.40% p.a., up to ₹15 lakh","🚗 Car Loan — 8.70% p.a., up to 90% on-road","🎓 Education Loan — 9.90% p.a., up to ₹20 lakh","Preferred tenure: 5 / 10 / 15 / 20 / 30 years?","What loan amount are you looking for?"],
+    ["What is your monthly income?","Are you salaried or self-employed?","Any existing loan EMIs?","Approximate CIBIL score?","Minimum CIBIL required is 700","EMI should not exceed 50% of monthly income"],
+    ["Please bring Aadhaar Card (original + photocopy)","PAN Card original + photocopy needed","Last 3 months salary slips required","Last 6 months bank statement required","Form 16 / ITR needed","Property sale agreement required (home loan)"],
+    ["Processing fee: 0.5% of loan amount — one-time","Approval: 7–10 working days after documents","You will get an SMS once approved","Is there anything else I can help you with?"],
+  ],
+  "Account opening": [
+    ["What brings you to the branch today?","Are you looking to open a new account?"],
+    ["💰 Savings — ₹1000 min balance, 2.75% p.a.","🏢 Current — ₹5000 min, unlimited transactions","🆓 PMJDY Zero-Balance + RuPay card","📈 Fixed Deposit — up to 7.00%, 7 days–10 yrs","Which account type would you prefer?"],
+    ["Please fill KYC form","Full name as per Aadhaar?","Date of birth?","Current address?","Nominee name and relation?","Aadhaar linked to mobile for OTP?"],
+    ["Aadhaar Card original + photocopy","PAN Card original + photocopy","2 passport size photographs","Address proof < 3 months old"],
+    ["Initial deposit ₹1000 — activates in 30 minutes","Passbook and debit card issued today","Net banking and UPI set up now","Account number sent via SMS"],
+  ],
+  "Balance enquiry": [
+    ["Welcome! How can I help you today?","Would you like to check your account balance?"],
+    ["Please share account number last 4 digits","OTP sent to your registered mobile","Please confirm your registered mobile number"],
+    ["Your balance is being fetched…","Would you like last 5 transactions too?","Would you like a mini-statement printed?"],
+    ["Would you like a passbook update today?","SMS BAL to 09223008586 anytime","Download Union Bank app for 24x7 access","Is there anything else I can help you with?"],
+  ],
+  "Credit card apply": [
+    ["What kind of credit card are you looking for?","Do you already hold a Union Bank account?"],
+    ["Annual income?","Existing credit cards?","Approximate CIBIL score?","Min annual income: ₹2.5 lakh","Min CIBIL score: 700"],
+    ["Union Classic — Free, 1% cashback","Union Platinum — ₹499/yr, 2X rewards, lounge access","Union Signature — ₹2999/yr, 3X rewards, unlimited lounge","Which card would you like to apply for?"],
+    ["Aadhaar Card + PAN Card required","Last 3 months salary slips","ITR for 2 years (if self-employed)","1 passport size photograph"],
+    ["Application submitted ✓","Credit limit SMS in 7 days","Card delivery in 15 working days","Is there anything else I can help you with?"],
+  ],
+  "General enquiry": [
+    ["How can I help you today?","Which banking service do you need?"],
+    ["Could you give more details?","Let me check that — one moment","Is this for an existing account or new service?"],
+    ["Here is the information you requested","Would you like more detail?","Let me connect you to the right department"],
+    ["Is there anything else I can help you with?","Your query has been resolved","Thank you for visiting Union Bank of India"],
+  ],
+};
+
+const GUIDE_HINTS = {
+  "Loan enquiry": [
+    "Greet customer warmly in their language","Explain loan types, interest rates, and tenure options",
+    "Verify income, employment, EMIs, and CIBIL score (min 700)","Collect all required documents based on loan type",
+    "Submit application — explain processing fee and disbursement timeline",
+  ],
+  "Account opening": [
+    "Greet customer — ask what brings them to the branch","Explain account types and FD tenure options",
+    "Fill KYC form — name, DOB, address, mobile, nominee details","Collect Aadhaar, PAN, 2 photos, address proof",
+    "Collect initial deposit, activate account, issue passbook and card",
+  ],
+  "Balance enquiry": [
+    "Greet customer warmly","Verify identity — account last 4 digits + OTP",
+    "Share balance and last 5 transactions","Offer passbook update or net banking enrollment",
+  ],
+  "Credit card apply": [
+    "Greet customer — ask what kind of card they need","Check eligibility — annual income min ₹2.5L, CIBIL min 700",
+    "Recommend card based on spending lifestyle","Collect Aadhaar, PAN, salary slips, passport photo",
+    "Submit application — explain delivery timeline (15 days)",
+  ],
+  "General enquiry": [
+    "Greet customer warmly","Understand their query — ask clarifying questions if needed",
+    "Provide accurate information from Union Bank knowledge base","Confirm query resolved — offer further help",
+  ],
+};
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let log = [], sessionStart = Date.now(), timerID = null;
+let stepIdx = 0;
+let isRecording = false, mediaRecorder = null, audioChunks = [];
+let staffRecording = false, staffRecorder = null, staffChunks = [];
+let checkState = {};
+let savedSummaryData = null; // stores summary once generated
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+document.addEventListener("DOMContentLoaded", () => {
+  initUI();
+  startTimer();
+  bindEvents();
+  setTimeout(autoGreet, 400);
+});
+
+function initUI() {
+  const meta = LANG_META[LANG] || LANG_META.Hindi;
+  document.getElementById("langFlag").textContent = meta.flag;
+  document.getElementById("langName").textContent = LANG;
+  document.getElementById("custLangTag").textContent = meta.tag;
+  document.getElementById("intentText").textContent = PROCESS;
+  document.getElementById("regLabel").textContent = `${LANG} Summary`;
+  document.getElementById("custEmptyTxt").textContent = `Tap the mic to record the customer in ${meta.tag}`;
+  buildProgressBar();
+  updateStepUI();
+}
+
+function buildProgressBar() {
+  const steps = STEPS[PROCESS] || STEPS["General enquiry"];
+  const bar = document.getElementById("progressBar");
+  bar.innerHTML = "";
+  steps.forEach((name, i) => {
+    const item = document.createElement("div");
+    item.className = "step-item" + (i === 0 ? " active" : "");
+    item.id = `step-${i}`;
+    item.innerHTML = `<div class="step-dot"><span class="step-num-txt">${i+1}</span></div><span>${name}</span>`;
+    bar.appendChild(item);
+    if (i < steps.length - 1) {
+      const conn = document.createElement("div");
+      conn.className = "step-connector";
+      conn.id = `conn-${i}`;
+      bar.appendChild(conn);
+    }
+  });
+}
+
+function updateProgressBar() {
+  const steps = STEPS[PROCESS] || STEPS["General enquiry"];
+  steps.forEach((_, i) => {
+    const el = document.getElementById(`step-${i}`);
+    if (!el) return;
+    el.className = "step-item" + (i < stepIdx ? " done" : i === stepIdx ? " active" : "");
+    const conn = document.getElementById(`conn-${i}`);
+    if (conn) conn.className = "step-connector" + (i < stepIdx ? " done" : "");
+  });
+}
+
+function updateStepUI() {
+  const steps = STEPS[PROCESS] || STEPS["General enquiry"];
+  document.getElementById("stepIndicator").textContent = `Step ${stepIdx+1} of ${steps.length}: ${steps[stepIdx]||""}`;
+  document.getElementById("backBtn").disabled = stepIdx <= 0;
+  const atEnd = stepIdx >= steps.length - 1;
+  document.getElementById("nextBtn").textContent = atEnd ? "Finished ✓" : "Next ✓";
+  document.getElementById("nextBtn").disabled = atEnd;
+  const hints = GUIDE_HINTS[PROCESS] || GUIDE_HINTS["General enquiry"];
+  document.getElementById("guideText").textContent = hints[Math.min(stepIdx, hints.length-1)] || "";
+  updateProgressBar();
+  renderChecklist();
+  renderQuickReplies();
+}
+
+// ═══════════════════════════════════════════════════════════
+// AUTO GREETING
+// ═══════════════════════════════════════════════════════════
+async function autoGreet() {
+  const greetMap = GREETINGS[PROCESS] || GREETINGS["General enquiry"];
+  const greetText = greetMap[LANG] || greetMap.English;
+  hideEl("staffEmpty");
+  const wrap = document.createElement("div");
+  wrap.className = "staff-wrap";
+  wrap.innerHTML = `
+    <div class="bubble-staff greeting">
+      <span class="bubble-staff-label">👋 Auto Greeting</span>
+      ${esc(greetText)}
+    </div>
+    <div class="bubble-staff-meta"><span>${fmtTime()}</span><span class="eng-tag">auto</span></div>`;
+  document.getElementById("staffTranscript").appendChild(wrap);
+  scrollT("staffTranscript");
+  try {
+    const form = new FormData();
+    form.append("staff_text", greetText);
+    form.append("target_language", LANG);
+    const res = await fetch(`${API}/staff-reply`, {method:"POST", body:form});
+    const data = await res.json();
+    if (data.audio_b64) playAudio(data.audio_b64);
+    else browserSpeak(greetText, LANG);
+  } catch { browserSpeak(greetText, LANG); }
+  log.push({role:"staff", text:greetText, translation:greetText});
+  showToast("Greeting sent in " + LANG);
+}
+
+// ═══════════════════════════════════════════════════════════
+// CHECKLIST
+// ═══════════════════════════════════════════════════════════
+function renderChecklist() {
+  document.getElementById("checklistBar")?.remove();
+  const all = CHECKLISTS[PROCESS] || CHECKLISTS["General enquiry"];
+  const items = all[Math.min(stepIdx, all.length-1)] || [];
+  if (!items.length) return;
+  if (!checkState[stepIdx]) checkState[stepIdx] = new Set();
+  const checked = checkState[stepIdx];
+  const steps = STEPS[PROCESS] || [];
+  const bar = document.createElement("div");
+  bar.className = "checklist-bar";
+  bar.id = "checklistBar";
+  bar.innerHTML = `<div class="checklist-header">
+    <span class="checklist-title">📋 Checklist — ${esc(steps[stepIdx]||"")}</span>
+    <span class="checklist-prog" id="clProg">${checked.size}/${items.length}</span>
+  </div><div class="checklist-items" id="clItems"></div>`;
+  document.querySelector(".step-controls").after(bar);
+  const container = document.getElementById("clItems");
+  items.forEach((label, i) => {
+    const row = document.createElement("label");
+    row.className = "checklist-item" + (checked.has(i) ? " checked" : "");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = checked.has(i);
+    cb.addEventListener("change", () => {
+      if (cb.checked) checked.add(i); else checked.delete(i);
+      row.className = "checklist-item" + (cb.checked ? " checked" : "");
+      document.getElementById("clProg").textContent = `${checked.size}/${items.length}`;
+    });
+    const span = document.createElement("span");
+    span.textContent = label;
+    row.appendChild(cb);
+    row.appendChild(span);
+    container.appendChild(row);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// QUICK REPLIES
+// ═══════════════════════════════════════════════════════════
+function renderQuickReplies(pills, label) {
+  document.getElementById("qrBar")?.remove();
+  const all = pills || (QUICK_REPLIES[PROCESS] || QUICK_REPLIES["General enquiry"])[Math.min(stepIdx, (QUICK_REPLIES[PROCESS]||[]).length-1)] || [];
+  if (!all.length) return;
+  const bar = document.createElement("div");
+  bar.className = "qr-bar"; bar.id = "qrBar";
+  bar.innerHTML = `<div class="qr-label">${label || "⚡ Quick replies — tap to send instantly"}</div><div class="qr-pills" id="qrPills"></div>`;
+  const cl = document.getElementById("checklistBar");
+  if (cl) cl.after(bar); else document.querySelector(".step-controls").after(bar);
+  all.forEach(txt => {
+    const btn = document.createElement("button");
+    btn.className = "qr-pill"; btn.textContent = txt;
+    btn.onclick = () => { document.getElementById("staffInput").value = txt; sendStaff(); };
+    document.getElementById("qrPills").appendChild(btn);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// STEP NAV
+// ═══════════════════════════════════════════════════════════
+function nextStep() {
+  const steps = STEPS[PROCESS] || [];
+  if (stepIdx >= steps.length - 1) return;
+  stepIdx++;
+  updateStepUI();
+  showToast(`✓ Moved to: ${steps[stepIdx]}`);
+}
+function backStep() {
+  if (stepIdx <= 0) return;
+  stepIdx--;
+  const steps = STEPS[PROCESS] || [];
+  updateStepUI();
+  showToast(`← Back to: ${steps[stepIdx]}`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// CUSTOMER RECORDING
+// ═══════════════════════════════════════════════════════════
+async function toggleCustMic() {
+  if (isRecording) stopCustRec(); else await startCustRec();
+}
+async function startCustRec() {
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({audio:true}); }
+  catch(e) { showToast(e.name==="NotAllowedError"?"Mic permission denied":"Mic error: "+e.message, true); return; }
+  const mime = getMime();
+  mediaRecorder = new MediaRecorder(stream, mime?{mimeType:mime}:{});
+  audioChunks = [];
+  mediaRecorder.ondataavailable = e => { if(e.data.size>0) audioChunks.push(e.data); };
+  mediaRecorder.onstop = processCustAudio;
+  mediaRecorder.start(100);
+  isRecording = true;
+  document.getElementById("custMic").classList.add("recording");
+  const hint = document.getElementById("custMicHint");
+  hint.textContent = "Recording… Tap to stop"; hint.classList.add("recording");
+  setCustStatus("listening","Listening…");
+  hideEl("custEmpty");
+  addWaveform();
+  document.getElementById("qrBar")?.remove();
+}
+function stopCustRec() {
+  if (mediaRecorder?.state!=="inactive"){mediaRecorder.stop();mediaRecorder.stream.getTracks().forEach(t=>t.stop());}
+  isRecording=false;
+  document.getElementById("custMic").classList.remove("recording");
+  const hint=document.getElementById("custMicHint");
+  hint.textContent="Tap to record customer";hint.classList.remove("recording");
+  setCustStatus("processing","Processing…");
+}
+async function processCustAudio() {
+  document.getElementById("custWaveform")?.remove();
+  showEl("custProcessing");
+  try {
+    const mime=getMime();
+    const blob=new Blob(audioChunks,{type:mime||"audio/webm"});
+    const wav=await toWav(blob);
+    const form=new FormData();
+    form.append("audio",wav,"customer.wav");
+    form.append("language",LANG);
+    form.append("process_type",PROCESS);
+    const res=await fetch(`${API}/customer-speak`,{method:"POST",body:form});
+    const data=await res.json();
+    hideEl("custProcessing");
+    if(data.success&&data.customer_text){
+      addCustBubble(data.customer_text,data.english_translation,data.stt_engine,data.intent);
+      log.push({role:"customer",text:data.customer_text,translation:data.english_translation});
+      if(data.intent&&data.intent!=="General enquiry") document.getElementById("intentText").textContent=data.intent;
+      setCustStatus("done","Transcribed");
+      fetchSmartReplies();
+    } else {
+      showToast(data.error||"Could not transcribe. Try again.",true);
+      setCustStatus("","Ready");
+      renderQuickReplies();
+    }
+  } catch {
+    hideEl("custProcessing");
+    showToast("Backend error — is port 8000 running?",true);
+    setCustStatus("","Ready");
+    renderQuickReplies();
+  }
+}
+async function fetchSmartReplies() {
+  try {
+    const res=await fetch(`${API}/smart-replies`,{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({conversation:log.slice(-6),process_type:PROCESS,step_index:stepIdx,customer_language:LANG})});
+    const data=await res.json();
+    if(data.success&&data.replies?.length){renderQuickReplies(data.replies,"⚡ Smart replies");return;}
+  } catch {}
+  renderQuickReplies();
+}
+
+// ═══════════════════════════════════════════════════════════
+// STAFF SEND
+// ═══════════════════════════════════════════════════════════
+async function sendStaff() {
+  const input=document.getElementById("staffInput");
+  const text=input.value.trim();
+  if(!text) return;
+  const sendBtn=document.getElementById("staffSend");
+  sendBtn.disabled=true;sendBtn.classList.add("loading");
+  showEl("staffProcessing");hideEl("staffEmpty");
+  try {
+    const form=new FormData();
+    form.append("staff_text",text);
+    form.append("target_language",LANG);
+    const res=await fetch(`${API}/staff-reply`,{method:"POST",body:form});
+    const data=await res.json();
+    hideEl("staffProcessing");
+    sendBtn.disabled=false;sendBtn.classList.remove("loading");
+    if(data.success){
+      addStaffBubble(text,data.translated_text,data.tts_engine);
+      if(data.audio_b64) playAudio(data.audio_b64);
+      else browserSpeak(data.translated_text,LANG);
+      log.push({role:"staff",text,translation:data.translated_text});
+      input.value="";input.style.height="auto";
+      setStaffStatus("done","Sent");
+      setTimeout(()=>setStaffStatus("","Ready"),2000);
+    } else showToast(data.error||"Translation failed",true);
+  } catch {
+    hideEl("staffProcessing");
+    sendBtn.disabled=false;sendBtn.classList.remove("loading");
+    showToast("Backend error — is port 8000 running?",true);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// STAFF MIC
+// ═══════════════════════════════════════════════════════════
+async function toggleStaffMic() {
+  const btn=document.getElementById("staffMic");
+  if(staffRecording){
+    if(staffRecorder?.state!=="inactive"){staffRecorder.stop();staffRecorder.stream.getTracks().forEach(t=>t.stop());}
+    staffRecording=false;btn.classList.remove("recording");
+  } else {
+    try {
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      const mime=getMime();
+      staffRecorder=new MediaRecorder(stream,mime?{mimeType:mime}:{});
+      staffChunks=[];
+      staffRecorder.ondataavailable=e=>{if(e.data.size>0)staffChunks.push(e.data);};
+      staffRecorder.onstop=async()=>{
+        btn.classList.remove("recording");staffRecording=false;
+        const blob=new Blob(staffChunks,{type:mime||"audio/webm"});
+        const wav=await toWav(blob);
+        const form=new FormData();form.append("audio",wav,"staff.wav");
+        try{
+          const res=await fetch(`${API}/staff-speak`,{method:"POST",body:form});
+          const d=await res.json();
+          if(d.success&&d.text) document.getElementById("staffInput").value=d.text;
+        } catch{showToast("Staff mic failed",true);}
+      };
+      staffRecorder.start(100);staffRecording=true;btn.classList.add("recording");
+    } catch{showToast("Mic denied",true);}
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// SESSION END / SUMMARY
+// ═══════════════════════════════════════════════════════════
+async function endSession() {
+  if(!log.length){showToast("No conversation yet",true);return;}
+  clearInterval(timerID);
+  document.getElementById("summaryModal").classList.add("show");
+  const duration = document.getElementById("timerDisplay").textContent;
+  document.getElementById("summaryMeta").textContent=`${LANG} · ${PROCESS} · ${duration}`;
+  document.getElementById("engSum").textContent="Generating…";
+  document.getElementById("regSum").textContent="Translating…";
+  try {
+    const res=await fetch(`${API}/summary`,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({conversation:log.map(t=>({role:t.role,text:t.text})),customer_language:LANG,process_type:PROCESS})
+    });
+    const data=await res.json();
+    if(data.success){
+      const engText = data.english_summary + (data.action_items?.length?"\n\nACTION ITEMS:\n"+data.action_items.map(a=>`• ${a}`).join("\n"):"");
+      document.getElementById("engSum").textContent=engText;
+      document.getElementById("regSum").textContent=data.regional_summary;
+      // Store summary data for saving
+      savedSummaryData = {
+        englishSummary: engText,
+        regionalSummary: data.regional_summary,
+        actionItems: data.action_items || [],
+        duration,
+      };
+    } else {
+      document.getElementById("engSum").textContent="Error: "+(data.error||"");
+    }
+  } catch {
+    document.getElementById("engSum").textContent="Network error.";
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ✅ SAVE TO RECORDS — writes real data to localStorage
+// ═══════════════════════════════════════════════════════════
+function saveRecords() {
+  const saveBtn = document.getElementById("saveRecordBtn");
+  const engSumText = document.getElementById("engSum").textContent;
+  const regSumText = document.getElementById("regSum").textContent;
+  const duration   = document.getElementById("timerDisplay").textContent;
+
+  // Build session record
+  const sessionRecord = {
+    id: "session_" + Date.now(),
+    timestamp: new Date().toISOString(),
+    date: new Date().toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }),
+    time: new Date().toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true }),
+    language: LANG,
+    process: PROCESS,
+    duration: duration,
+    durationMinutes: parseDurationToMinutes(duration),
+    englishSummary: engSumText,
+    regionalSummary: regSumText,
+    conversationLog: log,
+    stepReached: stepIdx + 1,
+    totalSteps: (STEPS[PROCESS] || []).length,
+  };
+
+  // Read existing sessions from localStorage
+  let sessions = [];
+  try {
+    const existing = localStorage.getItem("va_sessions");
+    if (existing) sessions = JSON.parse(existing);
+  } catch(e) { sessions = []; }
+
+  // Prepend new session (newest first)
+  sessions.unshift(sessionRecord);
+
+  // Keep only last 50 sessions to avoid storage bloat
+  if (sessions.length > 50) sessions = sessions.slice(0, 50);
+
+  // Save back
+  localStorage.setItem("va_sessions", JSON.stringify(sessions));
+
+  // Update dashboard stats
+  updateDashboardStats(sessions);
+
+  // Show success UI
+  saveBtn.textContent = "✓ Saved!";
+  saveBtn.disabled = true;
+  document.getElementById("saveBanner").classList.add("show");
+  showToast("Session saved to records ✓");
+
+  // Redirect after 1.5s
+  setTimeout(() => { window.location.href = "dashboard.html"; }, 1500);
+}
+
+function parseDurationToMinutes(durationStr) {
+  // "04:32" → 4.5 minutes (approx)
+  const parts = durationStr.split(":").map(Number);
+  if (parts.length === 2) return parts[0] + Math.round(parts[1]/60*10)/10;
+  return 0;
+}
+
+function updateDashboardStats(sessions) {
+  // Calculate today's stats
+  const today = new Date().toDateString();
+  const todaySessions = sessions.filter(s => new Date(s.timestamp).toDateString() === today);
+  const avgDuration = todaySessions.length
+    ? Math.round(todaySessions.reduce((a,s) => a + s.durationMinutes, 0) / todaySessions.length * 10) / 10
+    : 0;
+  const langs = [...new Set(sessions.map(s => s.language))];
+
+  localStorage.setItem("va_dashboard_stats", JSON.stringify({
+    sessionsToday: todaySessions.length,
+    summariesSaved: sessions.length,
+    avgDuration,
+    languagesUsed: langs,
+    lastUpdated: new Date().toISOString(),
+  }));
+}
+
+function closeSummary() { document.getElementById("summaryModal").classList.remove("show"); startTimer(); }
+function newSession()   { location.href="dashboard.html"; }
+
+// ═══════════════════════════════════════════════════════════
+// BUBBLE BUILDERS
+// ═══════════════════════════════════════════════════════════
+function addCustBubble(orig,trans,engine,intent){
+  hideEl("custEmpty");
+  const wrap=document.createElement("div");
+  wrap.className="bubble-customer";
+  wrap.innerHTML=`<div class="bubble-orig">${esc(orig)}</div>
+    ${trans?`<div class="bubble-trans">🌐 ${esc(trans)}</div>`:""}
+    <div class="bubble-meta"><span>${fmtTime()}</span><span class="eng-tag">${engine||"stt"}</span>${intent?`<span class="eng-tag">${esc(intent)}</span>`:""}</div>`;
+  document.getElementById("custTranscript").appendChild(wrap);
+  scrollT("custTranscript");
+}
+function addStaffBubble(orig,trans,engine){
+  hideEl("staffEmpty");
+  const wrap=document.createElement("div");
+  wrap.className="staff-wrap";
+  wrap.innerHTML=`<div class="bubble-staff">${esc(orig)}</div>
+    ${trans?`<div class="bubble-staff-trans">→ ${esc(trans)}</div>`:""}
+    <div class="bubble-staff-meta"><span>${fmtTime()}</span><span class="eng-tag">${engine||"llm"}</span></div>`;
+  document.getElementById("staffTranscript").appendChild(wrap);
+  scrollT("staffTranscript");
+}
+function addWaveform(){
+  const d=document.createElement("div");
+  d.className="waveform show";d.id="custWaveform";
+  d.innerHTML="<span></span><span></span><span></span><span></span><span></span>";
+  document.getElementById("custTranscript").appendChild(d);
+  scrollT("custTranscript");
+}
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+function bindEvents(){
+  document.getElementById("custMic").addEventListener("click",toggleCustMic);
+  document.getElementById("staffSend").addEventListener("click",sendStaff);
+  document.getElementById("staffMic").addEventListener("click",toggleStaffMic);
+  document.getElementById("endBtn").addEventListener("click",endSession);
+  document.getElementById("nextBtn").addEventListener("click",nextStep);
+  document.getElementById("backBtn").addEventListener("click",backStep);
+  const inp=document.getElementById("staffInput");
+  inp.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendStaff();}});
+  inp.addEventListener("input",()=>{inp.style.height="auto";inp.style.height=Math.min(inp.scrollHeight,110)+"px";});
+}
+function startTimer(){
+  timerID=setInterval(()=>{
+    const e=Math.floor((Date.now()-sessionStart)/1000);
+    document.getElementById("timerDisplay").textContent=
+      `${String(Math.floor(e/60)).padStart(2,"0")}:${String(e%60).padStart(2,"0")}`;
+  },1000);
+}
+function setCustStatus(state,txt){
+  document.getElementById("custDot").className="status-dot"+(state?" "+state:"");
+  document.getElementById("custStatusTxt").textContent=txt;
+}
+function setStaffStatus(state,txt){
+  document.getElementById("staffDot").className="status-dot"+(state?" "+state:"");
+  document.getElementById("staffStatusTxt").textContent=txt;
+}
+function hideEl(id){const e=document.getElementById(id);if(e)e.style.display="none";}
+function showEl(id){const e=document.getElementById(id);if(e)e.classList.add("show");}
+function scrollT(id){const e=document.getElementById(id);if(e)e.scrollTop=99999;}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function fmtTime(){return new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit",hour12:true});}
+function showToast(msg,isErr=false){
+  const t=document.getElementById("toast");
+  document.getElementById("toastTxt").textContent=msg;
+  t.className="toast"+(isErr?" err":"");
+  t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),3000);
+}
+function browserSpeak(text,lang){
+  if(!text||!("speechSynthesis" in window))return;
+  const locale={Hindi:"hi-IN",Marathi:"mr-IN",Tamil:"ta-IN",Telugu:"te-IN",English:"en-IN"}[lang]||"en-IN";
+  const utter=new SpeechSynthesisUtterance(text);
+  utter.lang=locale;utter.rate=0.95;
+  const go=()=>{
+    const voices=speechSynthesis.getVoices();
+    const v=voices.find(v=>v.lang===locale)||voices.find(v=>v.lang?.startsWith(locale.split("-")[0]));
+    if(v)utter.voice=v;
+    speechSynthesis.cancel();speechSynthesis.speak(utter);
+  };
+  speechSynthesis.getVoices().length>0?go():(speechSynthesis.onvoiceschanged=go,setTimeout(go,500));
+}
+function playAudio(b64){
+  const p=document.getElementById("audioPlayer");
+  p.src=`data:audio/wav;base64,${b64}`;
+  p.play().catch(()=>{p.src=`data:audio/mpeg;base64,${b64}`;p.play().catch(()=>{});});
+}
+function getMime(){
+  for(const t of["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/mp4"])
+    if(typeof MediaRecorder!=="undefined"&&MediaRecorder.isTypeSupported(t))return t;
+  return "";
+}
+async function toWav(blob){
+  try{
+    const ab=await blob.arrayBuffer();
+    const ctx=new AudioContext({sampleRate:16000});
+    const dec=await ctx.decodeAudioData(ab);
+    const s=dec.getChannelData(0),n=s.length;
+    const buf=new ArrayBuffer(44+n*2),v=new DataView(buf);
+    const ws=(o,str)=>{for(let i=0;i<str.length;i++)v.setUint8(o+i,str.charCodeAt(i));};
+    ws(0,"RIFF");v.setUint32(4,36+n*2,true);ws(8,"WAVE");
+    ws(12,"fmt ");v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+    v.setUint32(24,16000,true);v.setUint32(28,32000,true);v.setUint16(32,2,true);v.setUint16(34,16,true);
+    ws(36,"data");v.setUint32(40,n*2,true);
+    let off=44;for(let i=0;i<n;i++,off+=2){const x=Math.max(-1,Math.min(1,s[i]));v.setInt16(off,x<0?x*0x8000:x*0x7FFF,true);}
+    await ctx.close();return new Blob([buf],{type:"audio/wav"});
+  }catch{return blob;}
+}
+</script>
 </body>
 </html>
