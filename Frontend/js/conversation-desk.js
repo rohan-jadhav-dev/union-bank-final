@@ -2,6 +2,11 @@
 // Manual-step edition: no auto-advance. Staff ticks checklist items and
 // clicks "Next" themselves. Top auto-strip removed; step indicator + checklist
 // + Back/Next now live entirely in the staff panel.
+//
+// PATCH (this version): added cleanModelText() to strip stray JSON / markdown
+// fences / "Here is the response:" preambles that the backend LLM sometimes
+// returns instead of a clean string. Applied at every place a translation or
+// transcript string from the backend gets shown or stored.
 
 const API_BASE = "https://rohan667-voiceassist-ai-backend-kj.hf.space/api/conversation";
 
@@ -107,13 +112,11 @@ const GREETINGS = {
    ────────────────────────────────────────────────────────────────────────── */
 const STATIC_QUICK_REPLIES = {
   "Loan enquiry": [
-    // Step 1 — Greeting
     [
       "How can I help you today?",
       "Which type of loan are you interested in?",
       "Are you an existing Union Bank customer?",
     ],
-    // Step 2 — Loan Options
     [
       "🏠 Home Loan — 8.35% p.a., up to 30 years, max ₹10 crore",
       "💳 Personal Loan — 11.40% p.a., up to ₹15 lakh, 5 years",
@@ -127,7 +130,6 @@ const STATIC_QUICK_REPLIES = {
       "Longer tenure means lower EMI but more total interest",
       "What loan amount are you looking for?",
     ],
-    // Step 3 — Eligibility
     [
       "What is your monthly income?",
       "Are you salaried or self-employed?",
@@ -139,7 +141,6 @@ const STATIC_QUICK_REPLIES = {
       "Minimum monthly income required is ₹25,000",
       "Your EMI should not exceed 50% of monthly income",
     ],
-    // Step 4 — Documents
     [
       "Please bring Aadhaar Card original + photocopy",
       "PAN Card original + photocopy needed",
@@ -151,7 +152,6 @@ const STATIC_QUICK_REPLIES = {
       "Employment certificate required",
       "Self-employed: please bring last 2 years ITR",
     ],
-    // Step 5 — Next Steps
     [
       "Processing fee is 0.5% of loan amount — one time payment",
       "Approval takes 7–10 working days after document submission",
@@ -163,13 +163,11 @@ const STATIC_QUICK_REPLIES = {
     ],
   ],
   "Account opening": [
-    // Step 1 — Greeting
     [
       "What brings you to the branch today?",
       "Are you looking to open a new account?",
       "Do you already bank with us?",
     ],
-    // Step 2 — Account Type
     [
       "💰 Savings Account — ₹1000 min balance, 2.75% interest p.a.",
       "🏢 Current Account — ₹5000 min balance, unlimited transactions",
@@ -180,7 +178,6 @@ const STATIC_QUICK_REPLIES = {
       "FD tenure options: 1 / 3 / 5 / 10 years",
       "Which account type would you prefer?",
     ],
-    // Step 3 — KYC Details
     [
       "Please fill KYC form — need Aadhaar, PAN, nominee details",
       "What is your full name as per Aadhaar?",
@@ -190,7 +187,6 @@ const STATIC_QUICK_REPLIES = {
       "Is your Aadhaar linked to mobile number for OTP verification?",
       "What is your occupation?",
     ],
-    // Step 4 — Documents
     [
       "Aadhaar Card original + photocopy",
       "PAN Card original + photocopy",
@@ -198,7 +194,6 @@ const STATIC_QUICK_REPLIES = {
       "Address proof (utility bill, < 3 months old)",
       "Address proof (rental agreement) accepted too",
     ],
-    // Step 5 — Activate
     [
       "Initial deposit ₹1000 — account activates in 30 minutes",
       "You will receive passbook and debit card today",
@@ -208,26 +203,22 @@ const STATIC_QUICK_REPLIES = {
     ],
   ],
   "Balance enquiry": [
-    // Step 1 — Greeting
     [
       "Welcome! How can I help you today?",
       "Would you like to check your account balance?",
     ],
-    // Step 2 — Verify Identity
     [
       "Please share your account number last 4 digits",
       "OTP will be sent to your registered mobile number",
       "Please confirm your registered mobile number",
       "Could you confirm your name as per the account?",
     ],
-    // Step 3 — Show Balance
     [
       "Your balance is being fetched — one moment please",
       "Would you like last 5 transactions as well?",
       "Would you like a mini statement printed?",
       "Your available balance is shown on screen",
     ],
-    // Step 4 — Done
     [
       "Would you like passbook update today?",
       "SMS BAL to 09223008586 anytime to check balance",
@@ -236,12 +227,10 @@ const STATIC_QUICK_REPLIES = {
     ],
   ],
   "Credit card apply": [
-    // Step 1 — Greeting
     [
       "What kind of credit card are you looking for?",
       "Do you already hold a Union Bank account?",
     ],
-    // Step 2 — Eligibility
     [
       "What is your annual income?",
       "Do you currently have any credit cards?",
@@ -250,7 +239,6 @@ const STATIC_QUICK_REPLIES = {
       "Minimum annual income required is ₹2.5 lakh",
       "Minimum CIBIL score required is 700",
     ],
-    // Step 3 — Card Selection
     [
       "Union Classic — Free, 1% cashback on all spends",
       "Union Platinum — ₹499/year, 2X rewards, airport lounge access",
@@ -258,7 +246,6 @@ const STATIC_QUICK_REPLIES = {
       "Union Travel Card — ₹999/year, 5X miles on travel spends",
       "Which card would you like to apply for?",
     ],
-    // Step 4 — Documents
     [
       "Aadhaar Card + PAN Card required",
       "Last 3 months salary slips required",
@@ -266,7 +253,6 @@ const STATIC_QUICK_REPLIES = {
       "1 passport size photograph required",
       "Last 3 months bank statement required",
     ],
-    // Step 5 — Apply
     [
       "Application submitted — credit limit SMS in 7 days",
       "Card delivery takes 15 working days to your address",
@@ -276,24 +262,20 @@ const STATIC_QUICK_REPLIES = {
     ],
   ],
   "General enquiry": [
-    // Step 1 — Greeting
     [
       "How can I help you today?",
       "Which banking service do you need information about?",
     ],
-    // Step 2 — Understand
     [
       "Could you give me more details about your query?",
       "Let me check that for you — one moment",
       "Is this regarding an existing account or a new service?",
     ],
-    // Step 3 — Answer
     [
       "Here is the information you requested",
       "Would you like me to explain that in more detail?",
       "Let me connect you to the right department for this",
     ],
-    // Step 4 — Resolved
     [
       "Is there anything else I can help you with?",
       "Your query has been resolved successfully",
@@ -398,6 +380,60 @@ document.addEventListener("DOMContentLoaded", () => {
   try { startConversation(); } catch (e) { console.error("[Init] startConversation:", e); }
 });
 
+/* ──────────────────────────────────────────────────────────────────────────
+   PATCH: cleanModelText()
+   The backend LLM sometimes returns a raw JSON blob (often wrapped in
+   markdown fences and/or a "Here is the response:" preamble) instead of a
+   plain translated string, e.g.:
+     Here is the response: ```{ "english_translation": "...", "intent": "..." }```
+   This strips that wrapper and pulls out the actual text field so the UI
+   never shows raw JSON to the user. If nothing parseable is found, it falls
+   back to returning the original string untouched.
+   ────────────────────────────────────────────────────────────────────────── */
+function cleanModelText(raw) {
+  if (raw === null || raw === undefined) return raw;
+  let t = String(raw).trim();
+  if (!t) return t;
+
+  // Quick path: doesn't look JSON-wrapped at all, return as-is.
+  const looksJsonWrapped =
+    t.includes("```") ||
+    /"english_translation"|"customer_text"|"translated_text"|"text"\s*:/.test(t) ||
+    (t.includes("{") && t.includes("}"));
+  if (!looksJsonWrapped) return t;
+
+  // Strip a leading preamble + opening code fence, and a trailing fence.
+  let stripped = t
+    .replace(/^[^{]*?```(?:json)?/is, "")
+    .replace(/```[^]*$/i, "")
+    .trim();
+
+  // If there was no fence, just grab from the first "{" to the last "}".
+  if (!stripped.startsWith("{")) {
+    const start = t.indexOf("{");
+    const end = t.lastIndexOf("}");
+    if (start !== -1 && end !== -1 && end > start) {
+      stripped = t.slice(start, end + 1);
+    }
+  }
+
+  if (!stripped.startsWith("{")) return t; // nothing JSON-like found, leave untouched
+
+  try {
+    const obj = JSON.parse(stripped);
+    return (
+      obj.english_translation ??
+      obj.customer_text ??
+      obj.translated_text ??
+      obj.text ??
+      t
+    );
+  } catch (e) {
+    console.warn("[cleanModelText] failed to parse model JSON, showing raw text:", e);
+    return t;
+  }
+}
+
 function initUI() {
   const meta = LANG_META[selectedLanguage] || LANG_META["Hindi"];
   document.getElementById("langChipFlag").textContent = meta.flag;
@@ -501,7 +537,7 @@ async function updateStepFromLLM() {
     if (data.missing_info && data.missing_info.length > 0) {
       addInfoBadge(`📋 Still needed: ${data.missing_info.join(", ")}`);
     }
-    if (data.next_question) showNextQuestionHint(data.next_question);
+    if (data.next_question) showNextQuestionHint(cleanModelText(data.next_question));
 
     await fetchSmartQuickReplies();
   } catch (e) {
@@ -524,7 +560,8 @@ async function fetchSmartQuickReplies() {
     });
     const data = await res.json();
     if (data.success && data.replies && data.replies.length > 0) {
-      smartReplies = data.replies;
+      // PATCH: clean each reply in case the model returned JSON-wrapped text
+      smartReplies = data.replies.map(cleanModelText);
       showQuickReplies(smartReplies);
       return;
     }
@@ -840,23 +877,29 @@ async function processCustomerAudio() {
     const data = await res.json();
     hideEl("customerProcessing");
 
-    if (data.success && data.customer_text) {
+    // PATCH: clean both the original transcript and the translation in case
+    // the backend forwarded a raw/JSON-wrapped LLM response for either field.
+    const cleanCustomerText  = cleanModelText(data.customer_text);
+    const cleanTranslation   = cleanModelText(data.english_translation);
+    const cleanIntent        = cleanModelText(data.intent);
 
-      if (isUnclearTranscript(data.customer_text)) {
-        addCustomerBubble(data.customer_text, "(unclear — ask customer to repeat)", data.stt_engine, null);
-        conversationLog.push({ role: "customer", text: data.customer_text, translation: "(unclear)" });
+    if (data.success && cleanCustomerText) {
+
+      if (isUnclearTranscript(cleanCustomerText)) {
+        addCustomerBubble(cleanCustomerText, "(unclear — ask customer to repeat)", data.stt_engine, null);
+        conversationLog.push({ role: "customer", text: cleanCustomerText, translation: "(unclear)" });
         setCustomerStatus("", "Ready");
         showStaticQuickReplies();
         showToast("Audio unclear — ask the customer to repeat", true);
         return;
       }
 
-      addCustomerBubble(data.customer_text, data.english_translation, data.stt_engine, data.intent);
-      if (data.intent && data.intent !== "General enquiry") {
-        document.getElementById("intentChipText").textContent = data.intent;
+      addCustomerBubble(cleanCustomerText, cleanTranslation, data.stt_engine, cleanIntent);
+      if (cleanIntent && cleanIntent !== "General enquiry") {
+        document.getElementById("intentChipText").textContent = cleanIntent;
         document.getElementById("intentChip").classList.add("show");
       }
-      conversationLog.push({ role: "customer", text: data.customer_text, translation: data.english_translation });
+      conversationLog.push({ role: "customer", text: cleanCustomerText, translation: cleanTranslation });
 
       // Suggestions only — these no longer auto-advance the step.
       await updateStepFromLLM();
@@ -888,10 +931,12 @@ async function sendStaffReply() {
     hideEl("staffProcessing");
     btn.disabled = false; btn.classList.remove("loading");
     if (data.success) {
-      addStaffBubble(text, data.translated_text, data.tts_engine);
+      // PATCH: clean translated text before displaying/storing it.
+      const cleanTranslated = cleanModelText(data.translated_text);
+      addStaffBubble(text, cleanTranslated, data.tts_engine);
       if (data.audio_b64) playAudio(data.audio_b64);
-      else speakWithBrowserSynthesis(data.translated_text, selectedLanguage);
-      conversationLog.push({ role: "staff", text, translation: data.translated_text });
+      else speakWithBrowserSynthesis(cleanTranslated, selectedLanguage);
+      conversationLog.push({ role: "staff", text, translation: cleanTranslated });
       input.value = ""; input.style.height = "auto";
       setStaffStatus("done", "Sent");
       setTimeout(() => setStaffStatus("", "Ready"), 2000);
@@ -928,7 +973,8 @@ async function toggleStaffRecording() {
           const res  = await fetch(`${API_BASE}/staff-speak`, { method: "POST", body: form });
           const data = await res.json();
           if (data.success && data.text) {
-            document.getElementById("staffInput").value = data.text;
+            // PATCH: clean recognized staff speech text too.
+            document.getElementById("staffInput").value = cleanModelText(data.text);
             document.getElementById("staffInput").dispatchEvent(new Event("input"));
           }
         } catch (e) { showToast("Staff mic failed", true); }
@@ -971,11 +1017,12 @@ async function endSession() {
     });
     const data = await res.json();
     if (data.success) {
-      document.getElementById("englishSummary").textContent = data.english_summary;
-      document.getElementById("regionalSummary").textContent = data.regional_summary;
+      // PATCH: clean summary text fields too — same backend, same risk.
+      document.getElementById("englishSummary").textContent = cleanModelText(data.english_summary);
+      document.getElementById("regionalSummary").textContent = cleanModelText(data.regional_summary);
       if (data.action_items && data.action_items.length > 0) {
         document.getElementById("englishSummary").textContent +=
-          "\n\nACTION ITEMS:\n" + data.action_items.map(a => `• ${a}`).join("\n");
+          "\n\nACTION ITEMS:\n" + data.action_items.map(a => `• ${cleanModelText(a)}`).join("\n");
       }
     } else {
       document.getElementById("englishSummary").textContent = "Error: " + (data.error || "");
@@ -1013,7 +1060,7 @@ function addCustomerBubble(orig, trans, engine, intent) {
   wrap.className = "transcript-bubble";
   wrap.innerHTML = `<div class="bubble-original">${escHtml(orig)}</div>
     ${trans ? `<div class="bubble-translation">🌐 ${escHtml(trans)}</div>` : ""}
-    <div class="bubble-meta"><span>${formatTime()}</span><span class="engine-tag">${engine}</span>${intent ? `<span class="engine-tag">${intent}</span>` : ""}</div>`;
+    <div class="bubble-meta"><span>${formatTime()}</span><span class="engine-tag">${engine}</span>${intent ? `<span class="engine-tag">${escHtml(intent)}</span>` : ""}</div>`;
   document.getElementById("customerTranscript").appendChild(wrap);
   document.getElementById("customerTranscript").scrollTop = 99999;
 }
