@@ -570,8 +570,9 @@ function updateStepUI() {
   document.getElementById("stepIndicator").textContent = `Step ${stepIdx+1} of ${steps.length}: ${steps[stepIdx]||""}`;
   document.getElementById("backBtn").disabled = stepIdx <= 0;
   const atEnd = stepIdx >= steps.length - 1;
-  document.getElementById("nextBtn").textContent = atEnd ? "Finished ✓" : "Next ✓";
-  document.getElementById("nextBtn").disabled = atEnd;
+  /* ── FIX: last step button stays enabled and becomes a "Finish" action ── */
+  document.getElementById("nextBtn").textContent = atEnd ? "Finish & Summarise ✓" : "Next ✓";
+  document.getElementById("nextBtn").disabled = false;
   const hints = GUIDE_HINTS[PROCESS] || GUIDE_HINTS["General enquiry"];
   document.getElementById("guideText").textContent = hints[Math.min(stepIdx, hints.length-1)] || "";
   updateProgressBar();
@@ -673,7 +674,12 @@ function renderQuickReplies(pills, label) {
 // ═══════════════════════════════════════════════════════════
 function nextStep() {
   const steps = STEPS[PROCESS] || [];
-  if (stepIdx >= steps.length - 1) return;
+  const atEnd = stepIdx >= steps.length - 1;
+  /* ── FIX: on the last step, "Next" now finishes the session ── */
+  if (atEnd) {
+    endSession();
+    return;
+  }
   stepIdx++;
   updateStepUI();
   showToast(`✓ Moved to: ${steps[stepIdx]}`);
