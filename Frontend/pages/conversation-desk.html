@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -196,20 +195,15 @@ body{font-family:'Inter',sans-serif;background:var(--bg);height:100vh;overflow:h
 
 /* Lead form card */
 .lead-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:20px}
-.lead-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px;flex-wrap:wrap}
-.lead-card-actions{display:flex;gap:8px}
+.lead-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .lead-field{margin-bottom:10px}
 .lead-field label{display:block;font-size:11px;color:var(--slate-light);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px}
 .lead-field input{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;color:var(--navy);outline:none;transition:border-color 150ms ease}
 .lead-field input:focus{border-color:var(--gold)}
 .lead-field input::placeholder{color:var(--slate-light);font-style:italic}
-.lead-field input.auto-filled{border-color:rgba(22,163,74,0.45);background:rgba(22,163,74,0.05)}
-.lead-field .src-tag{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-left:6px;color:var(--success)}
 .modal-lead-btn{height:42px;padding:0 18px;background:var(--gold);color:var(--white);border:none;border-radius:7px;font-size:13.5px;font-weight:500;cursor:pointer;font-family:inherit;transition:background 150ms ease,opacity 150ms ease}
 .modal-lead-btn:hover{background:#9c7a30}
 .modal-lead-btn:disabled{opacity:0.6;cursor:not-allowed}
-.modal-lead-btn.secondary{background:var(--white);color:var(--navy);border:1px solid var(--border)}
-.modal-lead-btn.secondary:hover{background:var(--bg)}
 
 audio{display:none}
 </style>
@@ -355,10 +349,7 @@ audio{display:none}
     <div class="lead-card">
       <div class="lead-card-header">
         <div class="sum-label" style="margin-bottom:0">📝 Lead Details (auto-filled — review &amp; edit before sending)</div>
-        <div class="lead-card-actions">
-          <button class="modal-lead-btn secondary" id="reExtractBtn" onclick="fetchLeadForm()">↻ Re-extract</button>
-          <button class="modal-lead-btn" id="submitLeadBtn" onclick="submitLead()">Send to Bank</button>
-        </div>
+        <button class="modal-lead-btn" id="submitLeadBtn" onclick="submitLead()">Send to Bank</button>
       </div>
       <div id="leadFormBody">
         <div style="color:var(--slate-light);font-size:12px;">Extracting lead details…</div>
@@ -576,106 +567,6 @@ const LEAD_FORM_FIELDS = {
     { key:"query_summary",   label:"Query Summary" },
   ],
 };
-
-// ═══════════════════════════════════════════════════════════
-// CLIENT-SIDE LEAD EXTRACTION FALLBACK
-// Runs locally against the conversation log whenever the backend
-// /extract-lead call fails, times out, or returns blank fields.
-// This guarantees the form fills from anything obviously said in
-// the conversation (e.g. "My name is X", "My date of birth is X")
-// even if the backend's extraction model misses it.
-// ═══════════════════════════════════════════════════════════
-const FIELD_PATTERNS = {
-  customer_name: [
-    /my name is\s+([a-z][a-z.\s]*?)(?:\s+and\b|[.,!]|$)/i,
-    /this is\s+([a-z][a-z.\s]*?)(?:\s+speaking|\s+here|[.,!]|$)/i,
-    /i am\s+([a-z][a-z.\s]*?)(?:\s+and\b|[.,!]|$)/i,
-  ],
-  dob: [
-    /(?:date of birth|dob|born on)\s*(?:is)?\s*[:\-]?\s*([0-9]{1,2}(?:st|nd|rd|th)?\s+[a-z]+\s+[0-9]{4})/i,
-    /(?:date of birth|dob|born on)\s*(?:is)?\s*[:\-]?\s*([0-9]{1,2}[\/\-][0-9]{1,2}[\/\-][0-9]{2,4})/i,
-  ],
-  phone: [
-    /(?:phone|mobile|number|contact)\D{0,15}?([6-9][0-9]{9})\b/i,
-    /\b([6-9][0-9]{9})\b/,
-  ],
-  address: [
-    /(?:my address is|i live at|address is|residing at)\s*([^.,;\n]+)/i,
-  ],
-  account_type: [
-    /\b(union junior|savings account|current account|pmjdy|fixed deposit|fd account|savings|current)\b/i,
-  ],
-  nominee_name: [
-    /nominee(?:'s)?\s*name\s*(?:is)?\s*[:\-]?\s*([a-z][a-z.\s]*?)(?:[.,]|$)/i,
-  ],
-  nominee_relation: [
-    /nominee.*?relation(?:ship)?\s*(?:is)?\s*[:\-]?\s*([a-z][a-z\s]*?)(?:[.,]|$)/i,
-    /(?:my\s+)?(son|daughter|wife|husband|spouse|father|mother|brother|sister)\s+(?:is|as)\s+(?:my\s+)?nominee/i,
-  ],
-  loan_type: [
-    /\b(home loan|personal loan|car loan|education loan|gold loan)\b/i,
-  ],
-  loan_amount: [
-    /(?:loan amount|need|want|require)\D{0,10}?(?:rs\.?|₹|inr)?\s*([0-9][0-9,]*\s*(?:lakh|lac|crore)?)/i,
-  ],
-  tenure: [
-    /(?:tenure|for|over)\s*([0-9]+\s*(?:years?|yrs?|months?))/i,
-  ],
-  monthly_income: [
-    /monthly income\D{0,10}?(?:rs\.?|₹|inr)?\s*([0-9][0-9,]*)/i,
-  ],
-  employment_type: [
-    /\b(salaried|self[\s-]?employed|business owner|government employee)\b/i,
-  ],
-  cibil_score: [
-    /cibil\D{0,10}?([0-9]{3})\b/i,
-  ],
-  existing_emi: [
-    /existing emi\D{0,10}?(?:rs\.?|₹|inr)?\s*([0-9][0-9,]*)/i,
-  ],
-  annual_income: [
-    /annual income\D{0,10}?(?:rs\.?|₹|inr)?\s*([0-9][0-9,]*)/i,
-  ],
-  card_selected: [
-    /\b(union classic|union platinum|union signature)\b/i,
-  ],
-  account_last4: [
-    /(?:account number|account no\.?|last 4 digits?)\D{0,10}?([0-9]{4})\b/i,
-  ],
-};
-
-function buildConversationText() {
-  // Prefer English: translation field for customer turns, raw text for staff turns
-  return log.map(t => {
-    if (t.role === "customer") return t.translation || t.text || "";
-    return t.text || t.translation || "";
-  }).join(". ");
-}
-
-function titleCase(s) {
-  return s.replace(/\s+/g, " ").trim().split(" ").map(w =>
-    w.length ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w
-  ).join(" ");
-}
-
-function clientSideExtractLead(fields) {
-  const text = buildConversationText();
-  const result = {};
-  fields.forEach(f => {
-    const patterns = FIELD_PATTERNS[f.key];
-    if (!patterns) return;
-    for (const re of patterns) {
-      const m = text.match(re);
-      if (m && m[1] && m[1].trim()) {
-        let val = m[1].trim().replace(/\s{2,}/g, " ");
-        if (f.key === "customer_name" || f.key === "nominee_name") val = titleCase(val);
-        result[f.key] = val;
-        break;
-      }
-    }
-  });
-  return result;
-}
 
 // ═══════════════════════════════════════════════════════════
 // STATE
@@ -1038,21 +929,13 @@ async function toggleStaffMic() {
 
 // ═══════════════════════════════════════════════════════════
 // LEAD AUTO-FILL — shown inside this page's own summary modal
-// Now: backend extraction + client-side fallback merge.
-// Any field the backend leaves blank gets filled locally from
-// the conversation log via regex (see clientSideExtractLead above).
-// Auto-filled fields get a green "auto" highlight so staff can
-// see at a glance what came from the conversation vs needs typing.
+// (used by the "Send to Bank" button INSIDE this modal, separate from
+// the redirect-based flow used by Save to Records below)
 // ═══════════════════════════════════════════════════════════
-let lastLeadSources = {}; // key -> "backend" | "fallback" | "manual"
-
 async function fetchLeadForm() {
   const fields = LEAD_FORM_FIELDS[PROCESS] || LEAD_FORM_FIELDS["General enquiry"];
   const container = document.getElementById("leadFormBody");
   if (container) container.innerHTML = `<div style="color:var(--slate-light);font-size:12px;">Extracting lead details…</div>`;
-
-  let backendLead = {};
-  let backendOk = false;
 
   try {
     const res = await fetch(`${API}/extract-lead`, {
@@ -1066,43 +949,14 @@ async function fetchLeadForm() {
     });
     const data = await res.json();
     if (data.success && data.lead) {
-      backendLead = data.lead;
-      backendOk = true;
+      renderLeadForm(fields, data.lead);
+    } else {
+      renderLeadForm(fields, {});
+      showToast("Could not auto-extract lead — fill manually", true);
     }
   } catch (e) {
-    console.warn("[fetchLeadForm] backend extraction failed, using local fallback:", e);
-  }
-
-  // Always compute the local fallback so we can fill any gaps,
-  // even when the backend call "succeeds" but returns blanks.
-  const fallbackLead = clientSideExtractLead(fields);
-
-  const merged = {};
-  lastLeadSources = {};
-  fields.forEach(f => {
-    const raw = backendLead[f.key];
-    const bVal = (raw === undefined || raw === null) ? "" : String(raw).trim();
-    if (bVal) {
-      merged[f.key] = bVal;
-      lastLeadSources[f.key] = "backend";
-    } else if (fallbackLead[f.key]) {
-      merged[f.key] = fallbackLead[f.key];
-      lastLeadSources[f.key] = "fallback";
-    } else {
-      merged[f.key] = "";
-      lastLeadSources[f.key] = "";
-    }
-  });
-
-  renderLeadForm(fields, merged);
-
-  const filledCount = Object.values(merged).filter(v => v).length;
-  if (filledCount === 0) {
-    showToast("Could not auto-extract — fill manually", true);
-  } else if (!backendOk) {
-    showToast(`Filled ${filledCount}/${fields.length} fields from conversation (backend unavailable)`);
-  } else {
-    showToast(`Filled ${filledCount}/${fields.length} fields`);
+    renderLeadForm(fields, {});
+    showToast("Lead extraction failed — fill manually", true);
   }
 }
 
@@ -1113,13 +967,11 @@ function renderLeadForm(fields, leadData) {
   fields.forEach(f => {
     const raw = leadData[f.key];
     const value = (raw === undefined || raw === null) ? "" : cleanModelText(String(raw));
-    const src = lastLeadSources[f.key];
     const row = document.createElement("div");
     row.className = "lead-field";
     row.innerHTML = `
-      <label>${esc(f.label)}${src === "fallback" ? '<span class="src-tag">auto from chat</span>' : ""}</label>
+      <label>${esc(f.label)}</label>
       <input type="text" data-field="${esc(f.key)}" value="${esc(value)}"
-        class="${value ? "auto-filled" : ""}"
         placeholder="${value ? "" : "Not captured — enter manually"}" />`;
     container.appendChild(row);
   });
