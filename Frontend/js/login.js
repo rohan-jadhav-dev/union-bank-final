@@ -9,6 +9,18 @@ const SESSION_DURATION_MS = 30 * 60 * 1000; // 30 min idle expiry
 const MAX_LOGIN_ATTEMPTS = 3;
 let failedAttempts = 0;
 
+// face-api model weights — same source the MediScan recognition module uses
+const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+const FACE_MATCH_THRESHOLD = 0.5;   // lower = stricter match (same default as MediScan's FaceMatcher)
+const REQUIRED_MATCH_STREAK = 5;    // consecutive matching frames before auto sign-in
+const DETECT_INTERVAL_MS = 400;
+
+let modelsLoaded = false;
+let faceStream = null;
+let faceLoopHandle = null;
+let enrollMode = false;
+let matchStreak = 0;
+
 // ===================== ELEMENT REFERENCES =====================
 const credentialsStep = document.getElementById('credentialsStep');
 const faceStep = document.getElementById('faceStep');
@@ -30,9 +42,14 @@ const btnText = submitBtn.querySelector('.btn-text');
 const toast = document.getElementById('toast');
 const toastText = document.getElementById('toastText');
 
+const faceSubtitle = document.getElementById('faceSubtitle');
+const faceVideo = document.getElementById('faceVideo');
+const faceCanvas = document.getElementById('faceCanvas');
 const faceLabel = document.getElementById('faceLabel');
 const faceStatus = document.getElementById('faceStatus');
 const faceCheckbox = document.getElementById('faceCheckbox');
+const faceCheckRow = document.getElementById('faceCheckRow');
+const captureEnrollBtn = document.getElementById('captureEnrollBtn');
 const skipFaceBtn = document.getElementById('skipFaceBtn');
 const backToCredsBtn = document.getElementById('backToCredsBtn');
 
@@ -169,25 +186,220 @@ loginForm.addEventListener('submit', (e) => {
       return;
     }
 
-    // credentials valid — move to face step (UI placeholder only, see below)
+    // credentials valid — move to the face verification / enrollment step
     pendingStaff = { empId, ...staff };
     credentialsStep.style.display = 'none';
     faceStep.style.display = 'block';
-    faceLabel.textContent = 'Face verification coming soon';
-    faceStatus.textContent = 'Not yet enabled';
+    enterFaceStep();
   }, 1200);
 });
 
-// ===================== STEP 2: FACE VERIFICATION (UI placeholder, no detection logic) =====================
-// Face recognition is not implemented yet — this screen is shown for the UI flow,
-// but the only way past it is the user explicitly clicking Skip below.
-// No camera access, no model loading, no auto-pass of any kind.
+// ===================== STEP 2: FACE VERIFICATION (real, face-api.js powered) =====================
+// Same pipeline as the MediScan patient scanner: SSD Mobilenet detector + 68-point
+// landmarks + a 128-d face descriptor, matched with faceapi.FaceMatcher.
+//
+// Storage model (demo / client-side only — see note at bottom of file):
+//   localStorage key  vai_face_<EMPID>  ->  JSON array (128-d descriptor)
+// First sign-in with no stored descriptor triggers ENROLLMENT.
+// Every sign-in after that triggers live VERIFICATION against the stored descriptor.
+
+function getStoredDescriptor(empId) {
+  const raw = localStorage.getItem('vai_face_' + empId);
+  return raw ? JSON.parse(raw) : null;
+}
+
+function storeDescriptor(empId, descriptorArray) {
+  localStorage.setItem('vai_face_' + empId, JSON.stringify(descriptorArray));
+}
+
+async function loadFaceModels() {
+  if (modelsLoaded) return;
+  faceStatus.textContent = 'Loading detector…';
+  await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+  faceStatus.textContent = 'Loading landmarks…';
+  await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+  faceStatus.textContent = 'Loading recognition…';
+  await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+  modelsLoaded = true;
+}
+
+async function startFaceCamera() {
+  faceStream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 320 } });
+  faceVideo.srcObject = faceStream;
+  await new Promise(resolve => { faceVideo.onloadedmetadata = resolve; });
+  await faceVideo.play();
+  faceCanvas.width = faceVideo.videoWidth || 320;
+  faceCanvas.height = faceVideo.videoHeight || 320;
+}
+
+function stopFaceCamera() {
+  if (faceLoopHandle) { clearInterval(faceLoopHandle); faceLoopHandle = null; }
+  if (faceStream) { faceStream.getTracks().forEach(t => t.stop()); faceStream = null; }
+  faceVideo.srcObject = null;
+  const ctx = faceCanvas.getContext('2d');
+  ctx.clearRect(0, 0, faceCanvas.width, faceCanvas.height);
+}
+
+async function enterFaceStep() {
+  faceCheckbox.classList.remove('verified');
+  faceCheckRow.classList.remove('verified');
+  faceLabel.textContent = 'Initializing camera…';
+  faceStatus.textContent = 'Loading models';
+  captureEnrollBtn.style.display = 'none';
+  matchStreak = 0;
+
+  try {
+    await loadFaceModels();
+  } catch (err) {
+    faceLabel.textContent = 'Could not load face models';
+    faceStatus.textContent = 'Check internet connection';
+    return;
+  }
+
+  try {
+    await startFaceCamera();
+  } catch (err) {
+    faceLabel.textContent = 'Camera permission denied';
+    faceStatus.textContent = 'Use password only below';
+    return;
+  }
+
+  const stored = getStoredDescriptor(pendingStaff.empId);
+  enrollMode = !stored;
+
+  if (enrollMode) {
+    faceSubtitle.textContent = "First sign-in on this device — let's enroll your face for next time.";
+    faceLabel.textContent = 'Position your face in the frame';
+    faceStatus.textContent = 'Enrollment';
+    captureEnrollBtn.style.display = 'flex';
+    captureEnrollBtn.disabled = true;
+    startEnrollDetectionLoop();
+  } else {
+    faceSubtitle.textContent = 'Look at the camera to confirm your identity.';
+    faceLabel.textContent = 'Scanning…';
+    faceStatus.textContent = 'Verifying';
+    startVerificationLoop(stored);
+  }
+}
+
+// ---- Enrollment: detect a face, let the user confirm capture, store descriptor ----
+function startEnrollDetectionLoop() {
+  faceLoopHandle = setInterval(async () => {
+    const det = await faceapi
+      .detectSingleFace(faceVideo, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+      .withFaceLandmarks();
+
+    const ctx = faceCanvas.getContext('2d');
+    ctx.clearRect(0, 0, faceCanvas.width, faceCanvas.height);
+
+    if (det) {
+      const box = det.detection.box;
+      ctx.strokeStyle = '#4A9D6E';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(box.x, box.y, box.width, box.height);
+      faceLabel.textContent = 'Face detected — tap Capture & Enroll';
+      captureEnrollBtn.disabled = false;
+    } else {
+      faceLabel.textContent = 'No face detected';
+      captureEnrollBtn.disabled = true;
+    }
+  }, DETECT_INTERVAL_MS);
+}
+
+captureEnrollBtn.addEventListener('click', async () => {
+  captureEnrollBtn.disabled = true;
+  captureEnrollBtn.querySelector('.btn-text').textContent = 'Capturing…';
+
+  const det = await faceapi
+    .detectSingleFace(faceVideo, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+    .withFaceLandmarks()
+    .withFaceDescriptor();
+
+  if (!det) {
+    faceLabel.textContent = 'No face found — try again';
+    captureEnrollBtn.disabled = false;
+    captureEnrollBtn.querySelector('.btn-text').textContent = 'Capture & Enroll Face';
+    return;
+  }
+
+  storeDescriptor(pendingStaff.empId, Array.from(det.descriptor));
+  if (faceLoopHandle) { clearInterval(faceLoopHandle); faceLoopHandle = null; }
+
+  faceCheckbox.classList.add('verified');
+  faceCheckRow.classList.add('verified');
+  faceLabel.textContent = 'Face enrolled — signing you in…';
+  faceStatus.textContent = 'Enrolled';
+  captureEnrollBtn.style.display = 'none';
+
+  logAuditEvent(pendingStaff.empId, pendingStaff.role, 'face_enrolled');
+  stopFaceCamera();
+  setTimeout(finalizeLogin, 700);
+});
+
+// ---- Verification: compare live descriptor against the stored one every frame ----
+function startVerificationLoop(storedDescriptor) {
+  const matcher = new faceapi.FaceMatcher(
+    [new faceapi.LabeledFaceDescriptors(pendingStaff.empId, [new Float32Array(storedDescriptor)])],
+    FACE_MATCH_THRESHOLD
+  );
+  matchStreak = 0;
+
+  faceLoopHandle = setInterval(async () => {
+    const det = await faceapi
+      .detectSingleFace(faceVideo, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+
+    const ctx = faceCanvas.getContext('2d');
+    ctx.clearRect(0, 0, faceCanvas.width, faceCanvas.height);
+
+    if (!det) {
+      matchStreak = 0;
+      faceLabel.textContent = 'No face detected';
+      faceStatus.textContent = 'Waiting';
+      return;
+    }
+
+    const box = det.detection.box;
+    const result = matcher.findBestMatch(det.descriptor);
+    const isMatch = result.label === pendingStaff.empId;
+
+    ctx.strokeStyle = isMatch ? '#4A9D6E' : '#E31E24';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+    if (isMatch) {
+      matchStreak++;
+      const confidence = Math.max(0, Math.round((1 - result.distance) * 100));
+      faceLabel.textContent = `Matching… (${matchStreak}/${REQUIRED_MATCH_STREAK})`;
+      faceStatus.textContent = confidence + '% confidence';
+
+      if (matchStreak >= REQUIRED_MATCH_STREAK) {
+        if (faceLoopHandle) { clearInterval(faceLoopHandle); faceLoopHandle = null; }
+        faceCheckbox.classList.add('verified');
+        faceCheckRow.classList.add('verified');
+        faceLabel.textContent = 'Identity confirmed';
+        faceStatus.textContent = confidence + '% confidence';
+        logAuditEvent(pendingStaff.empId, pendingStaff.role, 'face_verified');
+        stopFaceCamera();
+        setTimeout(finalizeLogin, 500);
+      }
+    } else {
+      matchStreak = 0;
+      faceLabel.textContent = 'Face does not match employee record';
+      faceStatus.textContent = 'No match';
+    }
+  }, DETECT_INTERVAL_MS);
+}
+
 skipFaceBtn.addEventListener('click', () => {
-  logAuditEvent(pendingStaff.empId, pendingStaff.role, 'face_skipped_not_implemented');
+  stopFaceCamera();
+  logAuditEvent(pendingStaff.empId, pendingStaff.role, 'face_skipped_password_only');
   finalizeLogin();
 });
 
 backToCredsBtn.addEventListener('click', () => {
+  stopFaceCamera();
   faceStep.style.display = 'none';
   credentialsStep.style.display = 'block';
 });
@@ -213,3 +425,16 @@ function finalizeLogin() {
       : 'dashboard.html';
   }, 700);
 }
+
+// =====================================================================================
+// IMPORTANT — PRODUCTION NOTE
+// This face check (like MediScan's) runs entirely in the browser: models load from a
+// public CDN, descriptors are 128-d vectors stored in localStorage, and matching happens
+// client-side. That's fine for a prototype, but for a real banking deployment it gives
+// no real security guarantee — anyone with devtools access can read localStorage, inject
+// a fake "match" result, or skip the step entirely by editing the page. For production:
+//   - Do enrollment + matching server-side (send the descriptor or a captured frame to
+//     auth.py, compare against an encrypted store, return only pass/fail).
+//   - Add liveness detection (blink/turn prompts) so a photo can't be used to spoof it.
+//   - Treat the face check as a second factor alongside the password, not a replacement.
+// =====================================================================================

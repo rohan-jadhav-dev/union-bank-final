@@ -10,6 +10,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../css/base.css">
 <link rel="stylesheet" href="../css/login.css">
+<!-- face-api.js — same library/version used by the MediScan face-recognition module -->
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 </head>
 <body>
 
@@ -64,7 +66,7 @@
         </div>
         <div class="brand-meta-item">
           <span class="brand-meta-label">Version</span>
-          <span class="brand-meta-value">2.5</span>
+          <span class="brand-meta-value">2.6</span>
         </div>
       </div>
     </div>
@@ -149,10 +151,12 @@
       <div id="faceStep" style="display:none;">
         <div class="form-header">
           <div class="form-title">Face verification</div>
-          <div class="form-subtitle">Look at the camera to confirm your identity. This step never stores your photo.</div>
+          <div class="form-subtitle" id="faceSubtitle">Look at the camera to confirm your identity.</div>
         </div>
 
         <div class="face-frame-wrap">
+          <video id="faceVideo" autoplay muted playsinline></video>
+          <canvas id="faceCanvas"></canvas>
           <div class="face-frame-overlay" id="faceOverlay"></div>
         </div>
 
@@ -160,16 +164,21 @@
           <div class="security-check-left">
             <div class="security-checkbox" id="faceCheckbox">
               <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <div class="spinner" id="faceSpinner"></div>
             </div>
-            <span class="security-label" id="faceLabel">Face verification coming soon</span>
+            <span class="security-label" id="faceLabel">Initializing camera…</span>
           </div>
           <div class="security-badge">
-            <span id="faceStatus">Not yet enabled</span>
+            <span id="faceStatus">Loading models</span>
           </div>
         </div>
 
+        <button type="button" class="btn-primary" id="captureEnrollBtn" style="margin-top:14px; display:none;" disabled>
+          <span class="btn-text">Capture &amp; Enroll Face</span>
+        </button>
+
         <button type="button" class="forgot-link" id="skipFaceBtn" style="margin-top:18px; background:none; border:none; cursor:pointer; display:block; text-align:center; width:100%; font-size:13px; color: var(--navy); font-weight:500;">
-          Skip and continue →
+          Can't use the camera? Continue with password only →
         </button>
         <button type="button" class="forgot-link" id="backToCredsBtn" style="margin-top:14px; background:none; border:none; cursor:pointer; display:block; text-align:center; width:100%;">
           ← Back to sign in

@@ -536,6 +536,24 @@ body {
   border: 2px solid var(--border);
 }
 
+#faceVideo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1); /* mirror, matches MediScan camera UX */
+}
+
+#faceCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(-1);
+  pointer-events: none;
+}
+
 .face-frame-overlay {
   position: absolute;
   inset: 0;
