@@ -1,4 +1,3 @@
-
 // dashboard.js — VoiceAssist AI (merged: new UI + old logic)
 
 // ── LIVE CLOCK ────────────────────────────────────────────────────────────────
@@ -18,7 +17,10 @@ const sectionTitles = {
   account: 'Account Lookup',
   "lead-generation": 'Lead Generation',
   history: 'Session History',
-  summary: 'Bilingual Summary'
+  summary: 'Bilingual Summary',
+  "open-account": 'Open New Account',
+  "credit-card": 'Apply for Credit Card',
+  "cash-transaction": 'Deposit / Withdraw'
 };
 
 function navigate(sectionId) {
@@ -33,6 +35,7 @@ function navigate(sectionId) {
   if (sectionId === 'summary')  loadBilingualSummary();
   if (sectionId === 'overview') loadOverviewStats();
   if (sectionId === 'lead-generation') loadLeads();
+  if (sectionId === 'cash-transaction') loadCbsAccountsIntoSelects();
 }
 
 document.querySelectorAll('.nav-item[data-section]').forEach(item => {
@@ -773,10 +776,225 @@ async function saveManualLead() {
   }
 }
 
+// ── CBS (CORE BANKING SERVICES) — Open Account / Credit Card / Deposit-Withdraw ──
+// These flows don't have a live core-banking backend, so they behave like the
+// rest of this dashboard's "offline demo" pieces (e.g. doLookup): submissions
+// are validated client-side, persisted to localStorage so Session History /
+// Overview style screens stay consistent across reloads, and confirmed with a
+// toast + reference number. Swap the TODO sections for real API calls once a
+// CBS endpoint exists.
+
+function genRefNo(prefix) {
+  const n = Math.floor(100000 + Math.random() * 900000);
+  return `${prefix}${n}`;
+}
+
+function getCbsAccounts() {
+  try { return JSON.parse(localStorage.getItem('va_cbs_accounts') || '[]'); } catch (e) { return []; }
+}
+function setCbsAccounts(list) {
+  localStorage.setItem('va_cbs_accounts', JSON.stringify(list));
+}
+
+// Seed one demo account (Rajesh Sharma, looked up elsewhere in the portal) so
+// Deposit/Withdraw has something to act on out of the box.
+function ensureSeedAccount() {
+  const accounts = getCbsAccounts();
+  if (accounts.length === 0) {
+    accounts.push({
+      accountNo: '4523881122047700',
+      name: 'Rajesh Suresh Sharma',
+      type: 'Savings',
+      balance: 124832,
+    });
+    setCbsAccounts(accounts);
+  }
+}
+ensureSeedAccount();
+
+// ---- Open New Account ----
+function submitOpenAccount() {
+  const name = document.getElementById('oaName')?.value.trim();
+  const mobile = document.getElementById('oaMobile')?.value.trim();
+  const aadhaar = document.getElementById('oaAadhaar')?.value.trim();
+  const accType = document.getElementById('oaAccType')?.value;
+  const initialDeposit = parseFloat(document.getElementById('oaInitialDeposit')?.value || '0');
+
+  if (!name) { showToast('Enter customer name first', true); return; }
+  if (!mobile || mobile.length < 10) { showToast('Enter a valid mobile number', true); return; }
+  if (!aadhaar || aadhaar.replace(/\s/g,'').length < 12) { showToast('Enter a valid 12-digit Aadhaar number', true); return; }
+  if (isNaN(initialDeposit) || initialDeposit < 0) { showToast('Enter a valid initial deposit amount', true); return; }
+
+  const btn = document.getElementById('oaSubmitBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Opening account…'; }
+
+  setTimeout(() => {
+    const accountNo = genRefNo('45239');
+    const accounts = getCbsAccounts();
+    accounts.unshift({ accountNo, name, type: accType, balance: initialDeposit });
+    setCbsAccounts(accounts);
+
+    if (btn) { btn.disabled = false; btn.textContent = 'Open Account'; }
+    showToast(`Account opened — No. ${accountNo}`);
+
+    ['oaName','oaMobile','oaAadhaar','oaInitialDeposit'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+
+    const resultEl = document.getElementById('oaResult');
+    if (resultEl) {
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = `
+        <div class="cbs-success-row">
+          <div>
+            <div class="cbs-success-label">New ${escHtml(accType)} account</div>
+            <div class="cbs-success-value">${escHtml(name)}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="cbs-success-label">Account no.</div>
+            <div class="cbs-success-value">${accountNo}</div>
+          </div>
+        </div>`;
+    }
+    loadCbsAccountsIntoSelects();
+  }, 900);
+}
+
+// ---- Apply for Credit Card ----
+function submitCreditCardApplication() {
+  const name = document.getElementById('ccName')?.value.trim();
+  const accountNo = document.getElementById('ccAccountNo')?.value.trim();
+  const income = parseFloat(document.getElementById('ccIncome')?.value || '0');
+  const cardType = document.getElementById('ccCardType')?.value;
+
+  if (!name) { showToast('Enter customer name first', true); return; }
+  if (!accountNo) { showToast('Enter the linked account number', true); return; }
+  if (isNaN(income) || income <= 0) { showToast('Enter a valid monthly income', true); return; }
+
+  const btn = document.getElementById('ccSubmitBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
+
+  setTimeout(() => {
+    // Simple, transparent eligibility heuristic — not a real credit decision.
+    let status = 'Pending review';
+    let limit = 0;
+    if (income >= 100000) { status = 'Pre-approved'; limit = 300000; }
+    else if (income >= 40000) { status = 'Pre-approved'; limit = 100000; }
+    else if (income >= 20000) { status = 'Pre-approved'; limit = 40000; }
+
+    const appRef = genRefNo('CC');
+
+    if (btn) { btn.disabled = false; btn.textContent = 'Submit Application'; }
+    showToast(`Application ${appRef} submitted — ${status}`);
+
+    const resultEl = document.getElementById('ccResult');
+    if (resultEl) {
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = `
+        <div class="cbs-success-row">
+          <div>
+            <div class="cbs-success-label">${escHtml(cardType)} application</div>
+            <div class="cbs-success-value">${escHtml(name)} · Ref ${appRef}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="cbs-success-label">${status}</div>
+            <div class="cbs-success-value">${limit ? '₹' + limit.toLocaleString('en-IN') + ' limit' : '—'}</div>
+          </div>
+        </div>`;
+    }
+
+    ['ccName','ccAccountNo','ccIncome'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+  }, 1000);
+}
+
+// ---- Deposit / Withdraw ----
+function loadCbsAccountsIntoSelects() {
+  const accounts = getCbsAccounts();
+  const select = document.getElementById('txnAccountSelect');
+  if (!select) return;
+  select.innerHTML = accounts.map(a =>
+    `<option value="${a.accountNo}">${a.accountNo} — ${escHtml(a.name)} (₹${a.balance.toLocaleString('en-IN')})</option>`
+  ).join('') || `<option value="">No accounts found</option>`;
+  updateTxnBalancePreview();
+}
+
+function updateTxnBalancePreview() {
+  const select = document.getElementById('txnAccountSelect');
+  const balEl = document.getElementById('txnCurrentBalance');
+  if (!select || !balEl) return;
+  const accounts = getCbsAccounts();
+  const acc = accounts.find(a => a.accountNo === select.value);
+  balEl.textContent = acc ? `₹${acc.balance.toLocaleString('en-IN')}` : '—';
+}
+
+document.querySelectorAll('.txn-type-toggle .txn-type-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.txn-type-toggle .txn-type-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+function submitTransaction() {
+  const select = document.getElementById('txnAccountSelect');
+  const amountEl = document.getElementById('txnAmount');
+  const activeTypeBtn = document.querySelector('.txn-type-toggle .txn-type-btn.active');
+  const type = activeTypeBtn ? activeTypeBtn.dataset.txnType : 'deposit';
+
+  const accountNo = select?.value;
+  const amount = parseFloat(amountEl?.value || '0');
+
+  if (!accountNo) { showToast('Select an account first', true); return; }
+  if (isNaN(amount) || amount <= 0) { showToast('Enter a valid amount', true); return; }
+
+  const accounts = getCbsAccounts();
+  const acc = accounts.find(a => a.accountNo === accountNo);
+  if (!acc) { showToast('Account not found', true); return; }
+
+  if (type === 'withdraw' && amount > acc.balance) {
+    showToast('Insufficient balance for this withdrawal', true);
+    return;
+  }
+
+  const btn = document.getElementById('txnSubmitBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Processing…'; }
+
+  setTimeout(() => {
+    acc.balance = type === 'deposit' ? acc.balance + amount : acc.balance - amount;
+    setCbsAccounts(accounts);
+
+    const txnRef = genRefNo('TXN');
+    if (btn) { btn.disabled = false; btn.textContent = 'Process Transaction'; }
+    showToast(`${type === 'deposit' ? 'Deposit' : 'Withdrawal'} of ₹${amount.toLocaleString('en-IN')} processed — Ref ${txnRef}`);
+
+    if (amountEl) amountEl.value = '';
+    loadCbsAccountsIntoSelects();
+
+    const resultEl = document.getElementById('txnResult');
+    if (resultEl) {
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = `
+        <div class="cbs-success-row">
+          <div>
+            <div class="cbs-success-label">${type === 'deposit' ? 'Deposit' : 'Withdrawal'} · Ref ${txnRef}</div>
+            <div class="cbs-success-value">${escHtml(acc.name)} — ${accountNo}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="cbs-success-label">New balance</div>
+            <div class="cbs-success-value">₹${acc.balance.toLocaleString('en-IN')}</div>
+          </div>
+        </div>`;
+    }
+  }, 800);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   loadOverviewStats();
+  loadCbsAccountsIntoSelects();
 });
 window.addEventListener('load', () => {
   loadOverviewStats();
 });
-Done

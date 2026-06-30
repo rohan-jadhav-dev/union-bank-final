@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -85,6 +84,35 @@
         <path d="M12 7v5l3 3" stroke-linecap="round"/>
       </svg>
       <span>Session History</span>
+    </a>
+
+    <div class="sidebar-section-label">CBS Services</div>
+
+    <a class="nav-item" data-section="open-account" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <circle cx="12" cy="8" r="3.5"/>
+        <path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke-linecap="round"/>
+        <path d="M18 8h3M19.5 6.5v3" stroke-linecap="round"/>
+      </svg>
+      <span>Open Account</span>
+    </a>
+
+    <a class="nav-item" data-section="credit-card" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <rect x="2.5" y="5" width="19" height="14" rx="2.5"/>
+        <path d="M2.5 9.5h19" stroke-linecap="round"/>
+        <path d="M6 14.5h5" stroke-linecap="round"/>
+      </svg>
+      <span>Credit Card</span>
+    </a>
+
+    <a class="nav-item" data-section="cash-transaction" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <rect x="2.5" y="6" width="19" height="13" rx="2"/>
+        <circle cx="12" cy="12.5" r="3"/>
+        <path d="M6 6V4.5M18 6V4.5" stroke-linecap="round"/>
+      </svg>
+      <span>Deposit / Withdraw</span>
     </a>
 
     <div class="sidebar-section-label">Tools</div>
@@ -433,6 +461,129 @@
         </div>
 
       </div>
+
+      <!-- ===== OPEN NEW ACCOUNT (CBS) ===== -->
+      <div class="section" id="section-open-account">
+        <div class="cbs-grid">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Open New Account</div>
+            </div>
+            <div style="display:grid;gap:15px;">
+              <input class="lookup-input" id="oaName" placeholder="Customer Full Name">
+              <input class="lookup-input" id="oaMobile" placeholder="Mobile Number" maxlength="10">
+              <input class="lookup-input" id="oaAadhaar" placeholder="Aadhaar Number (12 digits)" maxlength="14">
+              <select class="lookup-select" id="oaAccType" style="width:100%;height:48px">
+                <option>Savings</option>
+                <option>Current</option>
+                <option>Salary</option>
+                <option>Senior Citizen Savings</option>
+              </select>
+              <input class="lookup-input" type="number" id="oaInitialDeposit" placeholder="Initial Deposit (₹)" min="0">
+              <button class="topbar-btn topbar-btn-primary" id="oaSubmitBtn" onclick="submitOpenAccount()" style="height:48px;justify-content:center">
+                Open Account
+              </button>
+              <div class="cbs-success" id="oaResult" style="display:none"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Documents Required</div>
+            </div>
+            <ul class="cbs-checklist">
+              <li>Aadhaar Card (identity &amp; address proof)</li>
+              <li>PAN Card</li>
+              <li>Recent passport-size photograph</li>
+              <li>Initial deposit as per account type</li>
+              <li>Nominee details (optional, recommended)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== CREDIT CARD APPLICATION (CBS) ===== -->
+      <div class="section" id="section-credit-card">
+        <div class="cbs-grid">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Apply for Credit Card</div>
+            </div>
+            <div style="display:grid;gap:15px;">
+              <input class="lookup-input" id="ccName" placeholder="Customer Full Name">
+              <input class="lookup-input" id="ccAccountNo" placeholder="Linked Account Number">
+              <select class="lookup-select" id="ccCardType" style="width:100%;height:48px">
+                <option>Rupay Select</option>
+                <option>Union Platinum</option>
+                <option>Union World</option>
+                <option>Union Signature</option>
+              </select>
+              <input class="lookup-input" type="number" id="ccIncome" placeholder="Monthly Income (₹)" min="0">
+              <button class="topbar-btn topbar-btn-primary" id="ccSubmitBtn" onclick="submitCreditCardApplication()" style="height:48px;justify-content:center">
+                Submit Application
+              </button>
+              <div class="cbs-success" id="ccResult" style="display:none"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Eligibility Guide</div>
+            </div>
+            <ul class="cbs-checklist">
+              <li>Monthly income ≥ ₹20,000 — entry-level cards</li>
+              <li>Monthly income ≥ ₹40,000 — mid-tier cards, ₹1,00,000 limit</li>
+              <li>Monthly income ≥ ₹1,00,000 — premium cards, ₹3,00,000 limit</li>
+              <li>Existing savings/current account required</li>
+              <li>Final approval subject to CIBIL score &amp; credit policy</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== DEPOSIT / WITHDRAW (CBS) ===== -->
+      <div class="section" id="section-cash-transaction">
+        <div class="cbs-grid">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Deposit / Withdraw</div>
+            </div>
+            <div style="display:grid;gap:15px;">
+              <select class="lookup-select" id="txnAccountSelect" style="width:100%;height:48px" onchange="updateTxnBalancePreview()">
+              </select>
+
+              <div class="txn-balance-row">
+                <span>Current balance</span>
+                <strong id="txnCurrentBalance">—</strong>
+              </div>
+
+              <div class="txn-type-toggle">
+                <button type="button" class="txn-type-btn active" data-txn-type="deposit">Deposit</button>
+                <button type="button" class="txn-type-btn" data-txn-type="withdraw">Withdraw</button>
+              </div>
+
+              <input class="lookup-input" type="number" id="txnAmount" placeholder="Amount (₹)" min="0">
+              <button class="topbar-btn topbar-btn-primary" id="txnSubmitBtn" onclick="submitTransaction()" style="height:48px;justify-content:center">
+                Process Transaction
+              </button>
+              <div class="cbs-success" id="txnResult" style="display:none"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Branch Cash Limits</div>
+            </div>
+            <ul class="cbs-checklist">
+              <li>Over-the-counter cash deposit: up to ₹2,00,000/day</li>
+              <li>Over-the-counter cash withdrawal: up to ₹1,00,000/day</li>
+              <li>Amounts above limit require manager approval</li>
+              <li>PAN mandatory for cash transactions ≥ ₹50,000</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       <!-- ===== ACCOUNT LOOKUP ===== -->
       <div class="section" id="section-account">
         <div class="lookup-search-bar">
