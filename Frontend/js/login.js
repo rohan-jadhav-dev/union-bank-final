@@ -210,6 +210,19 @@ async function startFaceCheck() {
     faceStream = await navigator.mediaDevices.getUserMedia({ video: {} });
     faceVideo.srcObject = faceStream;
 
+    // Some browser/OS combos don't reliably autoplay even muted video —
+    // force playback explicitly and wait until frames are actually ready.
+    try {
+      await faceVideo.play();
+    } catch (playErr) {
+      console.warn('Explicit video.play() failed, relying on autoplay:', playErr);
+    }
+    if (faceVideo.readyState < 2) {
+      await new Promise((resolve) => {
+        faceVideo.addEventListener('loadeddata', resolve, { once: true });
+      });
+    }
+
     faceInterval = setInterval(async () => {
       if (faceVerified) return;
       try {
