@@ -2,8 +2,12 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
 import logging
+import json
+import os
+import re
+from datetime import datetime
 
 from services.stt_service import transcribe_audio
 from services.tts_service import synthesize_speech
@@ -212,3 +216,147 @@ async def smart_replies(req: SmartRepliesRequest):
     except Exception as e:
         logger.error(f"smart-replies error: {e}", exc_info=True)
         return {"success": False, "error": str(e), "replies": []}
+
+
+# ── LEAD EXTRACTION & SUBMISSION ──────────────────────────────────────────────
+# These were missing entirely (404 on the frontend) — added below.
+# extract-lead is implemented with regex over the conversation text rather
+# than an LLM call, so it has zero dependency on llm_service internals and
+# works immediately on redeploy, with no extra API quota burned per lead.
+
+FIELD_PATTERNS = {
+    "customer_name": [
+        r"my name is\s+([A-Za-z][A-Za-z.\s]*?)(?:\s+and\b|[.,!]|$)",
+        r"this is\s+([A-Za-z][A-Za-z.\s]*?)(?:\s+speaking|\s+here|[.,!]|$)",
+        r"i am\s+([A-Za-z][A-Za-z.\s]*?)(?:\s+and\b|[.,!]|$)",
+    ],
+    "dob": [
+        r"(?:date of birth|dob|born on)\s*(?:is)?\s*[:\-]?\s*([0-9]{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+[0-9]{4})",
+        r"(?:date of birth|dob|born on)\s*(?:is)?\s*[:\-]?\s*([0-9]{1,2}[\/\-][0-9]{1,2}[\/\-][0-9]{2,4})",
+    ],
+    "phone": [
+        r"(?:phone|mobile|number|contact)\D{0,15}?([6-9][0-9]{9})\b",
+        r"\b([6-9][0-9]{9})\b",
+    ],
+    "address": [
+        r"(?:my address is|i live at|address is|residing at)\s*([^.,;\n]+)",
+    ],
+    "account_type": [
+        r"\b(union junior|savings account|current account|pmjdy|fixed deposit|fd account|savings|current)\b",
+    ],
+    "nominee_name": [
+        r"nominee(?:'s)?\s*name\s*(?:is)?\s*[:\-]?\s*([A-Za-z][A-Za-z.\s]*?)(?:[.,]|$)",
+    ],
+    "nominee_relation": [
+        r"nominee.*?relation(?:ship)?\s*(?:is)?\s*[:\-]?\s*([A-Za-z][A-Za-z\s]*?)(?:[.,]|$)",
+        r"(?:my\s+)?(son|daughter|wife|husband|spouse|father|mother|brother|sister)\s+(?:is|as)\s+(?:my\s+)?nominee",
+    ],
+    "loan_type": [
+        r"\b(home loan|personal loan|car loan|education loan|gold loan)\b",
+    ],
+    "loan_amount": [
+        r"(?:loan amount|need|want|require)\D{0,10}?(?:rs\.?|₹|inr)?\s*([0-9][0-9,]*\s*(?:lakh|lac|crore)?)",
+    ],
+    "tenure": [
+        r"(?:tenure|for|over)\s*([0-9]+\s*(?:years?|yrs?|months?))",
+    ],
+    "monthly_income": [
+        r"monthly income\D{0,10}?(?:rs\.?|₹|inr)?\s*([0-9][0-9,]*)",
+    ],
+    "employment_type": [
+        r"\b(salaried|self[\s-]?employed|business owner|government employee)\b",
+    ],
+    "cibil_score": [
+        r"cibil\D{0,10}?([0-9]{3})\b",
+    ],
+    "existing_emi": [
+        r"existing emi\D{0,10}?(?:rs\.?|₹|inr)?\s*([0-9][0-9,]*)",
+    ],
+    "annual_income": [
+        r"annual income\D{0,10}?(?:rs\.?|₹|inr)?\s*([0-9][0-9,]*)",
+    ],
+    "card_selected": [
+        r"\b(union classic|union platinum|union signature)\b",
+    ],
+    "account_last4": [
+        r"(?:account number|account no\.?|last 4 digits?)\D{0,10}?([0-9]{4})\b",
+    ],
+    "query_summary": [],
+}
+
+
+def _build_conversation_text(conversation: List[dict]) -> str:
+    parts = []
+    for turn in conversation:
+        role = turn.get("role", "")
+        text = turn.get("translation") or turn.get("text") or ""
+        if text:
+            parts.append(f"{role}: {text}")
+    return ". ".join(parts)
+
+
+def _clean_value(field_key: str, value: str) -> str:
+    value = re.sub(r"\s{2,}", " ", value.strip())
+    if field_key in ("customer_name", "nominee_name"):
+        value = " ".join(w.capitalize() for w in value.split())
+    if field_key == "phone":
+        # strip any stray trailing/leading non-digit characters
+        digits = re.sub(r"\D", "", value)
+        value = digits[-10:] if len(digits) >= 10 else digits
+    return value
+
+
+def extract_lead_from_text(conversation: List[dict], fields: List[str]) -> Dict[str, str]:
+    text = _build_conversation_text(conversation)
+    result = {}
+    for field_key in fields:
+        patterns = FIELD_PATTERNS.get(field_key, [])
+        for pattern in patterns:
+            m = re.search(pattern, text, re.IGNORECASE)
+            if m and m.group(1) and m.group(1).strip():
+                result[field_key] = _clean_value(field_key, m.group(1))
+                break
+    return result
+
+
+class ExtractLeadRequest(BaseModel):
+    conversation: List[dict]
+    process_type: str = "General enquiry"
+    fields: List[str] = []
+
+
+@router.post("/extract-lead")
+async def extract_lead(req: ExtractLeadRequest):
+    try:
+        lead = extract_lead_from_text(req.conversation, req.fields)
+        return JSONResponse({"success": True, "lead": lead})
+    except Exception as e:
+        logger.error(f"extract-lead error: {e}", exc_info=True)
+        return JSONResponse({"success": False, "error": str(e), "lead": {}})
+
+
+class SubmitLeadRequest(BaseModel):
+    process_type: str = "General enquiry"
+    customer_language: str = "Hindi"
+    lead: Dict[str, str] = {}
+    session_duration: Optional[str] = ""
+
+
+@router.post("/submit-lead")
+async def submit_lead(req: SubmitLeadRequest):
+    try:
+        os.makedirs("leads", exist_ok=True)
+        record = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "process_type": req.process_type,
+            "customer_language": req.customer_language,
+            "session_duration": req.session_duration,
+            "lead": req.lead,
+        }
+        with open("leads/leads.jsonl", "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        logger.info(f"[submit-lead] saved lead for process={req.process_type}")
+        return JSONResponse({"success": True})
+    except Exception as e:
+        logger.error(f"submit-lead error: {e}", exc_info=True)
+        return JSONResponse({"success": False, "error": str(e)})
