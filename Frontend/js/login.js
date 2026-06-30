@@ -196,7 +196,7 @@ async function startFaceCheck() {
   try {
     if (!faceapi.nets.tinyFaceDetector.isLoaded) {
       await faceapi.nets.tinyFaceDetector.loadFromUri(
-        'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights'
+        'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights'
       );
     }
   } catch (modelErr) {
