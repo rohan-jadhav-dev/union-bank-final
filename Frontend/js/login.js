@@ -190,6 +190,7 @@ async function startFaceCheck() {
   faceLabel.textContent = 'Position your face in frame';
   faceStatus.textContent = 'Scanning…';
   retryFaceBtn.style.display = 'none';
+  backToCredsBtn.style.display = 'block';
 
   // Step A: load detection model — separated so model failures aren't mislabeled as camera failures
   try {
@@ -200,12 +201,7 @@ async function startFaceCheck() {
     }
   } catch (modelErr) {
     console.error('Face model failed to load:', modelErr);
-    faceCheckbox.classList.remove('checking');
-    faceLabel.textContent = 'Verification model failed to load — check network/ad-blocker';
-    faceStatus.textContent = 'Model error';
-    faceVerified = true;
-    logAuditEvent(pendingStaff.empId, pendingStaff.role, 'face_skipped_model_load_failed');
-    finalizeLogin();
+    blockLogin('model_load_failed', 'Verification model failed to load — check network/ad-blocker', 'Model error');
     return;
   }
 
@@ -229,6 +225,7 @@ async function startFaceCheck() {
           faceCheckbox.classList.add('verified');
           faceLabel.textContent = 'Face verified';
           faceStatus.textContent = '✓ Confirmed';
+          logAuditEvent(pendingStaff.empId, pendingStaff.role, 'face_verified');
           finalizeLogin();
         }
       } catch (err) {
@@ -236,28 +233,38 @@ async function startFaceCheck() {
       }
     }, 700);
 
-    // timeout fallback — don't hard-block the demo
+    // timeout fallback — verification did not succeed, so login is blocked, not granted
     setTimeout(() => {
       if (!faceVerified) {
         clearInterval(faceInterval);
         stopFaceStream();
-        faceCheckbox.classList.remove('checking');
-        faceLabel.textContent = 'Could not verify face';
-        faceStatus.textContent = 'Timed out';
-        retryFaceBtn.style.display = 'block';
+        blockLogin('timeout', 'Could not verify face within the time limit', 'Timed out');
       }
     }, 8000);
 
   } catch (err) {
     // log the real error name so this is debuggable, instead of a generic message
     console.error('Camera access failed:', err.name, err.message);
-    faceCheckbox.classList.remove('checking');
-    faceLabel.textContent = `Camera unavailable (${err.name || 'unknown'}) — proceeding with credential verification only`;
-    faceStatus.textContent = 'Skipped';
-    faceVerified = true;
-    logAuditEvent(pendingStaff.empId, pendingStaff.role, `face_skipped_${err.name || 'unknown'}`);
-    finalizeLogin();
+    blockLogin(
+      `camera_${err.name || 'unknown'}`,
+      `Camera unavailable (${err.name || 'unknown'}) — face verification could not run`,
+      'Camera error'
+    );
   }
+}
+
+// Any failure path (model load, camera access, or detection timeout) lands here.
+// None of these grant access — face verification must actually succeed to log in.
+function blockLogin(reasonCode, label, statusText) {
+  faceVerified = false;
+  faceCheckbox.classList.remove('checking', 'verified');
+  faceLabel.textContent = label;
+  faceStatus.textContent = statusText;
+  retryFaceBtn.style.display = 'block';
+  submitBtn.disabled = false;
+
+  logAuditEvent(pendingStaff.empId, pendingStaff.role, `face_failed_${reasonCode}`);
+  showToast('Identity could not be verified. Please retry or contact branch IT.', true);
 }
 
 function stopFaceStream() {
@@ -277,7 +284,10 @@ backToCredsBtn.addEventListener('click', () => {
 });
 
 // ===================== FINALIZE: SESSION + ROLE REDIRECT =====================
+// Only ever called after faceVerified === true via a real successful detection.
 function finalizeLogin() {
+  if (!faceVerified) return; // defensive guard, should be unreachable
+
   const now = Date.now();
   const session = {
     empId: pendingStaff.empId,
