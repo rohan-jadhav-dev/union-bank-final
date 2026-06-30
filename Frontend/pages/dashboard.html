@@ -1,29 +1,30 @@
-dashboard html 
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>VoiceAssist AI — Dashboard</title>
+<meta name="description" content="Union Bank of India VoiceAssist AI — Branch Staff Portal for multilingual banking conversations." />
+<title>VoiceAssist AI — Branch Portal | Union Bank of India</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../css/base.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../css/dashboard.css">
 </head>
 <body>
+
+<!-- Liquid animated blobs -->
+<div class="liquid-blob blob-1"></div>
+<div class="liquid-blob blob-2"></div>
+<div class="liquid-blob blob-3"></div>
+<div class="liquid-blob blob-4"></div>
+<div class="liquid-blob blob-5"></div>
 
 <div class="dashboard-root">
 
   <!-- ==================== SIDEBAR ==================== -->
   <aside class="sidebar">
     <div class="sidebar-brand">
-      <div class="sidebar-brand-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#D4AF6A" stroke-width="1.5">
-          <path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </div>
+      <img src="../images/ubi_logo.png" alt="Union Bank of India" class="sidebar-brand-logo">
       <div>
         <div class="sidebar-brand-name">VoiceAssist AI</div>
         <div class="sidebar-brand-sub">Branch Portal</div>
@@ -108,6 +109,9 @@ dashboard html
   <!-- ==================== MAIN ==================== -->
   <div class="main">
 
+    <!-- RED ACCENT STRIPE -->
+    <div class="topbar-stripe"></div>
+
     <!-- TOP BAR -->
     <div class="topbar">
       <div class="topbar-page-title" id="topbarTitle">Overview</div>
@@ -130,6 +134,16 @@ dashboard html
       </div>
     </div>
 
+    <!-- TICKER BAR -->
+    <div class="dashboard-ticker">
+      <div class="ticker-title">Updates</div>
+      <div class="ticker-content">
+        <div class="ticker-text">
+          ⚠️ Secure Portal: Always sign out of your session when leaving the terminal. &nbsp;&nbsp;&nbsp;&bull;&nbsp;&nbsp;&nbsp; 🚀 Vyom App: Union Bank of India launches Union Vyom Mobile App with 350+ features! &nbsp;&nbsp;&nbsp;&bull;&nbsp;&nbsp;&nbsp; 📅 Alert: Mandatory KYC verification deadline has been extended to 31st August.
+        </div>
+      </div>
+    </div>
+
     <!-- CONTENT -->
     <div class="content">
 
@@ -137,22 +151,22 @@ dashboard html
       <div class="section active" id="section-overview">
         <div class="stat-grid">
           <div class="stat-card">
-            <div class="stat-label">Sessions today</div>
+            <div class="stat-label">Sessions Today</div>
             <div class="stat-value">12</div>
             <div class="stat-sub"><span class="stat-trend-up">↑ 3</span> vs yesterday</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Avg. duration</div>
+            <div class="stat-label">Avg. Duration</div>
             <div class="stat-value">4.2<span style="font-size:16px;font-weight:400"> min</span></div>
             <div class="stat-sub"><span class="stat-trend-down">↑ 0.4m</span> vs last week</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Languages used</div>
+            <div class="stat-label">Languages Used</div>
             <div class="stat-value">3</div>
-            <div class="stat-sub">Hindi, Marathi, Tamil</div>
+            <div class="stat-sub">Hindi · Marathi · Tamil</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Summaries saved</div>
+            <div class="stat-label">Summaries Saved</div>
             <div class="stat-value">11</div>
             <div class="stat-sub"><span class="stat-trend-up">100%</span> completion rate</div>
           </div>
@@ -288,6 +302,9 @@ dashboard html
                   </div>
                 </div>
                 <button class="change-link" id="changeLangBtn">Not correct? Change</button>
+              </div>
+              <div id="detectedTranscriptWrap" class="detected-transcript-wrap" style="display:none">
+                <span id="detectedTranscriptText"></span>
               </div>
               <div class="lang-grid" id="langGrid">
                 <button class="lang-option" data-lang="Hindi" data-code="हि">Hindi</button>
@@ -677,8 +694,8 @@ dashboard html
               <div class="card-title">English Summary</div>
               <button class="card-action" onclick="showToast('Copied to clipboard')">Copy</button>
             </div>
-            <p style="font-size:14px;line-height:1.75;color:var(--slate)">
-              Customer <strong style="color:var(--navy)">Rajesh Sharma</strong> visited the branch on 17 June 2026 at 11:42 AM to inquire about a home loan. Staff member verified customer identity (Aadhaar confirmed). Customer requested information on loan eligibility for ₹30,00,000 at a 20-year tenure. Staff explained current interest rate of 8.65% p.a. and EMI estimate of ₹26,400/month. Customer expressed interest and was informed about required documents: income proof, property papers, and 6-month bank statement. Customer will visit again within 7 days with documents.
+            <p style="font-size:14px;line-height:1.75;color:var(--text-dim)">
+              Customer <strong style="color:var(--blue)">Rajesh Sharma</strong> visited the branch on 17 June 2026 at 11:42 AM to inquire about a home loan. Staff member verified customer identity (Aadhaar confirmed). Customer requested information on loan eligibility for ₹30,00,000 at a 20-year tenure. Staff explained current interest rate of 8.65% p.a. and EMI estimate of ₹26,400/month. Customer expressed interest and was informed about required documents: income proof, property papers, and 6-month bank statement. Customer will visit again within 7 days with documents.
             </p>
             <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);display:flex;gap:10px">
               <button class="topbar-btn topbar-btn-primary" style="flex:1" onclick="showToast('Saved to Firestore')">Save to records</button>
@@ -690,8 +707,8 @@ dashboard html
               <div class="card-title">हिंदी सारांश</div>
               <button class="card-action" onclick="showToast('Read aloud in Hindi...')">🔊 Read aloud</button>
             </div>
-            <p style="font-size:14px;line-height:1.9;color:var(--slate);font-family:'Noto Sans Devanagari',sans-serif">
-              ग्राहक <strong style="color:var(--navy)">राजेश शर्मा</strong> ने 17 जून 2026 को सुबह 11:42 बजे शाखा का दौरा किया और होम लोन के बारे में जानकारी ली। स्टाफ ने आधार के माध्यम से पहचान सत्यापित की। ग्राहक ने ₹30,00,000 के लोन के लिए 20 वर्षीय अवधि पर पात्रता जाननी चाही। स्टाफ ने 8.65% वार्षिक ब्याज दर और ₹26,400 प्रति माह EMI की जानकारी दी। ग्राहक ने रुचि दिखाई और आवश्यक दस्तावेज़ — आय प्रमाण, संपत्ति के कागज़, 6 महीने का बैंक स्टेटमेंट — की सूची दी गई। ग्राहक 7 दिनों में दस्तावेज़ लेकर आएंगे।
+            <p style="font-size:14px;line-height:1.9;color:var(--text-dim);font-family:'Noto Sans Devanagari',sans-serif">
+              ग्राहक <strong style="color:var(--blue)">राजेश शर्मा</strong> ने 17 जून 2026 को सुबह 11:42 बजे शाखा का दौरा किया और होम लोन के बारे में जानकारी ली। स्टाफ ने आधार के माध्यम से पहचान सत्यापित की। ग्राहक ने ₹30,00,000 के लोन के लिए 20 वर्षीय अवधि पर पात्रता जाननी चाही। स्टाफ ने 8.65% वार्षिक ब्याज दर और ₹26,400 प्रति माह EMI की जानकारी दी। ग्राहक ने रुचि दिखाई और आवश्यक दस्तावेज़ — आय प्रमाण, संपत्ति के कागज़, 6 महीने का बैंक स्टेटमेंट — की सूची दी गई। ग्राहक 7 दिनों में दस्तावेज़ लेकर आएंगे।
             </p>
           </div>
         </div>
