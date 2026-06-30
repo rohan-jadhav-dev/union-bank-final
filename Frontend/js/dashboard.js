@@ -1,3 +1,4 @@
+
 // dashboard.js — VoiceAssist AI (merged: new UI + old logic)
 
 // ── LIVE CLOCK ────────────────────────────────────────────────────────────────
