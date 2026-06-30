@@ -1,4 +1,4 @@
-// conversation-desk.js — VoiceAssist AI
+
 // Manual-step edition: no auto-advance. Staff ticks checklist items and
 // clicks "Next" themselves. Top auto-strip removed; step indicator + checklist
 // + Back/Next now live entirely in the staff panel.
