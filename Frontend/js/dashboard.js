@@ -31,7 +31,7 @@ function navigate(sectionId) {
   if (sectionId === 'history')  loadSessionHistory();
   if (sectionId === 'summary')  loadBilingualSummary();
   if (sectionId === 'overview') loadOverviewStats();
-if (sectionId === 'lead-generation') loadLeads();
+  if (sectionId === 'lead-generation') loadLeads();
 }
 
 document.querySelectorAll('.nav-item[data-section]').forEach(item => {
@@ -574,46 +574,90 @@ function escHtml(s) {
 }
 
 // ── LEAD GENERATION ────────────────────────────────────────────────────────
-// Leads are derived from saved sessions (customers who showed product interest
-// during a conversation), plus a few sample leads so the tab isn't empty on
-// first run. Replace SAMPLE_LEADS with real backend data when available.
-const SAMPLE_LEADS = [
-  { name: "Anita Reddy",   initials: "AR", interest: "Home Loan top-up",     lang: "Telugu",  score: 86, tag: "hot",  phone: "+91 98480 XXXXX", date: "16 Jun 2026" },
-  { name: "Deepak Nair",   initials: "DN", interest: "Fixed Deposit",        lang: "Hindi",   score: 64, tag: "warm", phone: "+91 97654 XXXXX", date: "16 Jun 2026" },
-  { name: "Priya Kulkarni",initials: "PK", interest: "Credit Card upgrade",  lang: "Marathi", score: 72, tag: "warm", phone: "+91 99876 XXXXX", date: "17 Jun 2026" },
-  { name: "Murugan K.",    initials: "MK", interest: "Savings → Salary a/c", lang: "Tamil",   score: 41, tag: "cold", phone: "+91 90123 XXXXX", date: "17 Jun 2026" },
-];
+// Pulls REAL leads from the backend (/api/conversation/leads), which is fed
+// by the "Send to Bank" button on the Live Desk conversation summary modal.
+// Backend doesn't return a lead-quality score, so we compute one client-side
+// from field completeness — this is just for sorting hot/warm/cold, not a
+// claim about actual creditworthiness.
+
+const LEADS_API_BASE = "https://rohan667-voiceassist-ai-backend-kj.hf.space/api/conversation";
 
 function getLeadTagLabel(tag) {
   if (tag === 'hot') return 'Hot lead';
   if (tag === 'warm') return 'Warm lead';
-  return 'Cold lead';
+  return 'Needs follow-up';
 }
 
-function loadLeads() {
-const section = document.getElementById('section-lead-generation');
+function mapBackendLead(record) {
+  const lead = record.lead || {};
+  const name = (lead.customer_name && lead.customer_name.trim()) || lead.query_summary || 'Unknown customer';
+  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '??';
+
+  const interestParts = [];
+  if (lead.loan_type) interestParts.push(lead.loan_type);
+  if (lead.account_type) interestParts.push(lead.account_type);
+  if (lead.card_selected) interestParts.push(lead.card_selected);
+  const interest = interestParts.length ? interestParts.join(', ') : (record.process_type || 'General enquiry');
+
+  const lang = record.customer_language || '—';
+  const phone = lead.phone || lead.account_last4 || '—';
+
+  const values = Object.values(lead);
+  const filled = values.filter(v => v && String(v).trim()).length;
+  const score = values.length ? Math.round((filled / values.length) * 100) : 0;
+
+  let tag = 'cold';
+  if (score >= 70) tag = 'hot';
+  else if (score >= 40) tag = 'warm';
+
+  let date = '—';
+  if (record.timestamp) {
+    try {
+      date = new Date(record.timestamp).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    } catch (e) {}
+  }
+
+  return { name, initials, interest, lang, score, tag, phone, date, raw: record };
+}
+
+async function loadLeads() {
+  const section = document.getElementById('section-lead-generation');
   if (!section) return;
 
-  let leads = [...SAMPLE_LEADS];
+  const listEl = section.querySelector('#leadList');
+  const statRow = section.querySelector('.lead-stat-row');
+
+  if (listEl) {
+    listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px">Loading leads…</div>`;
+  }
+
+  let rawLeads = [];
+  let fetchFailed = false;
   try {
-    const raw = localStorage.getItem('va_leads');
-    if (raw) {
-      const stored = JSON.parse(raw);
-      if (Array.isArray(stored) && stored.length) leads = stored;
+    const res = await fetch(`${LEADS_API_BASE}/leads`);
+    const data = await res.json();
+    if (data.success && Array.isArray(data.leads)) {
+      rawLeads = data.leads;
+    } else {
+      fetchFailed = true;
     }
-  } catch(e) {}
+  } catch (e) {
+    console.warn('[loadLeads] failed to fetch leads from backend:', e);
+    fetchFailed = true;
+  }
+
+  const leads = rawLeads.map(mapBackendLead).reverse(); // newest first
 
   const hot = leads.filter(l => l.tag === 'hot').length;
   const warm = leads.filter(l => l.tag === 'warm').length;
   const cold = leads.filter(l => l.tag === 'cold').length;
 
-  const statRow = section.querySelector('.lead-stat-row');
   if (statRow) {
     statRow.innerHTML = `
       <div class="stat-card">
         <div class="stat-label">Total leads</div>
         <div class="stat-value">${leads.length}</div>
-        <div class="stat-sub">From recent conversations</div>
+        <div class="stat-sub">From customer conversations</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Hot leads</div>
@@ -626,39 +670,106 @@ const section = document.getElementById('section-lead-generation');
         <div class="stat-sub">Nurture this week</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Cold leads</div>
+        <div class="stat-label">Incomplete</div>
         <div class="stat-value">${cold}</div>
-        <div class="stat-sub">Low priority</div>
+        <div class="stat-sub">Missing details</div>
       </div>`;
   }
 
-  const list = section.querySelector('#leadList');
-  if (!list) return;
+  if (!listEl) return;
 
-  if (leads.length === 0) {
-    list.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px">
-      No leads yet. Leads are generated automatically from customer conversations.
+  if (fetchFailed) {
+    listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--error);font-size:13px">
+      Could not reach the leads server. Check that the backend is running and try again.
     </div>`;
     return;
   }
 
-  list.innerHTML = leads.map(l => `
+  if (leads.length === 0) {
+    listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px">
+      No leads yet. Leads appear here automatically when staff click "Send to Bank" at the end of a conversation on the Live Desk.
+    </div>`;
+    return;
+  }
+
+  listEl.innerHTML = leads.map((l, i) => `
     <div class="lead-card">
-      <div class="lead-avatar">${escHtml(l.initials || (l.name||'?').slice(0,2).toUpperCase())}</div>
+      <div class="lead-avatar">${escHtml(l.initials)}</div>
       <div class="lead-info">
         <div class="lead-name">${escHtml(l.name)} &nbsp; <span class="lead-tag lead-tag-${l.tag}">${getLeadTagLabel(l.tag)}</span></div>
-        <div class="lead-meta">${escHtml(l.interest)} · ${escHtml(l.lang)} · ${escHtml(l.date)}</div>
+        <div class="lead-meta">${escHtml(l.interest)} · ${escHtml(l.lang)} · ${escHtml(l.phone)} · ${escHtml(l.date)}</div>
       </div>
       <div class="lead-score">
         <div class="lead-score-value">${l.score}</div>
-        <div class="lead-score-label">Score</div>
+        <div class="lead-score-label">Complete</div>
       </div>
       <div class="lead-actions">
         <button class="lead-action-btn lead-action-call" onclick="showToast('Calling ${escHtml(l.name)}…')">Call</button>
-        <button class="lead-action-btn" onclick="showToast('Opening lead notes…')">Notes</button>
+        <button class="lead-action-btn" onclick="showLeadDetails(${i})">Details</button>
       </div>
     </div>
   `).join('');
+
+  window._leadsCache = leads;
+}
+
+function showLeadDetails(index) {
+  const leads = window._leadsCache || [];
+  const l = leads[index];
+  if (!l) return;
+  const lead = l.raw.lead || {};
+  const rows = Object.entries(lead)
+    .filter(([k, v]) => v && String(v).trim())
+    .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`)
+    .join('\n');
+  alert(`Lead details — ${l.raw.process_type || ''}\n\n${rows || 'No additional details captured.'}\n\nSession duration: ${l.raw.session_duration || '—'}`);
+}
+
+async function saveManualLead() {
+  const nameEl = document.getElementById('manualLeadName');
+  const phoneEl = document.getElementById('manualLeadPhone');
+  const interestEl = document.getElementById('manualLeadInterest');
+  const notesEl = document.getElementById('manualLeadNotes');
+
+  const name = nameEl ? nameEl.value.trim() : '';
+  if (!name) { showToast('Enter a customer name first', true); return; }
+
+  const lead = {
+    customer_name: name,
+    phone: phoneEl ? phoneEl.value.trim() : '',
+    query_summary: notesEl ? notesEl.value.trim() : '',
+  };
+  const interest = interestEl ? interestEl.value : 'General enquiry';
+
+  const btn = document.getElementById('manualLeadSaveBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  try {
+    const res = await fetch(`${LEADS_API_BASE}/submit-lead`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        process_type: interest,
+        customer_language: 'English',
+        lead,
+        session_duration: '',
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Lead saved ✓');
+      if (nameEl) nameEl.value = '';
+      if (phoneEl) phoneEl.value = '';
+      if (notesEl) notesEl.value = '';
+      loadLeads();
+    } else {
+      showToast(data.error || 'Failed to save lead', true);
+    }
+  } catch (e) {
+    showToast('Network error saving lead', true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Save Lead'; }
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -667,3 +778,4 @@ document.addEventListener('DOMContentLoaded', () => {
 window.addEventListener('load', () => {
   loadOverviewStats();
 });
+Done
