@@ -191,11 +191,26 @@ async function startFaceCheck() {
   faceStatus.textContent = 'Scanning…';
   retryFaceBtn.style.display = 'none';
 
+  // Step A: load detection model — separated so model failures aren't mislabeled as camera failures
   try {
-    await faceapi.nets.tinyFaceDetector.loadFromUri(
-      'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights'
-    );
+    if (!faceapi.nets.tinyFaceDetector.isLoaded) {
+      await faceapi.nets.tinyFaceDetector.loadFromUri(
+        'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights'
+      );
+    }
+  } catch (modelErr) {
+    console.error('Face model failed to load:', modelErr);
+    faceCheckbox.classList.remove('checking');
+    faceLabel.textContent = 'Verification model failed to load — check network/ad-blocker';
+    faceStatus.textContent = 'Model error';
+    faceVerified = true;
+    logAuditEvent(pendingStaff.empId, pendingStaff.role, 'face_skipped_model_load_failed');
+    finalizeLogin();
+    return;
+  }
 
+  // Step B: request camera — separate try so we can tell model errors from camera errors
+  try {
     faceStream = await navigator.mediaDevices.getUserMedia({ video: {} });
     faceVideo.srcObject = faceStream;
 
@@ -234,12 +249,13 @@ async function startFaceCheck() {
     }, 8000);
 
   } catch (err) {
-    // no camera available — fail open with a logged event, don't trap the user
+    // log the real error name so this is debuggable, instead of a generic message
+    console.error('Camera access failed:', err.name, err.message);
     faceCheckbox.classList.remove('checking');
-    faceLabel.textContent = 'Camera unavailable — proceeding with credential verification only';
+    faceLabel.textContent = `Camera unavailable (${err.name || 'unknown'}) — proceeding with credential verification only`;
     faceStatus.textContent = 'Skipped';
     faceVerified = true;
-    logAuditEvent(pendingStaff.empId, pendingStaff.role, 'face_skipped_no_camera');
+    logAuditEvent(pendingStaff.empId, pendingStaff.role, `face_skipped_${err.name || 'unknown'}`);
     finalizeLogin();
   }
 }
