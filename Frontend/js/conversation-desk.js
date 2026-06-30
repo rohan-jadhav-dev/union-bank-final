@@ -7,6 +7,18 @@
 // fences / "Here is the response:" preambles that the backend LLM sometimes
 // returns instead of a clean string. Applied at every place a translation or
 // transcript string from the backend gets shown or stored.
+//
+// PATCH 2 (this version): added LEAD AUTO-FILL — after a session ends,
+// alongside the bilingual summary, conversation data is sent to a new
+// backend endpoint that extracts structured form fields (name, loan type,
+// income, etc.) using the LLM. Staff reviews/corrects the auto-filled form,
+// then clicks "Send to Bank" to submit it as a lead via /submit-lead.
+//
+// PATCH 3 (this version): "Save to Records" no longer just toasts and
+// returns to the dashboard. It now stores the conversation in sessionStorage
+// (the same keys lead-form.html reads) and redirects straight to
+// lead-form.html, where the lead is auto-extracted/auto-filled and staff
+// only needs to review and click "Send to Bank".
 
 const API_BASE = "https://rohan667-voiceassist-ai-backend-kj.hf.space/api/conversation";
 
@@ -105,11 +117,6 @@ const GREETINGS = {
   },
 };
 
-/* ──────────────────────────────────────────────────────────────────────────
-   QUICK REPLIES — expanded with many more options per step (tenure, rate
-   slabs, document items split out individually, etc.) so staff almost never
-   needs to type.
-   ────────────────────────────────────────────────────────────────────────── */
 const STATIC_QUICK_REPLIES = {
   "Loan enquiry": [
     [
@@ -348,6 +355,44 @@ const KYC_CHECKLIST = {
   ],
 };
 
+const LEAD_FORM_FIELDS = {
+  "Loan enquiry": [
+    { key: "customer_name",    label: "Customer Name" },
+    { key: "phone",            label: "Phone Number" },
+    { key: "loan_type",        label: "Loan Type" },
+    { key: "loan_amount",      label: "Loan Amount Requested" },
+    { key: "tenure",           label: "Tenure Preference" },
+    { key: "monthly_income",   label: "Monthly Income" },
+    { key: "employment_type",  label: "Employment Type" },
+    { key: "cibil_score",      label: "CIBIL Score (approx)" },
+    { key: "existing_emi",     label: "Existing EMI Obligations" },
+  ],
+  "Account opening": [
+    { key: "customer_name",     label: "Customer Name" },
+    { key: "dob",                label: "Date of Birth" },
+    { key: "phone",              label: "Phone Number" },
+    { key: "address",            label: "Address" },
+    { key: "account_type",       label: "Account Type" },
+    { key: "nominee_name",       label: "Nominee Name" },
+    { key: "nominee_relation",   label: "Nominee Relation" },
+  ],
+  "Balance enquiry": [
+    { key: "customer_name",   label: "Customer Name" },
+    { key: "account_last4",   label: "Account No. (last 4)" },
+  ],
+  "Credit card apply": [
+    { key: "customer_name",   label: "Customer Name" },
+    { key: "phone",           label: "Phone Number" },
+    { key: "annual_income",   label: "Annual Income" },
+    { key: "cibil_score",     label: "CIBIL Score (approx)" },
+    { key: "card_selected",   label: "Card Selected" },
+  ],
+  "General enquiry": [
+    { key: "customer_name",   label: "Customer Name" },
+    { key: "query_summary",   label: "Query Summary" },
+  ],
+};
+
 const TTS_TIMEOUT_MS = 6000;
 const SPEECH_SYNTH_LOCALE = {
   "Hindi": "hi-IN", "Marathi": "mr-IN", "Tamil": "ta-IN", "Telugu": "te-IN", "English": "en-IN",
@@ -370,7 +415,6 @@ let staffChunks     = [];
 let kycShown        = false;
 let smartReplies    = [];
 
-// checklistState[stepIndex] = Set of checked item-indices for that step
 let checklistState  = {};
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -380,35 +424,22 @@ document.addEventListener("DOMContentLoaded", () => {
   try { startConversation(); } catch (e) { console.error("[Init] startConversation:", e); }
 });
 
-/* ──────────────────────────────────────────────────────────────────────────
-   PATCH: cleanModelText()
-   The backend LLM sometimes returns a raw JSON blob (often wrapped in
-   markdown fences and/or a "Here is the response:" preamble) instead of a
-   plain translated string, e.g.:
-     Here is the response: ```{ "english_translation": "...", "intent": "..." }```
-   This strips that wrapper and pulls out the actual text field so the UI
-   never shows raw JSON to the user. If nothing parseable is found, it falls
-   back to returning the original string untouched.
-   ────────────────────────────────────────────────────────────────────────── */
 function cleanModelText(raw) {
   if (raw === null || raw === undefined) return raw;
   let t = String(raw).trim();
   if (!t) return t;
 
-  // Quick path: doesn't look JSON-wrapped at all, return as-is.
   const looksJsonWrapped =
     t.includes("```") ||
     /"english_translation"|"customer_text"|"translated_text"|"text"\s*:/.test(t) ||
     (t.includes("{") && t.includes("}"));
   if (!looksJsonWrapped) return t;
 
-  // Strip a leading preamble + opening code fence, and a trailing fence.
   let stripped = t
     .replace(/^[^{]*?```(?:json)?/is, "")
     .replace(/```[^]*$/i, "")
     .trim();
 
-  // If there was no fence, just grab from the first "{" to the last "}".
   if (!stripped.startsWith("{")) {
     const start = t.indexOf("{");
     const end = t.lastIndexOf("}");
@@ -417,7 +448,7 @@ function cleanModelText(raw) {
     }
   }
 
-  if (!stripped.startsWith("{")) return t; // nothing JSON-like found, leave untouched
+  if (!stripped.startsWith("{")) return t;
 
   try {
     const obj = JSON.parse(stripped);
@@ -443,8 +474,6 @@ function initUI() {
   if (selectedProcess !== "General enquiry") document.getElementById("intentChip").classList.add("show");
   document.getElementById("regionalLabel").textContent = `${selectedLanguage} Summary`;
 
-  // Top auto-strip removed — no buildProcessStrip() call, and the element
-  // (if still present in HTML) is hidden so nothing auto-advances visually.
   const strip = document.getElementById("processStrip");
   if (strip) strip.style.display = "none";
 
@@ -511,14 +540,9 @@ async function autoGreetCustomer() {
 
   conversationLog.push({ role: "staff", text: greetingText, translation: greetingText });
 
-  // NOTE: previously this called advanceStep() automatically after the
-  // greeting. That's removed — greeting checklist item should be ticked
-  // (or "Next" clicked) by the staff member themselves.
   showStaticQuickReplies();
 }
 
-// Smart-replies / detect-step are still used as *suggestions* — they no
-// longer move the step forward on their own. Only manualNextStep() does.
 async function updateStepFromLLM() {
   if (conversationLog.length === 0) return;
   try {
@@ -560,7 +584,6 @@ async function fetchSmartQuickReplies() {
     });
     const data = await res.json();
     if (data.success && data.replies && data.replies.length > 0) {
-      // PATCH: clean each reply in case the model returned JSON-wrapped text
       smartReplies = data.replies.map(cleanModelText);
       showQuickReplies(smartReplies);
       return;
@@ -568,10 +591,6 @@ async function fetchSmartQuickReplies() {
   } catch (e) { console.warn("[SmartReplies] fallback to static"); }
   showStaticQuickReplies();
 }
-
-/* ──────────────────────────────────────────────────────────────────────────
-   MANUAL STEP CONTROL — the only thing that moves stepIndex now.
-   ────────────────────────────────────────────────────────────────────────── */
 
 function updateStepIndicator() {
   const steps = PROCESS_STEPS[selectedProcess] || PROCESS_STEPS["General enquiry"];
@@ -598,10 +617,9 @@ function updateManualStepButtons() {
   }
 }
 
-// Manual "Next ✓" — staff explicitly confirms current step is done.
 function manualNextStep() {
   const steps = PROCESS_STEPS[selectedProcess] || [];
-  if (stepIndex >= steps.length - 1) return; // already on last step
+  if (stepIndex >= steps.length - 1) return;
 
   stepIndex += 1;
 
@@ -620,9 +638,8 @@ function manualNextStep() {
   showToast(`✓ Moved to: ${stepName}`);
 }
 
-// Manual "← Back" — staff steps back to the previous step.
 function manualBackStep() {
-  if (stepIndex <= 0) return; // already on first step
+  if (stepIndex <= 0) return;
 
   stepIndex -= 1;
 
@@ -635,12 +652,6 @@ function manualBackStep() {
   showStaticQuickReplies();
   showToast(`← Back to: ${steps[stepIndex] || ""}`);
 }
-
-/* ──────────────────────────────────────────────────────────────────────────
-   MANUAL CHECKLIST — renders STEP_CHECKLISTS[selectedProcess][stepIndex]
-   as tappable checkboxes above the quick replies. Purely staff-driven;
-   nothing here auto-advances the step.
-   ────────────────────────────────────────────────────────────────────────── */
 
 function renderStepChecklist() {
   document.getElementById("stepChecklistBar")?.remove();
@@ -697,7 +708,6 @@ function renderStepChecklist() {
 
   bar.appendChild(list);
   const controls = document.querySelector(".pane:last-child .pane-controls");
-  // Insert checklist directly above quick replies / processing indicator area
   if (controls) controls.insertBefore(bar, controls.firstChild);
 
   updateChecklistProgress(items.length);
@@ -877,8 +887,6 @@ async function processCustomerAudio() {
     const data = await res.json();
     hideEl("customerProcessing");
 
-    // PATCH: clean both the original transcript and the translation in case
-    // the backend forwarded a raw/JSON-wrapped LLM response for either field.
     const cleanCustomerText  = cleanModelText(data.customer_text);
     const cleanTranslation   = cleanModelText(data.english_translation);
     const cleanIntent        = cleanModelText(data.intent);
@@ -901,7 +909,6 @@ async function processCustomerAudio() {
       }
       conversationLog.push({ role: "customer", text: cleanCustomerText, translation: cleanTranslation });
 
-      // Suggestions only — these no longer auto-advance the step.
       await updateStepFromLLM();
       setCustomerStatus("done", "Transcribed");
     } else {
@@ -931,7 +938,6 @@ async function sendStaffReply() {
     hideEl("staffProcessing");
     btn.disabled = false; btn.classList.remove("loading");
     if (data.success) {
-      // PATCH: clean translated text before displaying/storing it.
       const cleanTranslated = cleanModelText(data.translated_text);
       addStaffBubble(text, cleanTranslated, data.tts_engine);
       if (data.audio_b64) playAudio(data.audio_b64);
@@ -941,7 +947,6 @@ async function sendStaffReply() {
       setStaffStatus("done", "Sent");
       setTimeout(() => setStaffStatus("", "Ready"), 2000);
       document.getElementById("nextQuestionHint")?.remove();
-      // Quick replies / checklist stay visible — staff may need to tap several in a row.
     } else { showToast(data.error || "Translation failed", true); }
   } catch (err) {
     hideEl("staffProcessing");
@@ -973,7 +978,6 @@ async function toggleStaffRecording() {
           const res  = await fetch(`${API_BASE}/staff-speak`, { method: "POST", body: form });
           const data = await res.json();
           if (data.success && data.text) {
-            // PATCH: clean recognized staff speech text too.
             document.getElementById("staffInput").value = cleanModelText(data.text);
             document.getElementById("staffInput").dispatchEvent(new Event("input"));
           }
@@ -997,6 +1001,93 @@ function addInfoBadge(msg) {
   setTimeout(() => div.remove(), 8000);
 }
 
+async function fetchLeadForm() {
+  const fields = LEAD_FORM_FIELDS[selectedProcess] || LEAD_FORM_FIELDS["General enquiry"];
+  const leadContainer = document.getElementById("leadFormBody");
+  if (leadContainer) {
+    leadContainer.innerHTML = `<div style="color:var(--slate-light);font-size:12px;">Extracting lead details…</div>`;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/extract-lead`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        conversation: conversationLog.map(t => ({ role: t.role, text: t.text, translation: t.translation })),
+        process_type: selectedProcess,
+        fields: fields.map(f => f.key),
+      })
+    });
+    const data = await res.json();
+    if (data.success && data.lead) {
+      renderLeadForm(fields, data.lead);
+    } else {
+      renderLeadForm(fields, {});
+      showToast("Could not auto-extract lead — fill manually", true);
+    }
+  } catch (e) {
+    renderLeadForm(fields, {});
+    showToast("Lead extraction failed — fill manually", true);
+  }
+}
+
+function renderLeadForm(fields, leadData) {
+  const container = document.getElementById("leadFormBody");
+  if (!container) return;
+  container.innerHTML = "";
+
+  fields.forEach(f => {
+    const raw = leadData[f.key];
+    const value = (raw === undefined || raw === null) ? "" : cleanModelText(String(raw));
+
+    const row = document.createElement("div");
+    row.style.cssText = "margin-bottom:10px;";
+    row.innerHTML = `
+      <label style="display:block;font-size:11px;color:var(--slate-light);
+        text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">${escHtml(f.label)}</label>
+      <input type="text" data-field="${escHtml(f.key)}" value="${escHtml(value)}"
+        style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;
+        font-size:13px;font-family:inherit;color:var(--navy);"
+        placeholder="${value ? "" : "Not captured — enter manually"}" />`;
+    container.appendChild(row);
+  });
+}
+
+async function submitLead() {
+  const inputs = document.querySelectorAll("#leadFormBody input[data-field]");
+  if (inputs.length === 0) { showToast("No lead form to submit", true); return; }
+
+  const lead = {};
+  inputs.forEach(inp => { lead[inp.dataset.field] = inp.value.trim(); });
+
+  const btn = document.getElementById("submitLeadBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+
+  try {
+    const res = await fetch(`${API_BASE}/submit-lead`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        process_type: selectedProcess,
+        customer_language: selectedLanguage,
+        lead,
+        session_duration: document.getElementById("timerDisplay")?.textContent || "",
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast("Lead sent to bank ✓");
+      if (btn) btn.textContent = "Sent ✓";
+    } else {
+      showToast(data.error || "Submit failed", true);
+      if (btn) { btn.disabled = false; btn.textContent = "Send to Bank"; }
+    }
+  } catch (e) {
+    showToast("Network error sending lead", true);
+    if (btn) { btn.disabled = false; btn.textContent = "Send to Bank"; }
+  }
+}
+
 async function endSession() {
   if (conversationLog.length === 0) { showToast("No conversation yet", true); return; }
   clearInterval(timerInterval);
@@ -1005,6 +1096,14 @@ async function endSession() {
   document.getElementById("regionalSummary").textContent = "Translating…";
   document.getElementById("summaryMeta").textContent =
     `${selectedLanguage} · ${selectedProcess} · ${document.getElementById("timerDisplay").textContent}`;
+
+  const leadBtn = document.getElementById("submitLeadBtn");
+  if (leadBtn) { leadBtn.disabled = false; leadBtn.textContent = "Send to Bank"; }
+
+  await Promise.all([fetchSummary(), fetchLeadForm()]);
+}
+
+async function fetchSummary() {
   try {
     const res  = await fetch(`${API_BASE}/summary`, {
       method: "POST",
@@ -1017,7 +1116,6 @@ async function endSession() {
     });
     const data = await res.json();
     if (data.success) {
-      // PATCH: clean summary text fields too — same backend, same risk.
       document.getElementById("englishSummary").textContent = cleanModelText(data.english_summary);
       document.getElementById("regionalSummary").textContent = cleanModelText(data.regional_summary);
       if (data.action_items && data.action_items.length > 0) {
@@ -1027,12 +1125,34 @@ async function endSession() {
     } else {
       document.getElementById("englishSummary").textContent = "Error: " + (data.error || "");
     }
-  } catch (e) { document.getElementById("englishSummary").textContent = "Network error."; }
+  } catch (e) {
+    document.getElementById("englishSummary").textContent = "Network error.";
+  }
 }
 
 function closeSummary() { document.getElementById("summaryModal").classList.remove("show"); startTimer(); }
 function newSession()   { window.location.href = "dashboard.html"; }
-function saveToRecords(){ showToast("Saved ✓"); setTimeout(() => { window.location.href = "dashboard.html"; }, 1500); }
+
+// ═══════════════════════════════════════════════════════════
+// PATCH 3: SAVE TO RECORDS → redirect straight to lead-form.html
+// Stores the conversation (and everything lead-form.html needs) into
+// sessionStorage using the SAME keys lead-form.html already reads on
+// load, then redirects there immediately. lead-form.html auto-extracts
+// and auto-fills the form on its own — staff just reviews and clicks
+// "Send to Bank". Nothing here auto-submits the lead.
+// ═══════════════════════════════════════════════════════════
+function saveToRecords() {
+  const duration = document.getElementById("timerDisplay")?.textContent || "";
+
+  showToast("Summary saved — opening lead form ✓");
+
+  sessionStorage.setItem("va_lead_conversation", JSON.stringify(conversationLog));
+  sessionStorage.setItem("va_lead_process", selectedProcess);
+  sessionStorage.setItem("va_lead_language", selectedLanguage);
+  sessionStorage.setItem("va_lead_duration", duration);
+
+  setTimeout(() => { window.location.href = "lead-form.html"; }, 900);
+}
 
 function bindEvents() {
   const bind = (id, ev, fn) => {
@@ -1047,6 +1167,7 @@ function bindEvents() {
   bind("saveRecordBtn",  "click", saveToRecords);
   bind("manualNextBtn",  "click", manualNextStep);
   bind("manualBackBtn",  "click", manualBackStep);
+  bind("submitLeadBtn",  "click", submitLead);
   const inp = document.getElementById("staffInput");
   if (inp) {
     inp.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendStaffReply(); } });

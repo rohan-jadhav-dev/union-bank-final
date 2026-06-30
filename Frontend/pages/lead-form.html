@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VoiceAssist AI — Lead Details</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy:#0F1E3D;
+  --navy-light:#1a2f5a;
+  --gold:#B8923D;
+  --gold-light:#D4AF6A;
+  --gold-bg:rgba(184,146,61,0.08);
+  --white:#ffffff;
+  --bg:#F5F4F1;
+  --border:#E2E0DA;
+  --slate:#6B7280;
+  --slate-light:#9CA3AF;
+  --success:#16A34A;
+  --error:#B91C1C;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:var(--bg);min-height:100vh;display:flex;flex-direction:column}
+
+/* TOPBAR */
+.topbar{height:52px;background:var(--navy);display:flex;align-items:center;padding:0 18px;gap:12px;flex-shrink:0}
+.brand{display:flex;align-items:center;gap:8px;color:var(--white);font-size:13.5px;font-weight:600;font-family:'Source Serif 4',serif;text-decoration:none}
+.brand svg{width:18px;height:18px}
+.topbar-meta{margin-left:auto;display:flex;align-items:center;gap:10px}
+.meta-chip{background:rgba(212,175,106,0.18);border:1px solid rgba(212,175,106,0.35);color:var(--gold-light);border-radius:99px;padding:3px 11px;font-size:12px;font-weight:500}
+.topbar-btn{display:flex;align-items:center;gap:5px;padding:6px 13px;border-radius:6px;font-size:12.5px;font-weight:500;cursor:pointer;border:none;font-family:inherit;background:rgba(255,255,255,0.1);color:var(--white);transition:background 150ms ease}
+.topbar-btn:hover{background:rgba(255,255,255,0.18)}
+
+/* PAGE */
+.page-wrap{flex:1;display:flex;justify-content:center;padding:32px 20px;overflow-y:auto}
+.page-inner{width:100%;max-width:760px}
+.page-head{margin-bottom:18px}
+.page-title{font-size:19px;font-weight:600;color:var(--navy);display:flex;align-items:center;gap:8px}
+.page-sub{font-size:12.5px;color:var(--slate);margin-top:4px}
+
+.banner{display:none;align-items:center;gap:10px;padding:12px 16px;background:rgba(22,163,74,0.1);border:1px solid rgba(22,163,74,0.3);border-radius:8px;margin-bottom:16px;font-size:13px;color:#166534;font-weight:500}
+.banner.show{display:flex}
+.banner svg{width:18px;height:18px;flex-shrink:0;color:#16a34a}
+.banner.err{background:rgba(185,28,28,0.08);border-color:rgba(185,28,28,0.3);color:var(--error)}
+.banner.err svg{color:var(--error)}
+
+.lead-card{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:22px;box-shadow:0 1px 3px rgba(15,30,61,0.05)}
+.lead-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.lead-card-title{font-size:11px;text-transform:uppercase;letter-spacing:0.07em;color:var(--slate-light);font-weight:600}
+.extracting{display:flex;align-items:center;gap:8px;color:var(--gold);font-size:12px;font-weight:500}
+.proc-dot{width:6px;height:6px;border-radius:50%;background:var(--gold);animation:blink 0.6s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.25}}
+
+.lead-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 16px;margin-top:14px}
+.lead-field{display:flex;flex-direction:column;gap:4px}
+.lead-field.full{grid-column:1 / -1}
+.lead-field label{font-size:11px;color:var(--slate-light);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;display:flex;align-items:center;gap:6px}
+.auto-tag{background:var(--gold-bg);color:var(--gold);font-size:9.5px;text-transform:none;letter-spacing:0;padding:1px 6px;border-radius:4px;font-weight:600}
+.manual-tag{background:var(--bg);color:var(--slate-light);font-size:9.5px;text-transform:none;letter-spacing:0;padding:1px 6px;border-radius:4px;font-weight:600;border:1px solid var(--border)}
+.lead-field input,.lead-field textarea{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:13.5px;font-family:inherit;color:var(--navy);outline:none;transition:border-color 150ms ease,background 150ms ease}
+.lead-field input:focus,.lead-field textarea:focus{border-color:var(--gold)}
+.lead-field input::placeholder,.lead-field textarea::placeholder{color:var(--slate-light);font-style:italic;font-size:12.5px}
+.lead-field input.filled{background:var(--gold-bg)}
+.lead-field textarea{resize:vertical;min-height:60px}
+
+.lead-actions{display:flex;gap:10px;margin-top:22px;padding-top:18px;border-top:1px solid var(--border)}
+.btn-submit{flex:1;height:46px;background:var(--success);color:var(--white);border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;transition:background 150ms ease,opacity 150ms ease}
+.btn-submit:hover:not(:disabled){background:#15803d}
+.btn-submit:disabled{opacity:0.55;cursor:not-allowed}
+.btn-ghost{height:46px;padding:0 18px;background:transparent;color:var(--slate);border:1px solid var(--border);border-radius:8px;font-size:13.5px;font-weight:500;cursor:pointer;font-family:inherit;transition:background 150ms ease}
+.btn-ghost:hover{background:var(--bg)}
+.send-spin{width:14px;height:14px;border:1.5px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 600ms linear infinite;display:none}
+.btn-submit.loading .send-txt{display:none}
+.btn-submit.loading .send-spin{display:flex}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.empty-conv{text-align:center;padding:50px 20px;color:var(--slate-light)}
+.empty-conv svg{width:36px;height:36px;opacity:0.4;margin-bottom:10px}
+.empty-conv p{font-size:13px}
+
+.conv-toggle{font-size:12px;color:var(--gold);cursor:pointer;font-weight:500;user-select:none;display:inline-flex;align-items:center;gap:4px;margin-top:10px}
+.conv-preview{display:none;margin-top:12px;max-height:220px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;line-height:1.7;color:var(--slate)}
+.conv-preview.show{display:block}
+.conv-line{margin-bottom:4px}
+.conv-line b{color:var(--navy)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="brand" href="dashboard.html">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#D4AF6A" stroke-width="1.5">
+      <path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    VoiceAssist AI
+  </a>
+  <div class="topbar-meta">
+    <span class="meta-chip" id="metaProcess">—</span>
+    <span class="meta-chip" id="metaLang">—</span>
+    <button class="topbar-btn" onclick="window.location.href='dashboard.html'">← Dashboard</button>
+  </div>
+</div>
+
+<div class="page-wrap">
+  <div class="page-inner">
+    <div class="page-head">
+      <div class="page-title">📝 Lead Details</div>
+      <div class="page-sub">Auto-filled from the conversation — review, edit, then send to the bank.</div>
+    </div>
+
+    <div class="banner" id="successBanner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round"/></svg>
+      <span id="successText">Lead sent to bank successfully.</span>
+    </div>
+    <div class="banner err" id="errorBanner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01" stroke-linecap="round"/></svg>
+      <span id="errorText">Something went wrong.</span>
+    </div>
+
+    <div class="lead-card" id="leadCard">
+      <div class="lead-card-header">
+        <span class="lead-card-title">Customer Lead Form</span>
+        <span class="extracting" id="extractingFlag"><span class="proc-dot"></span>Extracting from conversation…</span>
+      </div>
+
+      <div id="leadFormGrid" class="lead-form-grid"></div>
+
+      <div>
+        <span class="conv-toggle" id="convToggle" onclick="toggleConv()">▾ View conversation used for extraction</span>
+        <div class="conv-preview" id="convPreview"></div>
+      </div>
+
+      <div class="lead-actions">
+        <button class="btn-submit" id="submitBtn" onclick="submitLead()">
+          <span class="send-txt" style="display:flex;align-items:center;gap:8px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="15" height="15"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 19-7z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Send to Bank
+          </span>
+          <div class="send-spin"></div>
+        </button>
+        <button class="btn-ghost" onclick="window.location.href='dashboard.html'">Skip / Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONFIG — keep in sync with conversation-desk.js / conversation-desk.html
+// ═══════════════════════════════════════════════════════════
+const API = "https://rohan667-voiceassist-ai-backend-kj.hf.space/api/conversation";
+
+const LEAD_FORM_FIELDS = {
+  "Loan enquiry": [
+    { key:"customer_name",   label:"Customer Name" },
+    { key:"phone",           label:"Phone Number" },
+    { key:"loan_type",       label:"Loan Type" },
+    { key:"loan_amount",     label:"Loan Amount Requested" },
+    { key:"tenure",          label:"Tenure Preference" },
+    { key:"monthly_income",  label:"Monthly Income" },
+    { key:"employment_type", label:"Employment Type" },
+    { key:"cibil_score",     label:"CIBIL Score (approx)" },
+    { key:"existing_emi",    label:"Existing EMI Obligations" },
+  ],
+  "Account opening": [
+    { key:"customer_name",   label:"Customer Name" },
+    { key:"dob",             label:"Date of Birth" },
+    { key:"phone",           label:"Phone Number" },
+    { key:"address",         label:"Address", full:true },
+    { key:"account_type",    label:"Account Type" },
+    { key:"nominee_name",    label:"Nominee Name" },
+    { key:"nominee_relation",label:"Nominee Relation" },
+  ],
+  "Balance enquiry": [
+    { key:"customer_name",   label:"Customer Name" },
+    { key:"account_last4",   label:"Account No. (last 4)" },
+  ],
+  "Credit card apply": [
+    { key:"customer_name",   label:"Customer Name" },
+    { key:"phone",           label:"Phone Number" },
+    { key:"annual_income",   label:"Annual Income" },
+    { key:"cibil_score",     label:"CIBIL Score (approx)" },
+    { key:"card_selected",   label:"Card Selected" },
+  ],
+  "General enquiry": [
+    { key:"customer_name",   label:"Customer Name" },
+    { key:"query_summary",   label:"Query Summary", full:true },
+  ],
+};
+
+// ═══════════════════════════════════════════════════════════
+// SAME cleanModelText() patch as conversation-desk.html, so this page is
+// equally safe against the backend returning raw/JSON-wrapped LLM text.
+// ═══════════════════════════════════════════════════════════
+function cleanModelText(raw) {
+  if (raw === null || raw === undefined) return raw;
+  let t = String(raw).trim();
+  if (!t) return t;
+  const looksJsonWrapped =
+    t.includes("```") ||
+    /"english_translation"|"customer_text"|"translated_text"|"text"\s*:/.test(t) ||
+    (t.includes("{") && t.includes("}"));
+  if (!looksJsonWrapped) return t;
+  let stripped = t.replace(/^[^{]*?```(?:json)?/is, "").replace(/```[^]*$/i, "").trim();
+  if (!stripped.startsWith("{")) {
+    const start = t.indexOf("{"), end = t.lastIndexOf("}");
+    if (start !== -1 && end !== -1 && end > start) stripped = t.slice(start, end + 1);
+  }
+  if (!stripped.startsWith("{")) return t;
+  try {
+    const obj = JSON.parse(stripped);
+    return obj.english_translation ?? obj.customer_text ?? obj.translated_text ?? obj.text ?? t;
+  } catch (e) { return t; }
+}
+
+// ═══════════════════════════════════════════════════════════
+// STATE — read what conversation-desk.html stored in sessionStorage when
+// the session ended. Expected keys (set these in conversation-desk.html,
+// see integration note at the bottom of this file):
+//   va_lead_conversation : JSON array of {role, text, translation}
+//   va_lead_process      : process type string, e.g. "Loan enquiry"
+//   va_lead_language     : customer language, e.g. "Hindi"
+//   va_lead_duration      : session duration string, e.g. "04:32" (optional)
+// ═══════════════════════════════════════════════════════════
+let conversation = [];
+let processType = "Loan enquiry";
+let customerLang = "English";
+let sessionDuration = "";
+
+function loadSessionData() {
+  try { conversation = JSON.parse(sessionStorage.getItem("va_lead_conversation") || "[]"); }
+  catch { conversation = []; }
+  processType    = sessionStorage.getItem("va_lead_process")  || "Loan enquiry";
+  customerLang   = sessionStorage.getItem("va_lead_language") || "English";
+  sessionDuration = sessionStorage.getItem("va_lead_duration") || "";
+
+  document.getElementById("metaProcess").textContent = processType;
+  document.getElementById("metaLang").textContent = customerLang;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  loadSessionData();
+  if (!conversation.length) {
+    document.getElementById("leadFormGrid").innerHTML = "";
+    document.getElementById("extractingFlag").style.display = "none";
+    document.getElementById("leadCard").innerHTML = `
+      <div class="empty-conv">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-4l-4 4-4-4z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <p>No conversation found for this session.<br>Go back to the desk and finish a conversation first.</p>
+      </div>`;
+    return;
+  }
+  renderConvPreview();
+  fetchLeadForm();
+});
+
+function toggleConv() {
+  const p = document.getElementById("convPreview");
+  const t = document.getElementById("convToggle");
+  p.classList.toggle("show");
+  t.textContent = (p.classList.contains("show") ? "▴ Hide" : "▾ View") + " conversation used for extraction";
+}
+function renderConvPreview() {
+  const p = document.getElementById("convPreview");
+  p.innerHTML = conversation.map(t =>
+    `<div class="conv-line"><b>${t.role === "staff" ? "You" : "Customer"}:</b> ${esc(t.translation || t.text || "")}</div>`
+  ).join("");
+}
+
+// ═══════════════════════════════════════════════════════════
+// FETCH + RENDER LEAD FORM
+// ═══════════════════════════════════════════════════════════
+async function fetchLeadForm() {
+  const fields = LEAD_FORM_FIELDS[processType] || LEAD_FORM_FIELDS["General enquiry"];
+  const grid = document.getElementById("leadFormGrid");
+  grid.innerHTML = "";
+  document.getElementById("extractingFlag").style.display = "flex";
+
+  let leadData = {};
+  try {
+    const res = await fetch(`${API}/extract-lead`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        conversation: conversation.map(t => ({ role: t.role, text: t.text, translation: t.translation })),
+        process_type: processType,
+        fields: fields.map(f => f.key),
+      }),
+    });
+    const data = await res.json();
+    if (data.success && data.lead) leadData = data.lead;
+    else showBanner("err", data.error || "Could not auto-extract — please fill manually.");
+  } catch (e) {
+    showBanner("err", "Lead extraction failed — backend unreachable. Fill manually.");
+  }
+
+  document.getElementById("extractingFlag").style.display = "none";
+  renderLeadForm(fields, leadData);
+}
+
+function renderLeadForm(fields, leadData) {
+  const grid = document.getElementById("leadFormGrid");
+  grid.innerHTML = "";
+  fields.forEach(f => {
+    const raw = leadData[f.key];
+    const value = (raw === undefined || raw === null) ? "" : cleanModelText(String(raw));
+    const isFilled = value.trim().length > 0;
+    const wide = f.full ? " full" : "";
+    const useTextarea = f.key === "query_summary" || f.key === "address";
+
+    const row = document.createElement("div");
+    row.className = "lead-field" + wide;
+    row.innerHTML = `
+      <label>${esc(f.label)} ${isFilled ? `<span class="auto-tag">auto-filled</span>` : `<span class="manual-tag">enter manually</span>`}</label>
+      ${useTextarea
+        ? `<textarea data-field="${esc(f.key)}" class="${isFilled?"filled":""}" placeholder="Not captured — enter manually">${esc(value)}</textarea>`
+        : `<input type="text" data-field="${esc(f.key)}" class="${isFilled?"filled":""}" value="${esc(value)}" placeholder="Not captured — enter manually" />`
+      }`;
+    grid.appendChild(row);
+
+    const inputEl = row.querySelector("[data-field]");
+    inputEl.addEventListener("input", () => {
+      inputEl.classList.toggle("filled", inputEl.value.trim().length > 0);
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// MANUAL SUBMIT — only fires when staff clicks "Send to Bank"
+// ═══════════════════════════════════════════════════════════
+async function submitLead() {
+  const inputs = document.querySelectorAll("#leadFormGrid [data-field]");
+  if (!inputs.length) { showBanner("err", "No lead form to submit."); return; }
+
+  const lead = {};
+  let missingRequired = false;
+  inputs.forEach(el => {
+    lead[el.dataset.field] = el.value.trim();
+    if (el.dataset.field === "customer_name" && !el.value.trim()) missingRequired = true;
+  });
+  if (missingRequired) {
+    showBanner("err", "Please enter the customer name before submitting.");
+    return;
+  }
+
+  const btn = document.getElementById("submitBtn");
+  btn.disabled = true; btn.classList.add("loading");
+  hideBanner();
+
+  try {
+    const res = await fetch(`${API}/submit-lead`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        process_type: processType,
+        customer_language: customerLang,
+        lead,
+        session_duration: sessionDuration,
+      }),
+    });
+    const data = await res.json();
+    btn.disabled = false; btn.classList.remove("loading");
+    if (data.success) {
+      btn.querySelector(".send-txt").innerHTML = "✓ Sent to Bank";
+      btn.disabled = true;
+      showBanner("ok", "Lead sent to bank successfully.");
+      sessionStorage.removeItem("va_lead_conversation");
+      sessionStorage.removeItem("va_lead_process");
+      sessionStorage.removeItem("va_lead_language");
+      sessionStorage.removeItem("va_lead_duration");
+    } else {
+      showBanner("err", data.error || "Submit failed — please retry.");
+    }
+  } catch (e) {
+    btn.disabled = false; btn.classList.remove("loading");
+    showBanner("err", "Network error sending lead. Check backend connection.");
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+function showBanner(kind, msg) {
+  hideBanner();
+  if (kind === "ok") {
+    document.getElementById("successText").textContent = msg;
+    document.getElementById("successBanner").classList.add("show");
+  } else {
+    document.getElementById("errorText").textContent = msg;
+    document.getElementById("errorBanner").classList.add("show");
+  }
+}
+function hideBanner() {
+  document.getElementById("successBanner").classList.remove("show");
+  document.getElementById("errorBanner").classList.remove("show");
+}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+</script>
+</body>
+</html>

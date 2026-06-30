@@ -15,6 +15,7 @@ const sectionTitles = {
   overview: 'Overview',
   conversation: 'New Conversation',
   account: 'Account Lookup',
+  "lead-generation": 'Lead Generation',
   history: 'Session History',
   summary: 'Bilingual Summary'
 };
@@ -30,6 +31,7 @@ function navigate(sectionId) {
   if (sectionId === 'history')  loadSessionHistory();
   if (sectionId === 'summary')  loadBilingualSummary();
   if (sectionId === 'overview') loadOverviewStats();
+if (sectionId === 'lead-generation') loadLeads();
 }
 
 document.querySelectorAll('.nav-item[data-section]').forEach(item => {
@@ -569,6 +571,94 @@ function viewSession(sessionId) {
 
 function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── LEAD GENERATION ────────────────────────────────────────────────────────
+// Leads are derived from saved sessions (customers who showed product interest
+// during a conversation), plus a few sample leads so the tab isn't empty on
+// first run. Replace SAMPLE_LEADS with real backend data when available.
+const SAMPLE_LEADS = [
+  { name: "Anita Reddy",   initials: "AR", interest: "Home Loan top-up",     lang: "Telugu",  score: 86, tag: "hot",  phone: "+91 98480 XXXXX", date: "16 Jun 2026" },
+  { name: "Deepak Nair",   initials: "DN", interest: "Fixed Deposit",        lang: "Hindi",   score: 64, tag: "warm", phone: "+91 97654 XXXXX", date: "16 Jun 2026" },
+  { name: "Priya Kulkarni",initials: "PK", interest: "Credit Card upgrade",  lang: "Marathi", score: 72, tag: "warm", phone: "+91 99876 XXXXX", date: "17 Jun 2026" },
+  { name: "Murugan K.",    initials: "MK", interest: "Savings → Salary a/c", lang: "Tamil",   score: 41, tag: "cold", phone: "+91 90123 XXXXX", date: "17 Jun 2026" },
+];
+
+function getLeadTagLabel(tag) {
+  if (tag === 'hot') return 'Hot lead';
+  if (tag === 'warm') return 'Warm lead';
+  return 'Cold lead';
+}
+
+function loadLeads() {
+const section = document.getElementById('section-lead-generation');
+  if (!section) return;
+
+  let leads = [...SAMPLE_LEADS];
+  try {
+    const raw = localStorage.getItem('va_leads');
+    if (raw) {
+      const stored = JSON.parse(raw);
+      if (Array.isArray(stored) && stored.length) leads = stored;
+    }
+  } catch(e) {}
+
+  const hot = leads.filter(l => l.tag === 'hot').length;
+  const warm = leads.filter(l => l.tag === 'warm').length;
+  const cold = leads.filter(l => l.tag === 'cold').length;
+
+  const statRow = section.querySelector('.lead-stat-row');
+  if (statRow) {
+    statRow.innerHTML = `
+      <div class="stat-card">
+        <div class="stat-label">Total leads</div>
+        <div class="stat-value">${leads.length}</div>
+        <div class="stat-sub">From recent conversations</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Hot leads</div>
+        <div class="stat-value">${hot}</div>
+        <div class="stat-sub"><span class="stat-trend-up">Follow up today</span></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Warm leads</div>
+        <div class="stat-value">${warm}</div>
+        <div class="stat-sub">Nurture this week</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Cold leads</div>
+        <div class="stat-value">${cold}</div>
+        <div class="stat-sub">Low priority</div>
+      </div>`;
+  }
+
+  const list = section.querySelector('#leadList');
+  if (!list) return;
+
+  if (leads.length === 0) {
+    list.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px">
+      No leads yet. Leads are generated automatically from customer conversations.
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = leads.map(l => `
+    <div class="lead-card">
+      <div class="lead-avatar">${escHtml(l.initials || (l.name||'?').slice(0,2).toUpperCase())}</div>
+      <div class="lead-info">
+        <div class="lead-name">${escHtml(l.name)} &nbsp; <span class="lead-tag lead-tag-${l.tag}">${getLeadTagLabel(l.tag)}</span></div>
+        <div class="lead-meta">${escHtml(l.interest)} · ${escHtml(l.lang)} · ${escHtml(l.date)}</div>
+      </div>
+      <div class="lead-score">
+        <div class="lead-score-value">${l.score}</div>
+        <div class="lead-score-label">Score</div>
+      </div>
+      <div class="lead-actions">
+        <button class="lead-action-btn lead-action-call" onclick="showToast('Calling ${escHtml(l.name)}…')">Call</button>
+        <button class="lead-action-btn" onclick="showToast('Opening lead notes…')">Notes</button>
+      </div>
+    </div>
+  `).join('');
 }
 
 document.addEventListener('DOMContentLoaded', () => {

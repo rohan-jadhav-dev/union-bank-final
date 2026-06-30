@@ -193,6 +193,18 @@ body{font-family:'Inter',sans-serif;background:var(--bg);height:100vh;overflow:h
 .save-success-banner.show{display:flex}
 .save-success-banner svg{width:18px;height:18px;flex-shrink:0;color:#16a34a}
 
+/* Lead form card */
+.lead-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:20px}
+.lead-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.lead-field{margin-bottom:10px}
+.lead-field label{display:block;font-size:11px;color:var(--slate-light);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px}
+.lead-field input{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;color:var(--navy);outline:none;transition:border-color 150ms ease}
+.lead-field input:focus{border-color:var(--gold)}
+.lead-field input::placeholder{color:var(--slate-light);font-style:italic}
+.modal-lead-btn{height:42px;padding:0 18px;background:var(--gold);color:var(--white);border:none;border-radius:7px;font-size:13.5px;font-weight:500;cursor:pointer;font-family:inherit;transition:background 150ms ease,opacity 150ms ease}
+.modal-lead-btn:hover{background:#9c7a30}
+.modal-lead-btn:disabled{opacity:0.6;cursor:not-allowed}
+
 audio{display:none}
 </style>
 </head>
@@ -319,7 +331,7 @@ audio{display:none}
     <!-- Save success banner (shown after saving) -->
     <div class="save-success-banner" id="saveBanner">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round"/></svg>
-      Session saved to records! Redirecting to dashboard…
+      Session saved! Opening lead form…
     </div>
 
     <div class="modal-grid">
@@ -332,6 +344,18 @@ audio{display:none}
         <div class="sum-text" id="regSum">Translating…</div>
       </div>
     </div>
+
+    <!-- LEAD AUTO-FILL CARD -->
+    <div class="lead-card">
+      <div class="lead-card-header">
+        <div class="sum-label" style="margin-bottom:0">📝 Lead Details (auto-filled — review &amp; edit before sending)</div>
+        <button class="modal-lead-btn" id="submitLeadBtn" onclick="submitLead()">Send to Bank</button>
+      </div>
+      <div id="leadFormBody">
+        <div style="color:var(--slate-light);font-size:12px;">Extracting lead details…</div>
+      </div>
+    </div>
+
     <div class="modal-actions">
       <button class="modal-primary" id="saveRecordBtn" onclick="saveRecords()">
         💾 Save to Records
@@ -504,6 +528,47 @@ const GUIDE_HINTS = {
 };
 
 // ═══════════════════════════════════════════════════════════
+// LEAD AUTO-FILL FORM SCHEMAS
+// ═══════════════════════════════════════════════════════════
+const LEAD_FORM_FIELDS = {
+  "Loan enquiry": [
+    { key:"customer_name",   label:"Customer Name" },
+    { key:"phone",           label:"Phone Number" },
+    { key:"loan_type",       label:"Loan Type" },
+    { key:"loan_amount",     label:"Loan Amount Requested" },
+    { key:"tenure",          label:"Tenure Preference" },
+    { key:"monthly_income",  label:"Monthly Income" },
+    { key:"employment_type", label:"Employment Type" },
+    { key:"cibil_score",     label:"CIBIL Score (approx)" },
+    { key:"existing_emi",    label:"Existing EMI Obligations" },
+  ],
+  "Account opening": [
+    { key:"customer_name",   label:"Customer Name" },
+    { key:"dob",             label:"Date of Birth" },
+    { key:"phone",           label:"Phone Number" },
+    { key:"address",         label:"Address" },
+    { key:"account_type",    label:"Account Type" },
+    { key:"nominee_name",    label:"Nominee Name" },
+    { key:"nominee_relation",label:"Nominee Relation" },
+  ],
+  "Balance enquiry": [
+    { key:"customer_name",   label:"Customer Name" },
+    { key:"account_last4",   label:"Account No. (last 4)" },
+  ],
+  "Credit card apply": [
+    { key:"customer_name",   label:"Customer Name" },
+    { key:"phone",           label:"Phone Number" },
+    { key:"annual_income",   label:"Annual Income" },
+    { key:"cibil_score",     label:"CIBIL Score (approx)" },
+    { key:"card_selected",   label:"Card Selected" },
+  ],
+  "General enquiry": [
+    { key:"customer_name",   label:"Customer Name" },
+    { key:"query_summary",   label:"Query Summary" },
+  ],
+};
+
+// ═══════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════
 let log = [], sessionStart = Date.now(), timerID = null;
@@ -511,7 +576,6 @@ let stepIdx = 0;
 let isRecording = false, mediaRecorder = null, audioChunks = [];
 let staffRecording = false, staffRecorder = null, staffChunks = [];
 let checkState = {};
-let savedSummaryData = null; // stores summary once generated
 
 // ═══════════════════════════════════════════════════════════
 // INIT
@@ -523,54 +587,24 @@ document.addEventListener("DOMContentLoaded", () => {
   setTimeout(autoGreet, 400);
 });
 
-/* ──────────────────────────────────────────────────────────────────────────
-   PATCH: cleanModelText()
-   The backend LLM call sometimes returns a raw JSON blob instead of a plain
-   translated string, wrapped in markdown fences and/or a "Here is the
-   response:" / "Here's the response:" preamble, e.g.:
-     Here's the response: ```{ "english_translation": "...", "intent": "...",
-     "confidence": 0.8, "key_details": {} }```
-   This strips that wrapper and pulls the actual text out so the UI never
-   shows raw JSON to staff. Falls back to the original string untouched if
-   nothing parseable is found.
-   ────────────────────────────────────────────────────────────────────────── */
 function cleanModelText(raw) {
   if (raw === null || raw === undefined) return raw;
   let t = String(raw).trim();
   if (!t) return t;
-
   const looksJsonWrapped =
     t.includes("```") ||
     /"english_translation"|"customer_text"|"translated_text"|"text"\s*:/.test(t) ||
     (t.includes("{") && t.includes("}"));
   if (!looksJsonWrapped) return t;
-
-  // Strip a leading preamble + opening code fence, and a trailing fence.
-  let stripped = t
-    .replace(/^[^{]*?```(?:json)?/is, "")
-    .replace(/```[^]*$/i, "")
-    .trim();
-
-  // If there was no fence, just grab from the first "{" to the last "}".
+  let stripped = t.replace(/^[^{]*?```(?:json)?/is, "").replace(/```[^]*$/i, "").trim();
   if (!stripped.startsWith("{")) {
-    const start = t.indexOf("{");
-    const end = t.lastIndexOf("}");
-    if (start !== -1 && end !== -1 && end > start) {
-      stripped = t.slice(start, end + 1);
-    }
+    const start = t.indexOf("{"), end = t.lastIndexOf("}");
+    if (start !== -1 && end !== -1 && end > start) stripped = t.slice(start, end + 1);
   }
-
-  if (!stripped.startsWith("{")) return t; // nothing JSON-like found, leave untouched
-
+  if (!stripped.startsWith("{")) return t;
   try {
     const obj = JSON.parse(stripped);
-    return (
-      obj.english_translation ??
-      obj.customer_text ??
-      obj.translated_text ??
-      obj.text ??
-      t
-    );
+    return obj.english_translation ?? obj.customer_text ?? obj.translated_text ?? obj.text ?? t;
   } catch (e) {
     console.warn("[cleanModelText] failed to parse model JSON, showing raw text:", e);
     return t;
@@ -792,8 +826,6 @@ async function processCustAudio() {
     const data=await res.json();
     hideEl("custProcessing");
 
-    // PATCH: clean transcript, translation, and intent in case the backend
-    // forwarded a raw/JSON-wrapped LLM response for any of these fields.
     const cleanCustomerText = cleanModelText(data.customer_text);
     const cleanTranslation  = cleanModelText(data.english_translation);
     const cleanIntent       = cleanModelText(data.intent);
@@ -822,7 +854,6 @@ async function fetchSmartReplies() {
       body:JSON.stringify({conversation:log.slice(-6),process_type:PROCESS,step_index:stepIdx,customer_language:LANG})});
     const data=await res.json();
     if(data.success&&data.replies?.length){
-      // PATCH: clean each suggested reply too
       renderQuickReplies(data.replies.map(cleanModelText),"⚡ Smart replies");
       return;
     }
@@ -849,7 +880,6 @@ async function sendStaff() {
     hideEl("staffProcessing");
     sendBtn.disabled=false;sendBtn.classList.remove("loading");
     if(data.success){
-      // PATCH: clean translated text before showing/speaking/storing it.
       const cleanTranslated = cleanModelText(data.translated_text);
       addStaffBubble(text,cleanTranslated,data.tts_engine);
       if(data.audio_b64) playAudio(data.audio_b64);
@@ -889,7 +919,6 @@ async function toggleStaffMic() {
         try{
           const res=await fetch(`${API}/staff-speak`,{method:"POST",body:form});
           const d=await res.json();
-          // PATCH: clean recognized staff speech text too.
           if(d.success&&d.text) document.getElementById("staffInput").value=cleanModelText(d.text);
         } catch{showToast("Staff mic failed",true);}
       };
@@ -899,16 +928,107 @@ async function toggleStaffMic() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// LEAD AUTO-FILL — shown inside this page's own summary modal
+// (used by the "Send to Bank" button INSIDE this modal, separate from
+// the redirect-based flow used by Save to Records below)
+// ═══════════════════════════════════════════════════════════
+async function fetchLeadForm() {
+  const fields = LEAD_FORM_FIELDS[PROCESS] || LEAD_FORM_FIELDS["General enquiry"];
+  const container = document.getElementById("leadFormBody");
+  if (container) container.innerHTML = `<div style="color:var(--slate-light);font-size:12px;">Extracting lead details…</div>`;
+
+  try {
+    const res = await fetch(`${API}/extract-lead`, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        conversation: log.map(t => ({role:t.role, text:t.text, translation:t.translation})),
+        process_type: PROCESS,
+        fields: fields.map(f => f.key),
+      })
+    });
+    const data = await res.json();
+    if (data.success && data.lead) {
+      renderLeadForm(fields, data.lead);
+    } else {
+      renderLeadForm(fields, {});
+      showToast("Could not auto-extract lead — fill manually", true);
+    }
+  } catch (e) {
+    renderLeadForm(fields, {});
+    showToast("Lead extraction failed — fill manually", true);
+  }
+}
+
+function renderLeadForm(fields, leadData) {
+  const container = document.getElementById("leadFormBody");
+  if (!container) return;
+  container.innerHTML = "";
+  fields.forEach(f => {
+    const raw = leadData[f.key];
+    const value = (raw === undefined || raw === null) ? "" : cleanModelText(String(raw));
+    const row = document.createElement("div");
+    row.className = "lead-field";
+    row.innerHTML = `
+      <label>${esc(f.label)}</label>
+      <input type="text" data-field="${esc(f.key)}" value="${esc(value)}"
+        placeholder="${value ? "" : "Not captured — enter manually"}" />`;
+    container.appendChild(row);
+  });
+}
+
+async function submitLead() {
+  const inputs = document.querySelectorAll("#leadFormBody input[data-field]");
+  if (!inputs.length) { showToast("No lead form to submit", true); return; }
+
+  const lead = {};
+  inputs.forEach(inp => { lead[inp.dataset.field] = inp.value.trim(); });
+
+  const btn = document.getElementById("submitLeadBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+
+  try {
+    const res = await fetch(`${API}/submit-lead`, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        process_type: PROCESS,
+        customer_language: LANG,
+        lead,
+        session_duration: document.getElementById("timerDisplay")?.textContent || "",
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast("Lead sent to bank ✓");
+      if (btn) btn.textContent = "Sent ✓";
+    } else {
+      showToast(data.error || "Submit failed", true);
+      if (btn) { btn.disabled = false; btn.textContent = "Send to Bank"; }
+    }
+  } catch (e) {
+    showToast("Network error sending lead", true);
+    if (btn) { btn.disabled = false; btn.textContent = "Send to Bank"; }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
 // SESSION END / SUMMARY
 // ═══════════════════════════════════════════════════════════
-async function endSession() {
+function endSession() {
   if(!log.length){showToast("No conversation yet",true);return;}
   clearInterval(timerID);
   document.getElementById("summaryModal").classList.add("show");
+  document.getElementById("engSum").textContent = "Generating…";
+  document.getElementById("regSum").textContent = "Translating…";
+  document.getElementById("summaryMeta").textContent =
+    `${LANG} · ${PROCESS} · ${document.getElementById("timerDisplay").textContent}`;
   const duration = document.getElementById("timerDisplay").textContent;
-  document.getElementById("summaryMeta").textContent=`${LANG} · ${PROCESS} · ${duration}`;
-  document.getElementById("engSum").textContent="Generating…";
-  document.getElementById("regSum").textContent="Translating…";
+  fetchSummary(duration);
+  fetchLeadForm();
+}
+
+async function fetchSummary(duration) {
   try {
     const res=await fetch(`${API}/summary`,{
       method:"POST",headers:{"Content-Type":"application/json"},
@@ -916,19 +1036,11 @@ async function endSession() {
     });
     const data=await res.json();
     if(data.success){
-      // PATCH: clean summary fields before showing them.
       const cleanEnglish = cleanModelText(data.english_summary);
       const cleanRegional = cleanModelText(data.regional_summary);
       const engText = cleanEnglish + (data.action_items?.length?"\n\nACTION ITEMS:\n"+data.action_items.map(a=>`• ${cleanModelText(a)}`).join("\n"):"");
       document.getElementById("engSum").textContent=engText;
       document.getElementById("regSum").textContent=cleanRegional;
-      // Store summary data for saving
-      savedSummaryData = {
-        englishSummary: engText,
-        regionalSummary: cleanRegional,
-        actionItems: data.action_items || [],
-        duration,
-      };
     } else {
       document.getElementById("engSum").textContent="Error: "+(data.error||"");
     }
@@ -938,83 +1050,50 @@ async function endSession() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// ✅ SAVE TO RECORDS — writes real data to localStorage
+// ✅ SAVE TO RECORDS — FIXED
+// Previously this saved to localStorage and redirected to dashboard.html,
+// which is NOT what you wanted. It now matches conversation-desk.js:
+// it hands the conversation off to lead-form.html via sessionStorage
+// (same keys lead-form.html reads), then redirects there. lead-form.html
+// auto-extracts and auto-fills the form on its own — staff just reviews
+// and clicks "Send to Bank" on that page.
 // ═══════════════════════════════════════════════════════════
 function saveRecords() {
-  const saveBtn = document.getElementById("saveRecordBtn");
-  const engSumText = document.getElementById("engSum").textContent;
-  const regSumText = document.getElementById("regSum").textContent;
-  const duration   = document.getElementById("timerDisplay").textContent;
+  const duration = document.getElementById("timerDisplay")?.textContent || "";
 
-  // Build session record
-  const sessionRecord = {
-    id: "session_" + Date.now(),
-    timestamp: new Date().toISOString(),
-    date: new Date().toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }),
-    time: new Date().toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true }),
-    language: LANG,
-    process: PROCESS,
-    duration: duration,
-    durationMinutes: parseDurationToMinutes(duration),
-    englishSummary: engSumText,
-    regionalSummary: regSumText,
-    conversationLog: log,
-    stepReached: stepIdx + 1,
-    totalSteps: (STEPS[PROCESS] || []).length,
-  };
-
-  // Read existing sessions from localStorage
-  let sessions = [];
+  // Keep a local copy too (optional, doesn't hurt — dashboard can still
+  // read from this if you build a records list later).
   try {
-    const existing = localStorage.getItem("va_sessions");
-    if (existing) sessions = JSON.parse(existing);
-  } catch(e) { sessions = []; }
+    const sessionRecord = {
+      id: "session_" + Date.now(),
+      timestamp: new Date().toISOString(),
+      language: LANG,
+      process: PROCESS,
+      duration: duration,
+      englishSummary: document.getElementById("engSum").textContent,
+      regionalSummary: document.getElementById("regSum").textContent,
+      conversationLog: log,
+    };
+    let sessions = [];
+    try { sessions = JSON.parse(localStorage.getItem("va_sessions") || "[]"); } catch(e) { sessions = []; }
+    sessions.unshift(sessionRecord);
+    if (sessions.length > 50) sessions = sessions.slice(0, 50);
+    localStorage.setItem("va_sessions", JSON.stringify(sessions));
+  } catch (e) { console.warn("[saveRecords] local history save failed:", e); }
 
-  // Prepend new session (newest first)
-  sessions.unshift(sessionRecord);
+  // Hand off to lead-form.html — SAME keys lead-form.html reads on load.
+  sessionStorage.setItem("va_lead_conversation", JSON.stringify(log));
+  sessionStorage.setItem("va_lead_process", PROCESS);
+  sessionStorage.setItem("va_lead_language", LANG);
+  sessionStorage.setItem("va_lead_duration", duration);
 
-  // Keep only last 50 sessions to avoid storage bloat
-  if (sessions.length > 50) sessions = sessions.slice(0, 50);
-
-  // Save back
-  localStorage.setItem("va_sessions", JSON.stringify(sessions));
-
-  // Update dashboard stats
-  updateDashboardStats(sessions);
-
-  // Show success UI
+  const saveBtn = document.getElementById("saveRecordBtn");
   saveBtn.textContent = "✓ Saved!";
   saveBtn.disabled = true;
   document.getElementById("saveBanner").classList.add("show");
-  showToast("Session saved to records ✓");
+  showToast("Saved — opening lead form ✓");
 
-  // Redirect after 1.5s
-  setTimeout(() => { window.location.href = "dashboard.html"; }, 1500);
-}
-
-function parseDurationToMinutes(durationStr) {
-  // "04:32" → 4.5 minutes (approx)
-  const parts = durationStr.split(":").map(Number);
-  if (parts.length === 2) return parts[0] + Math.round(parts[1]/60*10)/10;
-  return 0;
-}
-
-function updateDashboardStats(sessions) {
-  // Calculate today's stats
-  const today = new Date().toDateString();
-  const todaySessions = sessions.filter(s => new Date(s.timestamp).toDateString() === today);
-  const avgDuration = todaySessions.length
-    ? Math.round(todaySessions.reduce((a,s) => a + s.durationMinutes, 0) / todaySessions.length * 10) / 10
-    : 0;
-  const langs = [...new Set(sessions.map(s => s.language))];
-
-  localStorage.setItem("va_dashboard_stats", JSON.stringify({
-    sessionsToday: todaySessions.length,
-    summariesSaved: sessions.length,
-    avgDuration,
-    languagesUsed: langs,
-    lastUpdated: new Date().toISOString(),
-  }));
+  setTimeout(() => { window.location.href = "lead-form.html"; }, 900);
 }
 
 function closeSummary() { document.getElementById("summaryModal").classList.remove("show"); startTimer(); }

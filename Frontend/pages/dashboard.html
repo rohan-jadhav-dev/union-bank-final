@@ -60,6 +60,16 @@
       <span class="nav-badge">Live</span>
     </a>
 
+    <a class="nav-item" data-section="lead-generation" href="#">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+    <path d="M12 3v18" stroke-linecap="round"/>
+    <path d="M3 12h18" stroke-linecap="round"/>
+    <circle cx="12" cy="12" r="8"/>
+  </svg>
+  <span>Lead Generation</span>
+  <span class="nav-badge">NEW</span>
+</a>
+
     <a class="nav-item" data-section="account" href="#">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
         <circle cx="12" cy="8" r="3.5"/>
@@ -265,6 +275,7 @@
         </div>
       </div>
 
+
       <!-- ===== NEW CONVERSATION ===== -->
       <div class="section" id="section-conversation">
         <div class="conversation-start">
@@ -358,6 +369,86 @@
         </div>
       </div>
 
+      <!-- ===== LEAD GENERATION ===== -->
+<div class="section" id="section-lead-generation">
+
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">Lead Generation</div>
+        </div>
+
+        <div class="stat-grid">
+
+            <div class="stat-card">
+                <div class="stat-label">Today's Leads</div>
+                <div class="stat-value">18</div>
+                <div class="stat-sub">Potential customers</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Qualified</div>
+                <div class="stat-value">9</div>
+                <div class="stat-sub">Ready for follow-up</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Converted</div>
+                <div class="stat-value">4</div>
+                <div class="stat-sub">Accounts opened</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Pending</div>
+                <div class="stat-value">5</div>
+                <div class="stat-sub">Need callback</div>
+            </div>
+
+        </div>
+
+        <br>
+
+        <div class="card">
+
+            <div class="card-header">
+                <div class="card-title">Generate New Lead</div>
+            </div>
+
+            <div style="display:grid;gap:15px;">
+
+                <input class="lookup-input"
+                    placeholder="Customer Name">
+
+                <input class="lookup-input"
+                    placeholder="Mobile Number">
+
+                <input class="lookup-input"
+                    placeholder="Email">
+
+                <select class="lookup-select">
+                    <option>Savings Account</option>
+                    <option>Current Account</option>
+                    <option>Home Loan</option>
+                    <option>Personal Loan</option>
+                    <option>Vehicle Loan</option>
+                    <option>Credit Card</option>
+                    <option>FD / RD</option>
+                </select>
+
+                <textarea class="lookup-input"
+                    rows="4"
+                    placeholder="Lead Notes"></textarea>
+
+                <button class="topbar-btn topbar-btn-primary">
+                    Save Lead
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
       <!-- ===== ACCOUNT LOOKUP ===== -->
       <div class="section" id="section-account">
         <div class="lookup-search-bar">
@@ -601,6 +692,7 @@
         </div><!-- /account-result -->
       </div>
 
+      
       <!-- ===== SESSION HISTORY ===== -->
       <div class="section" id="section-history">
         <div class="history-filters">
