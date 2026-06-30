@@ -1,9 +1,13 @@
-// dashboard.js — VoiceAssist AI (merged: new UI + old logic)
+// dashboard.js — VoiceAssist AI (NEW LAYOUT + OLD LOGIC, fully merged)
+
+const API_BASE_ROOT = "https://rohan667-voiceassist-ai-backend-kj.hf.space/api/conversation";
 
 // ── LIVE CLOCK ────────────────────────────────────────────────────────────────
 function updateClock() {
+  const el = document.getElementById('liveTime');
+  if (!el) return;
   const now = new Date();
-  document.getElementById('liveTime').textContent = now.toLocaleTimeString('en-IN', {
+  el.textContent = now.toLocaleTimeString('en-IN', {
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
   });
 }
@@ -27,7 +31,9 @@ function navigate(sectionId) {
   if (section) section.classList.add('active');
   const navItem = document.querySelector(`.nav-item[data-section="${sectionId}"]`);
   if (navItem) navItem.classList.add('active');
-  document.getElementById('topbarTitle').textContent = sectionTitles[sectionId] || sectionId;
+  const titleEl = document.getElementById('topbarTitle');
+  if (titleEl) titleEl.textContent = sectionTitles[sectionId] || sectionId;
+
   if (sectionId === 'history')  loadSessionHistory();
   if (sectionId === 'summary')  loadBilingualSummary();
   if (sectionId === 'overview') loadOverviewStats();
@@ -45,23 +51,27 @@ document.querySelectorAll('.nav-item[data-section]').forEach(item => {
 function showToast(message, isError = false) {
   const toast = document.getElementById('toast');
   const toastText = document.getElementById('toastText');
+  if (!toast || !toastText) return;
   toastText.textContent = message;
-  toast.style.background = isError ? 'var(--error)' : 'var(--blue-3)';
+  toast.style.background = isError ? 'var(--error)' : 'var(--navy, var(--blue-3))';
   toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), 2600);
 }
 
 // ── ACCOUNT LOOKUP ────────────────────────────────────────────────────────────
 function doLookup() {
-  const val = document.getElementById('accountInput').value.trim();
+  const inputEl = document.getElementById('accountInput');
+  const val = inputEl ? inputEl.value.trim() : '';
   if (!val) { showToast('Enter a search value first', true); return; }
   const btn = document.querySelector('.lookup-btn');
+  if (!btn) return;
   btn.textContent = 'Searching…';
   btn.disabled = true;
   setTimeout(() => {
     btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="15" height="15"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg> Search`;
     btn.disabled = false;
-    document.getElementById('accountResult').classList.add('show');
+    const result = document.getElementById('accountResult');
+    if (result) result.classList.add('show');
     showToast('Account found — Rajesh Sharma');
   }, 900);
 }
@@ -78,7 +88,8 @@ document.querySelectorAll('.account-tab').forEach(tab => {
     document.querySelectorAll('.account-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.account-tab-content').forEach(c => c.classList.remove('active'));
     tab.classList.add('active');
-    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    const target = document.getElementById('tab-' + tab.dataset.tab);
+    if (target) target.classList.add('active');
   });
 });
 
@@ -89,7 +100,7 @@ document.querySelectorAll('.filter-chip').forEach(chip => {
   });
 });
 
-// ── LANGUAGE + PROCESS STATE ──────────────────────────────────────────────────
+// ── LANGUAGE + PROCESS STATE (New Conversation tab) ───────────────────────────
 let selectedLang = null;
 let selectedProcess = null;
 let langDetected = false;
@@ -108,7 +119,6 @@ const SILENCE_THRESHOLD = 8;
 const MIN_TRANSCRIPT_CHARS = 3;
 const MIN_RECORD_MS = 600;
 
-// ── MIC FLOW — Real STT language detection ────────────────────────────────────
 let mediaRecorder = null;
 let audioChunks = [];
 let isRecording = false;
@@ -128,10 +138,7 @@ const changeLangBtn = document.getElementById('changeLangBtn');
 const langGrid = document.getElementById('langGrid');
 
 micButton && micButton.addEventListener('click', async () => {
-  if (isRecording) {
-    stopRecording();
-    return;
-  }
+  if (isRecording) { stopRecording(); return; }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const mimeType = getSupportedMimeType();
@@ -162,7 +169,6 @@ micButton && micButton.addEventListener('click', async () => {
     listenActive.style.display = 'flex';
 
     setTimeout(() => { if (isRecording) stopRecording(); }, 4000);
-
   } catch (err) {
     showManualLangPicker();
   }
@@ -179,12 +185,8 @@ function stopRecording() {
     if (audioCtxForMeter) { audioCtxForMeter.close().catch(() => {}); audioCtxForMeter = null; }
     isRecording = false;
   };
-
-  if (elapsed < MIN_RECORD_MS) {
-    setTimeout(doStop, MIN_RECORD_MS - elapsed);
-  } else {
-    doStop();
-  }
+  if (elapsed < MIN_RECORD_MS) setTimeout(doStop, MIN_RECORD_MS - elapsed);
+  else doStop();
 }
 
 async function processDetectionAudio() {
@@ -216,18 +218,12 @@ async function processDetectionAudio() {
     formData.append('language', 'auto');
     formData.append('process_type', 'General enquiry');
 
-    const res = await fetch('https://rohan667-voiceassist-ai-backend-kj.hf.space/api/conversation/customer-speak', {
-      method: 'POST',
-      body: formData
-    });
+    const res = await fetch(`${API_BASE_ROOT}/customer-speak`, { method: 'POST', body: formData });
     const data = await res.json();
 
     const transcript = (data.customer_text || '').trim();
-    console.log('[lang-detect] Raw transcript:', JSON.stringify(transcript));
-    console.log('[lang-detect] Backend-detected language:', data.language);
 
     if (!data.success || transcript.length < MIN_TRANSCRIPT_CHARS || isLikelyHallucination(transcript)) {
-      console.warn('[lang-detect] Rejected transcript as unreliable:', transcript, data.error || '');
       showManualLangPicker();
       if (data.error) showToast(data.error, true);
       return;
@@ -237,7 +233,7 @@ async function processDetectionAudio() {
   } catch (e) {
     console.error('[lang-detect] Network/backend error:', e);
     showManualLangPicker();
-    showToast('Could not reach backend. Is it running on port 8000?', true);
+    showToast('Could not reach backend.', true);
   }
 }
 
@@ -333,14 +329,11 @@ document.querySelectorAll('.process-card').forEach(card => {
 });
 
 function checkBegin() {
-  if (langDetected && processSelected && selectedLang) {
-    btnBegin.disabled = false;
-  } else {
-    btnBegin.disabled = true;
-  }
+  if (!btnBegin) return;
+  btnBegin.disabled = !(langDetected && processSelected && selectedLang);
 }
 
-// ── BEGIN CONVERSATION ─────────────────────────────────────────────────────
+// ── BEGIN CONVERSATION — opens the floating Conversation Desk widget ─────────
 btnBegin && btnBegin.addEventListener('click', () => {
   if (btnBegin.disabled) return;
 
@@ -354,7 +347,9 @@ btnBegin && btnBegin.addEventListener('click', () => {
   sessionStorage.setItem('va_process', actualProcess);
   if (lastTranscript) sessionStorage.setItem('va_first_utterance', lastTranscript);
 
-  window.location.href = `conversation-desk.html?lang=${encodeURIComponent(actualLang)}&process=${encodeURIComponent(actualProcess)}`;
+  if (window.chatWidget) {
+    window.chatWidget.open(actualLang, actualProcess);
+  }
 });
 
 // ── DOM HELPERS ───────────────────────────────────────────────────────────────
@@ -363,7 +358,6 @@ function showEl(id) {
   if (e) { e.classList.add('show'); e.style.display = 'flex'; }
 }
 
-// ── WAV CONVERSION ─────────────────────────────────────────────────────────
 function getSupportedMimeType() {
   const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
   for (const type of types) {
@@ -449,9 +443,9 @@ function loadBilingualSummary() {
   const latest = sessions[0];
   section.innerHTML = `
     <div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <label style="font-size:13px;color:var(--text-dim);font-weight:600">Session:</label>
+      <label style="font-size:13px;color:var(--text-dim, var(--slate));font-weight:600">Session:</label>
       <select id="summarySessionPicker" onchange="renderSummaryById(this.value)"
-        style="border:1px solid rgba(0,0,0,0.08);border-radius:8px;padding:6px 12px;font-size:13px;font-family:inherit;color:var(--text);background:#fff">
+        style="border:1px solid rgba(0,0,0,0.08);border-radius:8px;padding:6px 12px;font-size:13px;font-family:inherit;color:var(--text, var(--navy));background:#fff">
         ${sessions.map((s,i) => `<option value="${s.id}">${s.date} ${s.time} — ${s.process} (${s.language})</option>`).join('')}
       </select>
     </div>
@@ -476,14 +470,14 @@ function renderSummaryById(sessionId) {
           <div class="card-title">English Summary</div>
           <button class="card-action" onclick="navigator.clipboard.writeText(document.getElementById('engSumText').textContent);showToast('Copied!')">Copy</button>
         </div>
-        <p id="engSumText" style="font-size:14px;line-height:1.75;color:var(--text-dim);white-space:pre-wrap">${escHtml(s.englishSummary || '')}</p>
-        <div style="margin-top:12px;font-size:11px;color:var(--text-muted)">${s.language} · ${s.process} · ${s.duration} · ${s.date}</div>
+        <p id="engSumText" style="font-size:14px;line-height:1.75;color:var(--slate);white-space:pre-wrap">${escHtml(s.englishSummary || '')}</p>
+        <div style="margin-top:12px;font-size:11px;color:var(--text-muted, var(--slate-light))">${s.language} · ${s.process} · ${s.duration} · ${s.date}</div>
       </div>
       <div class="card">
         <div class="card-header">
           <div class="card-title">${s.language} Summary</div>
         </div>
-        <p id="regSumText" style="font-size:14px;line-height:1.9;color:var(--text-dim)">${escHtml(s.regionalSummary || '')}</p>
+        <p id="regSumText" style="font-size:14px;line-height:1.9;color:var(--slate)">${escHtml(s.regionalSummary || '')}</p>
       </div>
     </div>`;
 }
@@ -501,7 +495,7 @@ function loadOverviewStats() {
   const langs = [...new Set(sessions.map(s => s.language))];
 
   const statGrid = document.querySelector('#section-overview .stat-grid');
-  if (statGrid) {
+  if (statGrid && sessions.length > 0) {
     statGrid.innerHTML = `
       <div class="stat-card">
         <div class="stat-label">Sessions today</div>
@@ -524,25 +518,15 @@ function loadOverviewStats() {
         <div class="stat-sub">${sessions.length > 0 ? '100%' : '0%'} completion rate</div>
       </div>`;
   }
+  // If no sessions exist yet, the placeholder/demo stats already in the HTML stay as-is.
 
   const twoCol = document.querySelector('#section-overview .two-col');
-  if (!twoCol) return;
+  if (!twoCol || sessions.length === 0) return;
 
   const recentCard = twoCol.querySelector('.card');
   if (!recentCard) return;
 
   const LANG_FLAGS = { Hindi:'हि', Marathi:'मा', Tamil:'த', Telugu:'తె', English:'EN' };
-
-  if (sessions.length === 0) {
-    recentCard.innerHTML = `
-      <div class="card-header">
-        <div class="card-title">Recent sessions</div>
-      </div>
-      <div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px">
-        No sessions yet. Start a conversation to see history here.
-      </div>`;
-    return;
-  }
 
   recentCard.innerHTML = `
     <div class="card-header">
@@ -574,13 +558,7 @@ function escHtml(s) {
 }
 
 // ── LEAD GENERATION ────────────────────────────────────────────────────────
-// Pulls REAL leads from the backend (/api/conversation/leads), which is fed
-// by the "Send to Bank" button on the Live Desk conversation summary modal.
-// Backend doesn't return a lead-quality score, so we compute one client-side
-// from field completeness — this is just for sorting hot/warm/cold, not a
-// claim about actual creditworthiness.
-
-const LEADS_API_BASE = "https://rohan667-voiceassist-ai-backend-kj.hf.space/api/conversation";
+const LEADS_API_BASE = API_BASE_ROOT;
 
 function getLeadTagLabel(tag) {
   if (tag === 'hot') return 'Hot lead';
@@ -628,7 +606,7 @@ async function loadLeads() {
   const statRow = section.querySelector('.lead-stat-row');
 
   if (listEl) {
-    listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px">Loading leads…</div>`;
+    listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-muted, var(--slate-light));font-size:13px">Loading leads…</div>`;
   }
 
   let rawLeads = [];
@@ -686,7 +664,7 @@ async function loadLeads() {
   }
 
   if (leads.length === 0) {
-    listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px">
+    listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-muted, var(--slate-light));font-size:13px">
       No leads yet. Leads appear here automatically when staff click "Send to Bank" at the end of a conversation on the Live Desk.
     </div>`;
     return;
@@ -778,4 +756,3 @@ document.addEventListener('DOMContentLoaded', () => {
 window.addEventListener('load', () => {
   loadOverviewStats();
 });
-Done
