@@ -523,6 +523,60 @@ document.addEventListener("DOMContentLoaded", () => {
   setTimeout(autoGreet, 400);
 });
 
+/* ──────────────────────────────────────────────────────────────────────────
+   PATCH: cleanModelText()
+   The backend LLM call sometimes returns a raw JSON blob instead of a plain
+   translated string, wrapped in markdown fences and/or a "Here is the
+   response:" / "Here's the response:" preamble, e.g.:
+     Here's the response: ```{ "english_translation": "...", "intent": "...",
+     "confidence": 0.8, "key_details": {} }```
+   This strips that wrapper and pulls the actual text out so the UI never
+   shows raw JSON to staff. Falls back to the original string untouched if
+   nothing parseable is found.
+   ────────────────────────────────────────────────────────────────────────── */
+function cleanModelText(raw) {
+  if (raw === null || raw === undefined) return raw;
+  let t = String(raw).trim();
+  if (!t) return t;
+
+  const looksJsonWrapped =
+    t.includes("```") ||
+    /"english_translation"|"customer_text"|"translated_text"|"text"\s*:/.test(t) ||
+    (t.includes("{") && t.includes("}"));
+  if (!looksJsonWrapped) return t;
+
+  // Strip a leading preamble + opening code fence, and a trailing fence.
+  let stripped = t
+    .replace(/^[^{]*?```(?:json)?/is, "")
+    .replace(/```[^]*$/i, "")
+    .trim();
+
+  // If there was no fence, just grab from the first "{" to the last "}".
+  if (!stripped.startsWith("{")) {
+    const start = t.indexOf("{");
+    const end = t.lastIndexOf("}");
+    if (start !== -1 && end !== -1 && end > start) {
+      stripped = t.slice(start, end + 1);
+    }
+  }
+
+  if (!stripped.startsWith("{")) return t; // nothing JSON-like found, leave untouched
+
+  try {
+    const obj = JSON.parse(stripped);
+    return (
+      obj.english_translation ??
+      obj.customer_text ??
+      obj.translated_text ??
+      obj.text ??
+      t
+    );
+  } catch (e) {
+    console.warn("[cleanModelText] failed to parse model JSON, showing raw text:", e);
+    return t;
+  }
+}
+
 function initUI() {
   const meta = LANG_META[LANG] || LANG_META.Hindi;
   document.getElementById("langFlag").textContent = meta.flag;
@@ -570,7 +624,6 @@ function updateStepUI() {
   document.getElementById("stepIndicator").textContent = `Step ${stepIdx+1} of ${steps.length}: ${steps[stepIdx]||""}`;
   document.getElementById("backBtn").disabled = stepIdx <= 0;
   const atEnd = stepIdx >= steps.length - 1;
-  /* ── FIX: last step button stays enabled and becomes a "Finish" action ── */
   document.getElementById("nextBtn").textContent = atEnd ? "Finish & Summarise ✓" : "Next ✓";
   document.getElementById("nextBtn").disabled = false;
   const hints = GUIDE_HINTS[PROCESS] || GUIDE_HINTS["General enquiry"];
@@ -675,7 +728,6 @@ function renderQuickReplies(pills, label) {
 function nextStep() {
   const steps = STEPS[PROCESS] || [];
   const atEnd = stepIdx >= steps.length - 1;
-  /* ── FIX: on the last step, "Next" now finishes the session ── */
   if (atEnd) {
     endSession();
     return;
@@ -739,10 +791,17 @@ async function processCustAudio() {
     const res=await fetch(`${API}/customer-speak`,{method:"POST",body:form});
     const data=await res.json();
     hideEl("custProcessing");
-    if(data.success&&data.customer_text){
-      addCustBubble(data.customer_text,data.english_translation,data.stt_engine,data.intent);
-      log.push({role:"customer",text:data.customer_text,translation:data.english_translation});
-      if(data.intent&&data.intent!=="General enquiry") document.getElementById("intentText").textContent=data.intent;
+
+    // PATCH: clean transcript, translation, and intent in case the backend
+    // forwarded a raw/JSON-wrapped LLM response for any of these fields.
+    const cleanCustomerText = cleanModelText(data.customer_text);
+    const cleanTranslation  = cleanModelText(data.english_translation);
+    const cleanIntent       = cleanModelText(data.intent);
+
+    if(data.success && cleanCustomerText){
+      addCustBubble(cleanCustomerText, cleanTranslation, data.stt_engine, cleanIntent);
+      log.push({role:"customer",text:cleanCustomerText,translation:cleanTranslation});
+      if(cleanIntent && cleanIntent!=="General enquiry") document.getElementById("intentText").textContent=cleanIntent;
       setCustStatus("done","Transcribed");
       fetchSmartReplies();
     } else {
@@ -762,7 +821,11 @@ async function fetchSmartReplies() {
     const res=await fetch(`${API}/smart-replies`,{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({conversation:log.slice(-6),process_type:PROCESS,step_index:stepIdx,customer_language:LANG})});
     const data=await res.json();
-    if(data.success&&data.replies?.length){renderQuickReplies(data.replies,"⚡ Smart replies");return;}
+    if(data.success&&data.replies?.length){
+      // PATCH: clean each suggested reply too
+      renderQuickReplies(data.replies.map(cleanModelText),"⚡ Smart replies");
+      return;
+    }
   } catch {}
   renderQuickReplies();
 }
@@ -786,10 +849,12 @@ async function sendStaff() {
     hideEl("staffProcessing");
     sendBtn.disabled=false;sendBtn.classList.remove("loading");
     if(data.success){
-      addStaffBubble(text,data.translated_text,data.tts_engine);
+      // PATCH: clean translated text before showing/speaking/storing it.
+      const cleanTranslated = cleanModelText(data.translated_text);
+      addStaffBubble(text,cleanTranslated,data.tts_engine);
       if(data.audio_b64) playAudio(data.audio_b64);
-      else browserSpeak(data.translated_text,LANG);
-      log.push({role:"staff",text,translation:data.translated_text});
+      else browserSpeak(cleanTranslated,LANG);
+      log.push({role:"staff",text,translation:cleanTranslated});
       input.value="";input.style.height="auto";
       setStaffStatus("done","Sent");
       setTimeout(()=>setStaffStatus("","Ready"),2000);
@@ -824,7 +889,8 @@ async function toggleStaffMic() {
         try{
           const res=await fetch(`${API}/staff-speak`,{method:"POST",body:form});
           const d=await res.json();
-          if(d.success&&d.text) document.getElementById("staffInput").value=d.text;
+          // PATCH: clean recognized staff speech text too.
+          if(d.success&&d.text) document.getElementById("staffInput").value=cleanModelText(d.text);
         } catch{showToast("Staff mic failed",true);}
       };
       staffRecorder.start(100);staffRecording=true;btn.classList.add("recording");
@@ -850,13 +916,16 @@ async function endSession() {
     });
     const data=await res.json();
     if(data.success){
-      const engText = data.english_summary + (data.action_items?.length?"\n\nACTION ITEMS:\n"+data.action_items.map(a=>`• ${a}`).join("\n"):"");
+      // PATCH: clean summary fields before showing them.
+      const cleanEnglish = cleanModelText(data.english_summary);
+      const cleanRegional = cleanModelText(data.regional_summary);
+      const engText = cleanEnglish + (data.action_items?.length?"\n\nACTION ITEMS:\n"+data.action_items.map(a=>`• ${cleanModelText(a)}`).join("\n"):"");
       document.getElementById("engSum").textContent=engText;
-      document.getElementById("regSum").textContent=data.regional_summary;
+      document.getElementById("regSum").textContent=cleanRegional;
       // Store summary data for saving
       savedSummaryData = {
         englishSummary: engText,
-        regionalSummary: data.regional_summary,
+        regionalSummary: cleanRegional,
         actionItems: data.action_items || [],
         duration,
       };
