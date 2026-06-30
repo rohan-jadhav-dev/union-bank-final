@@ -360,3 +360,19 @@ async def submit_lead(req: SubmitLeadRequest):
     except Exception as e:
         logger.error(f"submit-lead error: {e}", exc_info=True)
         return JSONResponse({"success": False, "error": str(e)})
+    
+    
+@router.get("/leads")
+async def get_leads():
+    try:
+        if not os.path.exists("leads/leads.jsonl"):
+            return {"success": True, "leads": []}
+        leads = []
+        with open("leads/leads.jsonl", "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    leads.append(json.loads(line))
+        return {"success": True, "count": len(leads), "leads": leads}
+    except Exception as e:
+        return {"success": False, "error": str(e)}    
