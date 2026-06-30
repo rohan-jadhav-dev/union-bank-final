@@ -369,86 +369,69 @@
         </div>
       </div>
 
-      <!-- ===== LEAD GENERATION ===== -->
-<div class="section" id="section-lead-generation">
+     <!-- ===== LEAD GENERATION ===== -->
+      <div class="section" id="section-lead-generation">
 
-    <div class="card">
-        <div class="card-header">
+        <div class="card">
+          <div class="card-header">
             <div class="card-title">Lead Generation</div>
-        </div>
+          </div>
 
-        <div class="stat-grid">
-
+          <div class="stat-grid lead-stat-row">
+            <!-- dashboard.js fills this with Total/Hot/Warm/Incomplete from backend -->
             <div class="stat-card">
-                <div class="stat-label">Today's Leads</div>
-                <div class="stat-value">18</div>
-                <div class="stat-sub">Potential customers</div>
+              <div class="stat-label">Total leads</div>
+              <div class="stat-value">—</div>
+              <div class="stat-sub">Loading…</div>
             </div>
-
-            <div class="stat-card">
-                <div class="stat-label">Qualified</div>
-                <div class="stat-value">9</div>
-                <div class="stat-sub">Ready for follow-up</div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-label">Converted</div>
-                <div class="stat-value">4</div>
-                <div class="stat-sub">Accounts opened</div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-label">Pending</div>
-                <div class="stat-value">5</div>
-                <div class="stat-sub">Need callback</div>
-            </div>
-
+          </div>
         </div>
 
         <br>
 
         <div class="card">
+          <div class="card-header">
+            <div class="card-title">Customer Leads</div>
+          </div>
+          <div id="leadList">
+            <div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px">Loading leads…</div>
+          </div>
+        </div>
 
-            <div class="card-header">
-                <div class="card-title">Generate New Lead</div>
-            </div>
+        <br>
 
-            <div style="display:grid;gap:15px;">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Generate New Lead</div>
+          </div>
 
-                <input class="lookup-input"
-                    placeholder="Customer Name">
+          <div style="display:grid;gap:15px;">
 
-                <input class="lookup-input"
-                    placeholder="Mobile Number">
+            <input class="lookup-input" id="manualLeadName" placeholder="Customer Name">
 
-                <input class="lookup-input"
-                    placeholder="Email">
+            <input class="lookup-input" id="manualLeadPhone" placeholder="Mobile Number">
 
-                <select class="lookup-select">
-                    <option>Savings Account</option>
-                    <option>Current Account</option>
-                    <option>Home Loan</option>
-                    <option>Personal Loan</option>
-                    <option>Vehicle Loan</option>
-                    <option>Credit Card</option>
-                    <option>FD / RD</option>
-                </select>
+            <select class="lookup-select" id="manualLeadInterest">
+              <option>Savings Account</option>
+              <option>Current Account</option>
+              <option>Home Loan</option>
+              <option>Personal Loan</option>
+              <option>Vehicle Loan</option>
+              <option>Credit Card</option>
+              <option>FD / RD</option>
+            </select>
 
-                <textarea class="lookup-input"
-                    rows="4"
-                    placeholder="Lead Notes"></textarea>
+            <textarea class="lookup-input" id="manualLeadNotes" rows="4" placeholder="Lead Notes"></textarea>
 
-                <button class="topbar-btn topbar-btn-primary">
-                    Save Lead
-                </button>
+            <button class="topbar-btn topbar-btn-primary" id="manualLeadSaveBtn" onclick="saveManualLead()">
+              Save Lead
+            </button>
 
-            </div>
+          </div>
 
         </div>
 
-    </div>
-
-</div>
+      </div>
       <!-- ===== ACCOUNT LOOKUP ===== -->
       <div class="section" id="section-account">
         <div class="lookup-search-bar">
