@@ -19,6 +19,17 @@
 // (the same keys lead-form.html reads) and redirects straight to
 // lead-form.html, where the lead is auto-extracted/auto-filled and staff
 // only needs to review and click "Send to Bank".
+//
+// PATCH 4 (this version): DPDP ACT 2023 CONSENT GATE — added a mandatory
+// consent step before ANY recording, transcription, or AI processing.
+// The consent notice is shown (and read aloud) to the customer in their
+// own selected language, per Section 5/6 of the Digital Personal Data
+// Protection Act, 2023 (informed, specific, unambiguous consent for
+// processing personal data — including voice data — before collection).
+// Mic input and the auto-greeting are both locked until staff confirms
+// the customer has given explicit consent. A decline path is provided
+// that halts the session without recording anything. Consent is logged
+// with a timestamp and carried through to the saved record / lead payload.
 
 const API_BASE = "https://rohan667-voiceassist-ai-backend-kj.hf.space/api/conversation";
 
@@ -28,6 +39,30 @@ const LANG_META = {
   "Tamil":   { flag: "த",  tag: "தமிழ்" },
   "Telugu":  { flag: "తె", tag: "తెలుగు" },
   "English": { flag: "EN", tag: "English" },
+};
+
+// ═══════════════════════════════════════════════════════════
+// DPDP ACT 2023 — CONSENT NOTICE TEXT (per language)
+// Plain-language notice + the explicit yes/no prompt, shown to the
+// customer in their own language before any recording/processing begins.
+// NOTE: These translations are functional drafts for the consent UI.
+// Have your compliance/legal team review the exact wording before
+// production use — this is not legal advice.
+// ═══════════════════════════════════════════════════════════
+const CONSENT_NOTICE = {
+  "Hindi": "बैंक अधिकारी आपकी सहायता के लिए एक AI सहायक का उपयोग कर रहे हैं। बातचीत के दौरान आपकी आवाज़़ रिकॉर्ड की जाएगी और सही जानकारी देने के लिए AI द्वारा संसाधित (process) की जाएगी। यह जानकारी केवल इस बैंकिंग सेवा के लिए उपयोग होगी और डिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम, 2023 (DPDP Act) के अनुसार सुरक्षित रखी जाएगी। आप किसी भी समय सहमति वापस ले सकते हैं। क्या आप इसके लिए सहमत हैं?",
+  "Marathi": "बँक अधिकारी तुम्हाला मदत करण्यासाठी AI सहाय्यक वापरत आहेत. संभाषणादरम्यान तुमचा आवाज रेकॉर्ड केला जाईल आणि अचूक माहिती देण्यासाठी AI द्वारे प्रक्रिया केली जाईल. ही माहिती फक्त या बँकिंग सेवेसाठी वापरली जाईल आणि डिजिटल वैयक्तिक डेटा संरक्षण कायदा, 2023 (DPDP Act) नुसार सुरक्षित ठेवली जाईल. तुम्ही कधीही संमती मागे घेऊ शकता. तुम्ही याला सहमत आहात का?",
+  "Tamil": "வங்கி அதிகாரிகள் உங்களுக்கு உதவ AI உதவியாளரைப் பயன்படுத்துகின்றனர். உரையாடலின் போது உங்கள் குரல் பதிவு செய்யப்பட்டு, துல்லியமான தகவலை வழங்க AI மூலம் செயலாக்கப்படும். இந்தத் தகவல் இந்த வங்கி சேவைக்கு மட்டுமே பயன்படுத்தப்படும், மேலும் டிஜிட்டல் தனிநபர் தரவுப் பாதுகாப்புச் சட்டம், 2023 (DPDP Act) படி பாதுகாக்கப்படும். நீங்கள் எந்த நேரத்திலும் உங்கள் ஒப்புதலைத் திரும்பப் பெறலாம். இதற்கு நீங்கள் ஒப்புக்கொள்கிறீர்களா?",
+  "Telugu": "మిమ్మల్ని సహాయం చేయడానికి బ్యాంక్ సిబ్బంది AI అసిస్టెంట్‌ను ఉపయోగిస్తున్నారు. సంభాషణ సమయంలో మీ స్వరం రికార్డ్ చేయబడి, ఖచ్చితమైన సమాచారం అందించడానికి AI ద్వారా ప్రాసెస్ చేయబడుతుంది. ఈ సమాచారం ఈ బ్యాంకింగ్ సేవ కోసం మాత్రమే ఉపయోగించబడుతుంది మరియు డిజిటల్ పర్సనల్ డేటా ప్రొటెక్షన్ యాక్ట్, 2023 (DPDP Act) ప్రకారం రక్షించబడుతుంది. మీరు ఎప్పుడైనా మీ సమ్మతిని ఉపసంహరించుకోవచ్చు. దీనికి మీరు అంగీకరిస్తున్నారా?",
+  "English": "Bank staff are using an AI assistant to help you today. During this conversation, your voice will be recorded and processed by AI to give you accurate information. This data will be used only for this banking service and protected under the Digital Personal Data Protection Act, 2023 (DPDP Act). You can withdraw your consent at any time. Do you consent to this?",
+};
+
+const CONSENT_DECLINED_NOTICE = {
+  "Hindi": "ठीक है, हम आपकी आवाज़ रिकॉर्ड या प्रोसेस नहीं करेंगे। हमारा स्टाफ आपकी मदद बिना रिकॉर्डिंग के करेगा।",
+  "Marathi": "ठीक आहे, आम्ही तुमचा आवाज रेकॉर्ड किंवा प्रक्रिया करणार नाही. आमचे कर्मचारी रेकॉर्डिंगशिवाय तुम्हाला मदत करतील.",
+  "Tamil": "சரி, நாங்கள் உங்கள் குரலை பதிவு செய்யவோ செயலாக்கவோ மாட்டோம். எங்கள் ஊழியர்கள் பதிவு செய்யாமல் உங்களுக்கு உதவுவார்கள்.",
+  "Telugu": "సరే, మేము మీ స్వరాన్ని రికార్డ్ చేయము లేదా ప్రాసెస్ చేయము. మా సిబ్బంది రికార్డింగ్ లేకుండా మీకు సహాయం చేస్తారు.",
+  "English": "Understood — we will not record or process your voice. Our staff will assist you manually without recording.",
 };
 
 const PROCESS_STEPS = {
@@ -417,6 +452,11 @@ let smartReplies    = [];
 
 let checklistState  = {};
 
+// DPDP consent state
+let consentGiven     = false;
+let consentDeclined  = false;
+let consentTimestamp = null;
+
 document.addEventListener("DOMContentLoaded", () => {
   try { initUI(); }            catch (e) { console.error("[Init] initUI:", e); }
   try { startTimer(); }        catch (e) { console.error("[Init] startTimer:", e); }
@@ -477,7 +517,9 @@ function initUI() {
   const strip = document.getElementById("processStrip");
   if (strip) strip.style.display = "none";
 
-  lockStaffInput(false);
+  // Everything starts locked until DPDP consent is captured.
+  lockStaffInput(true);
+  lockCustomerMic(true);
   updateGuideHint(0);
   updateStepIndicator();
   updateManualStepButtons();
@@ -490,13 +532,23 @@ function lockStaffInput(locked) {
   row.style.opacity = locked ? "0.4" : "1";
   row.style.pointerEvents = locked ? "none" : "all";
   const s = document.getElementById("staffStatusText");
-  if (s) s.textContent = locked ? "Not ready" : "Ready";
+  if (s) s.textContent = locked ? "Awaiting consent" : "Ready";
+}
+
+function lockCustomerMic(locked) {
+  const mic = document.getElementById("customerMicBtn");
+  if (mic) {
+    mic.disabled = locked;
+    mic.style.opacity = locked ? "0.4" : "1";
+    mic.style.cursor = locked ? "not-allowed" : "pointer";
+  }
+  const hint = document.getElementById("customerMicHint");
+  if (hint && locked) hint.textContent = "Awaiting consent before recording";
 }
 
 function startConversation() {
-  lockStaffInput(false);
-  setCustomerStatus("", "Ready");
-  setStaffStatus("", "Ready");
+  setCustomerStatus("", "Awaiting consent");
+  setStaffStatus("", "Awaiting consent");
   const meta = LANG_META[selectedLanguage] || {};
   const emptyHint = document.getElementById("customerEmpty");
   if (emptyHint) {
@@ -504,10 +556,113 @@ function startConversation() {
     if (p) p.textContent = `Tap the mic to record the customer in ${meta.tag || selectedLanguage}`;
   }
   updateGuideHint(0);
+  showConsentGate();
+}
+
+// ═══════════════════════════════════════════════════════════
+// DPDP ACT 2023 — CONSENT GATE
+// Shown before anything is recorded or sent to the AI backend.
+// Notice text is in the customer's own language (read aloud via TTS
+// too). Staff confirms verbally-obtained consent with a tap; only then
+// does recording/processing unlock and the auto-greeting fire.
+// ═══════════════════════════════════════════════════════════
+function showConsentGate() {
+  document.getElementById("consentGateOverlay")?.remove();
+  const meta = LANG_META[selectedLanguage] || LANG_META["Hindi"];
+  const noticeText = CONSENT_NOTICE[selectedLanguage] || CONSENT_NOTICE["English"];
+
+  const overlay = document.createElement("div");
+  overlay.id = "consentGateOverlay";
+  overlay.style.cssText = `position:fixed;inset:0;background:rgba(15,30,61,0.6);z-index:500;
+    display:flex;align-items:center;justify-content:center;padding:20px;`;
+
+  overlay.innerHTML = `
+    <div style="background:var(--white);border-radius:12px;max-width:560px;width:100%;
+      padding:26px;box-shadow:0 12px 40px rgba(15,30,61,0.3);">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <span style="font-size:18px;">🔐</span>
+        <div style="font-size:16px;font-weight:600;color:var(--navy);">Consent Required — DPDP Act, 2023</div>
+      </div>
+      <div style="font-size:12px;color:var(--slate-light);margin-bottom:16px;">
+        Read or play this notice to the customer in <strong>${escHtml(meta.tag || selectedLanguage)}</strong> before recording anything.
+      </div>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;
+        padding:14px 16px;font-size:14px;line-height:1.7;color:var(--navy);margin-bottom:14px;">
+        ${escHtml(noticeText)}
+      </div>
+      <button id="consentPlayBtn" style="width:100%;margin-bottom:16px;padding:9px;border-radius:7px;
+        border:1px solid var(--gold);background:var(--gold-bg);color:var(--navy);font-size:13px;
+        font-weight:500;cursor:pointer;font-family:inherit;">🔊 Play notice to customer (${escHtml(selectedLanguage)})</button>
+      <div style="font-size:11.5px;color:var(--slate-light);margin-bottom:14px;">
+        Only confirm consent below after the customer has clearly said yes in their own words.
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button id="consentDeclineBtn" style="flex:1;padding:11px;border-radius:7px;border:1px solid var(--border);
+          background:var(--white);color:var(--error);font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;">
+          ❌ Customer Declined
+        </button>
+        <button id="consentAcceptBtn" style="flex:1.4;padding:11px;border-radius:7px;border:none;
+          background:var(--success);color:var(--white);font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;">
+          ✅ Customer Consented — Begin
+        </button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  document.getElementById("consentPlayBtn").addEventListener("click", () => {
+    speakWithBrowserSynthesis(noticeText, selectedLanguage);
+  });
+  document.getElementById("consentAcceptBtn").addEventListener("click", onConsentAccepted);
+  document.getElementById("consentDeclineBtn").addEventListener("click", onConsentDeclined);
+}
+
+function onConsentAccepted() {
+  consentGiven = true;
+  consentDeclined = false;
+  consentTimestamp = new Date().toISOString();
+  document.getElementById("consentGateOverlay")?.remove();
+
+  conversationLog.push({
+    role: "system",
+    text: `[DPDP consent obtained — ${selectedLanguage} — ${consentTimestamp}]`,
+    translation: `[DPDP consent obtained — ${selectedLanguage} — ${consentTimestamp}]`,
+  });
+
+  lockStaffInput(false);
+  lockCustomerMic(false);
+  setCustomerStatus("", "Ready");
+  setStaffStatus("", "Ready");
+  showToast("✓ Consent recorded — session unlocked");
+
   autoGreetCustomer();
 }
 
+function onConsentDeclined() {
+  consentGiven = false;
+  consentDeclined = true;
+  document.getElementById("consentGateOverlay")?.remove();
+
+  const declineText = CONSENT_DECLINED_NOTICE[selectedLanguage] || CONSENT_DECLINED_NOTICE["English"];
+  speakWithBrowserSynthesis(declineText, selectedLanguage);
+
+  lockStaffInput(true);
+  lockCustomerMic(true);
+  setCustomerStatus("", "Consent declined");
+  setStaffStatus("", "Consent declined");
+  showToast("Customer declined — no recording or AI processing will occur", true);
+
+  const transcript = document.getElementById("customerTranscript");
+  if (transcript) {
+    const note = document.createElement("div");
+    note.style.cssText = "padding:12px;text-align:center;color:var(--error);font-size:13px;";
+    note.textContent = "Customer declined consent under the DPDP Act, 2023. Please assist manually without recording.";
+    transcript.appendChild(note);
+  }
+}
+
 async function autoGreetCustomer() {
+  if (!consentGiven) { showConsentGate(); return; }
   const greetingMap = GREETINGS[selectedProcess] || GREETINGS["General enquiry"];
   const greetingText = greetingMap[selectedLanguage] || greetingMap["English"];
 
@@ -819,11 +974,13 @@ function startTimer() {
 }
 
 async function toggleCustomerRecording() {
+  if (!consentGiven) { showToast("Customer consent is required before recording (DPDP Act, 2023)", true); showConsentGate(); return; }
   if (isRecording) stopCustomerRecording();
   else await startCustomerRecording();
 }
 
 async function startCustomerRecording() {
+  if (!consentGiven) { showToast("Customer consent is required before recording (DPDP Act, 2023)", true); showConsentGate(); return; }
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
   catch (err) {
@@ -923,6 +1080,7 @@ async function processCustomerAudio() {
 }
 
 async function sendStaffReply() {
+  if (!consentGiven) { showToast("Customer consent is required first (DPDP Act, 2023)", true); showConsentGate(); return; }
   const input = document.getElementById("staffInput");
   const text  = input.value.trim();
   if (!text) return;
@@ -956,6 +1114,7 @@ async function sendStaffReply() {
 }
 
 async function toggleStaffRecording() {
+  if (!consentGiven) { showToast("Customer consent is required first (DPDP Act, 2023)", true); showConsentGate(); return; }
   const btn = document.getElementById("staffMicBtn");
   if (staffRecording) {
     if (staffRecorder && staffRecorder.state !== "inactive") {
@@ -1072,6 +1231,9 @@ async function submitLead() {
         customer_language: selectedLanguage,
         lead,
         session_duration: document.getElementById("timerDisplay")?.textContent || "",
+        consent_given: consentGiven,
+        consent_timestamp: consentTimestamp,
+        consent_language: selectedLanguage,
       })
     });
     const data = await res.json();
@@ -1140,6 +1302,7 @@ function newSession()   { window.location.href = "dashboard.html"; }
 // load, then redirects there immediately. lead-form.html auto-extracts
 // and auto-fills the form on its own — staff just reviews and clicks
 // "Send to Bank". Nothing here auto-submits the lead.
+// Also carries the DPDP consent record through to lead-form.html.
 // ═══════════════════════════════════════════════════════════
 function saveToRecords() {
   const duration = document.getElementById("timerDisplay")?.textContent || "";
@@ -1150,6 +1313,8 @@ function saveToRecords() {
   sessionStorage.setItem("va_lead_process", selectedProcess);
   sessionStorage.setItem("va_lead_language", selectedLanguage);
   sessionStorage.setItem("va_lead_duration", duration);
+  sessionStorage.setItem("va_lead_consent_given", JSON.stringify(consentGiven));
+  sessionStorage.setItem("va_lead_consent_timestamp", consentTimestamp || "");
 
   setTimeout(() => { window.location.href = "lead-form.html"; }, 900);
 }
