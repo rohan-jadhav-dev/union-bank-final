@@ -9,6 +9,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../css/dashboard.css">
+<!-- UPDATED: floating Conversation Desk widget styles -->
+<link rel="stylesheet" href="../css/chat-widget.css">
 </head>
 <body>
 
@@ -124,7 +126,12 @@
       <span>Bilingual Summary</span>
     </a>
 
-    <a class="nav-item" href="conversation-desk.html">
+    <!-- UPDATED: "Live Desk" now opens the floating Conversation Desk widget
+         instead of navigating to the old full-page conversation-desk.html.
+         If no language/process has been picked yet, it just opens the
+         widget shell (it will stay idle until "Begin conversation" is used,
+         or you can pass defaults here). -->
+    <a class="nav-item" href="#" onclick="event.preventDefault(); window.chatWidget && window.chatWidget.toggle();">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
         <path d="M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-4l-4 4-4-4z" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
@@ -285,7 +292,8 @@
                 </svg>
                 Bilingual summary
               </button>
-              <button class="quick-action-btn" onclick="window.location.href='conversation-desk.html'">
+              <!-- UPDATED: opens the floating widget instead of navigating away -->
+              <button class="quick-action-btn" onclick="window.chatWidget && window.chatWidget.toggle();">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                   <path d="M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-4l-4 4-4-4z" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
@@ -392,7 +400,9 @@
             </div>
           </div>
 
-          <button class="btn-begin" id="btnBegin" disabled onclick="window.location.href='conversation-desk.html'">
+          <!-- UPDATED: no more hardcoded onclick redirect to conversation-desk.html.
+               dashboard.js now drives this button and opens the floating widget. -->
+          <button class="btn-begin" id="btnBegin" disabled>
             Begin conversation
           </button>
         </div>
@@ -955,5 +965,7 @@
 </div>
 
 <script src="../js/dashboard.js"></script>
+<!-- UPDATED: floating Conversation Desk widget (new UI, old backend logic) -->
+<script src="../js/chat-widget.js"></script>
 </body>
 </html>

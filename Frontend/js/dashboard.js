@@ -1,4 +1,6 @@
 // dashboard.js — VoiceAssist AI (merged: new UI + old logic)
+// UPDATED: "Begin conversation" now opens the floating chat-widget instead
+// of navigating to conversation-desk.html. Everything else unchanged.
 
 // ── LIVE CLOCK ────────────────────────────────────────────────────────────────
 function updateClock() {
@@ -345,6 +347,9 @@ function checkBegin() {
 }
 
 // ── BEGIN CONVERSATION ─────────────────────────────────────────────────────
+// UPDATED: opens the floating chat-widget (chat-widget.js) in place,
+// instead of navigating to conversation-desk.html. The widget reads the
+// same lang/process values and runs against the same backend.
 btnBegin && btnBegin.addEventListener('click', () => {
   if (btnBegin.disabled) return;
 
@@ -354,11 +359,16 @@ btnBegin && btnBegin.addEventListener('click', () => {
   const procCard = document.querySelector('.process-card.selected');
   const actualProcess = procCard ? procCard.dataset.process : selectedProcess;
 
+  // Kept for backward compatibility with anything still reading these
   sessionStorage.setItem('va_lang', actualLang);
   sessionStorage.setItem('va_process', actualProcess);
   if (lastTranscript) sessionStorage.setItem('va_first_utterance', lastTranscript);
 
-  window.location.href = `conversation-desk.html?lang=${encodeURIComponent(actualLang)}&process=${encodeURIComponent(actualProcess)}`;
+  if (window.chatWidget) {
+    window.chatWidget.open(actualLang, actualProcess);
+  } else {
+    showToast('Conversation widget not loaded — check chat-widget.js is included', true);
+  }
 });
 
 // ── DOM HELPERS ───────────────────────────────────────────────────────────────
@@ -579,7 +589,7 @@ function escHtml(s) {
 
 // ── LEAD GENERATION ────────────────────────────────────────────────────────
 // Pulls REAL leads from the backend (/api/conversation/leads), which is fed
-// by the "Send to Bank" button on the Live Desk conversation summary modal.
+// by the "Send to Bank" button inside the chat-widget's summary modal.
 // Backend doesn't return a lead-quality score, so we compute one client-side
 // from field completeness — this is just for sorting hot/warm/cold, not a
 // claim about actual creditworthiness.
@@ -691,7 +701,7 @@ async function loadLeads() {
 
   if (leads.length === 0) {
     listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px">
-      No leads yet. Leads appear here automatically when staff click "Send to Bank" at the end of a conversation on the Live Desk.
+      No leads yet. Leads appear here automatically when staff click "Send to Bank" at the end of a conversation in the Conversation Desk widget.
     </div>`;
     return;
   }
