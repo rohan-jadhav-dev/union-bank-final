@@ -1,1494 +1,959 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>VoiceAssist AI — Live Desk</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Union Bank of India VoiceAssist AI — Branch Staff Portal for multilingual banking conversations." />
+<title>VoiceAssist AI — Branch Portal | Union Bank of India</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:wght@500;600&display=swap" rel="stylesheet">
-<style>
-:root {
-  --navy:#0F1E3D;
-  --navy-light:#1a2f5a;
-  --gold:#B8923D;
-  --gold-light:#D4AF6A;
-  --gold-bg:rgba(184,146,61,0.08);
-  --white:#ffffff;
-  --bg:#F5F4F1;
-  --border:#E2E0DA;
-  --slate:#6B7280;
-  --slate-light:#9CA3AF;
-  --success:#16A34A;
-  --error:#B91C1C;
-  --step-done:#22C55E;
-  --step-active:#B8923D;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',sans-serif;background:var(--bg);height:100vh;overflow:hidden;display:flex;flex-direction:column}
-
-/* TOPBAR */
-.topbar{height:52px;background:var(--navy);display:flex;align-items:center;padding:0 18px;gap:12px;flex-shrink:0;z-index:100}
-.brand{display:flex;align-items:center;gap:8px;color:var(--white);font-size:13.5px;font-weight:600;font-family:'Source Serif 4',serif;text-decoration:none}
-.brand svg{width:18px;height:18px}
-.divider-v{width:1px;height:18px;background:rgba(255,255,255,0.15)}
-.chip{display:flex;align-items:center;gap:5px;border-radius:99px;padding:3px 11px;font-size:12px;font-weight:500;flex-shrink:0}
-.chip-lang{background:rgba(212,175,106,0.18);border:1px solid rgba(212,175,106,0.35);color:var(--gold-light)}
-.chip-intent{background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7)}
-.chip-intent svg{width:12px;height:12px;color:var(--gold-light)}
-.guide-hint{display:flex;align-items:center;gap:6px;background:rgba(74,157,110,0.18);border:1px solid rgba(74,157,110,0.35);border-radius:6px;padding:3px 10px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.85);max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.guide-hint svg{flex-shrink:0;width:11px;height:11px;color:#4A9D6E}
-.timer-wrap{margin-left:auto;font-size:11.5px;color:rgba(255,255,255,0.4);flex-shrink:0;font-variant-numeric:tabular-nums}
-.timer-wrap span{color:var(--gold-light);font-weight:600}
-.topbar-btn{display:flex;align-items:center;gap:5px;padding:6px 13px;border-radius:6px;font-size:12.5px;font-weight:500;cursor:pointer;border:none;font-family:inherit;transition:all 150ms ease;flex-shrink:0}
-.btn-back{background:rgba(255,255,255,0.1);color:var(--white)}
-.btn-back:hover{background:rgba(255,255,255,0.18)}
-.btn-end{background:var(--error);color:var(--white)}
-.btn-end:hover{background:#991b1b}
-
-/* PROGRESS STEPS */
-.progress-bar{background:var(--white);border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;gap:0;height:54px;flex-shrink:0;overflow:hidden}
-.step-item{display:flex;align-items:center;gap:8px;padding:0 14px;font-size:12px;font-weight:500;color:var(--slate-light);white-space:nowrap;position:relative;transition:color 400ms ease}
-.step-item:not(:last-child)::after{content:'';position:absolute;right:-6px;top:50%;transform:translateY(-50%);width:12px;height:1px;background:var(--border);z-index:1}
-.step-dot{width:22px;height:22px;border-radius:50%;background:var(--border);color:var(--slate);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 400ms cubic-bezier(0.34,1.56,0.64,1);position:relative}
-.step-item.active{color:var(--navy)}
-.step-item.active .step-dot{background:var(--gold);color:var(--white);box-shadow:0 0 0 5px rgba(184,146,61,0.18);animation:pulseDot 2s ease-in-out infinite}
-.step-item.done{color:var(--success)}
-.step-item.done .step-dot{background:var(--step-done);color:var(--white);box-shadow:none}
-.step-item.done .step-dot::after{content:'✓';position:absolute;font-size:11px;font-weight:700}
-.step-item.done .step-num-txt{display:none}
-@keyframes pulseDot{0%,100%{box-shadow:0 0 0 4px rgba(184,146,61,0.15)}50%{box-shadow:0 0 0 9px rgba(184,146,61,0.06)}}
-.step-connector{flex:1;height:1px;background:var(--border);margin:0 4px;min-width:8px;transition:background 400ms ease}
-.step-connector.done{background:var(--step-done)}
-
-/* PANES */
-.panes{display:grid;grid-template-columns:1fr 1fr;flex:1;min-height:0}
-.pane{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--border)}
-.pane:last-child{border-right:none}
-.pane-header{padding:12px 18px 10px;border-bottom:1px solid var(--border);background:var(--white);display:flex;align-items:center;gap:10px;flex-shrink:0}
-.pane-label{font-size:10.5px;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;color:var(--slate-light)}
-.pane-lang{font-size:11px;font-weight:600;background:rgba(184,146,61,0.1);color:var(--gold);padding:2px 8px;border-radius:4px}
-.pane-status{margin-left:auto;font-size:11.5px;font-weight:500;color:var(--slate-light);display:flex;align-items:center;gap:5px}
-.status-dot{width:7px;height:7px;border-radius:50%;background:var(--border);transition:background 200ms ease}
-.status-dot.listening{background:var(--error);animation:blink 1s ease-in-out infinite}
-.status-dot.processing{background:var(--gold);animation:blink 0.6s ease-in-out infinite}
-.status-dot.done{background:var(--success)}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:0.25}}
-
-/* TRANSCRIPT */
-.transcript{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}
-.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;color:var(--slate-light);gap:8px;text-align:center;padding:20px}
-.empty-state svg{width:34px;height:34px;opacity:0.35}
-.empty-state p{font-size:12.5px}
-
-/* Bubbles */
-.bubble-customer{animation:popIn 220ms cubic-bezier(0.34,1.56,0.64,1)}
-.bubble-orig{background:var(--white);border:1px solid var(--border);border-radius:10px 10px 10px 2px;padding:11px 14px;font-size:13.5px;line-height:1.6;color:var(--navy)}
-.bubble-trans{margin-top:4px;font-size:12px;color:var(--slate);line-height:1.5;padding:0 4px;font-style:italic}
-.bubble-meta{font-size:10.5px;color:var(--slate-light);margin-top:3px;padding:0 4px;display:flex;align-items:center;gap:6px}
-.eng-tag{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:9.5px;color:var(--slate-light)}
-.staff-wrap{align-self:flex-end;max-width:90%;animation:popIn 220ms cubic-bezier(0.34,1.56,0.64,1)}
-.bubble-staff{background:var(--navy);border-radius:10px 10px 2px 10px;padding:11px 14px;font-size:13.5px;line-height:1.6;color:var(--white)}
-.bubble-staff.greeting{border-left:3px solid var(--gold)}
-.bubble-staff-label{font-size:10.5px;color:var(--gold-light);display:block;margin-bottom:3px}
-.bubble-staff-trans{margin-top:4px;font-size:12px;color:var(--gold-light);padding:0 4px;opacity:0.85}
-.bubble-staff-meta{font-size:10.5px;color:var(--slate-light);margin-top:3px;padding:0 4px;text-align:right;display:flex;align-items:center;justify-content:flex-end;gap:6px}
-@keyframes popIn{from{opacity:0;transform:scale(0.94) translateY(6px)}to{opacity:1;transform:scale(1) translateY(0)}}
-
-/* Waveform */
-.waveform{display:none;align-items:center;gap:3px;padding:8px 12px;background:var(--white);border:1px solid var(--border);border-radius:10px;width:fit-content}
-.waveform.show{display:flex}
-.waveform span{width:3px;border-radius:99px;background:var(--gold);animation:wave 1.2s ease-in-out infinite}
-.waveform span:nth-child(1){height:8px;animation-delay:0s}
-.waveform span:nth-child(2){height:14px;animation-delay:.1s}
-.waveform span:nth-child(3){height:20px;animation-delay:.2s}
-.waveform span:nth-child(4){height:14px;animation-delay:.15s}
-.waveform span:nth-child(5){height:8px;animation-delay:.25s}
-@keyframes wave{0%,100%{transform:scaleY(0.4);opacity:0.5}50%{transform:scaleY(1);opacity:1}}
-
-/* CONTROLS ZONE */
-.pane-controls{border-top:1px solid var(--border);background:var(--white);flex-shrink:0}
-.mic-zone{text-align:center;padding:12px 18px 14px}
-.customer-mic{width:60px;height:60px;border-radius:50%;background:var(--navy);border:none;color:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;margin:0 auto 7px;transition:transform 150ms ease,background 150ms ease,box-shadow 200ms ease;box-shadow:0 2px 10px rgba(15,30,61,0.22)}
-.customer-mic:hover{transform:scale(1.05)}
-.customer-mic.recording{background:var(--error);box-shadow:0 0 0 8px rgba(185,28,28,0.15);animation:micPulse 1.2s ease-in-out infinite}
-@keyframes micPulse{0%,100%{box-shadow:0 0 0 6px rgba(185,28,28,0.14)}50%{box-shadow:0 0 0 14px rgba(185,28,28,0.05)}}
-.customer-mic svg{width:24px;height:24px}
-.customer-mic:disabled{opacity:0.4;cursor:not-allowed}
-.mic-hint{font-size:12px;color:var(--slate-light)}
-.mic-hint.recording{color:var(--error);font-weight:500}
-.processing-bar{display:none;align-items:center;gap:8px;padding:7px 18px;background:rgba(184,146,61,0.07);border-bottom:1px solid rgba(184,146,61,0.15);font-size:12px;color:var(--gold);font-weight:500}
-.processing-bar.show{display:flex}
-.proc-dot{width:6px;height:6px;border-radius:50%;background:var(--gold);animation:blink 0.6s ease-in-out infinite}
-
-/* Checklist */
-.checklist-bar{padding:10px 18px 6px;background:rgba(184,146,61,0.04);border-bottom:1px solid var(--border)}
-.checklist-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
-.checklist-title{font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:var(--slate-light);font-weight:600}
-.checklist-prog{font-size:11px;font-weight:700;color:var(--gold)}
-.checklist-items{display:flex;flex-direction:column;gap:5px}
-.checklist-item{display:flex;align-items:flex-start;gap:7px;cursor:pointer;font-size:12px;color:var(--navy);line-height:1.45;user-select:none}
-.checklist-item input[type=checkbox]{margin-top:2px;width:14px;height:14px;accent-color:var(--gold);cursor:pointer;flex-shrink:0}
-.checklist-item.checked{color:var(--slate-light);text-decoration:line-through}
-
-/* Step controls */
-.step-controls{display:flex;gap:8px;padding:10px 18px;border-bottom:1px solid var(--border);align-items:center;background:rgba(184,146,61,0.04)}
-.step-back{flex:0.8;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--white);color:var(--slate);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all 150ms ease}
-.step-back:hover:not(:disabled){background:var(--bg)}
-.step-back:disabled{opacity:0.38;cursor:not-allowed}
-.step-indicator{font-size:10.5px;color:var(--slate-light);font-weight:600;text-align:center;flex:1}
-.step-next{flex:0.8;padding:7px 10px;border:1px solid var(--gold);border-radius:6px;background:var(--navy);color:var(--white);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all 150ms ease}
-.step-next:hover:not(:disabled){background:var(--navy-light)}
-.step-next:disabled{opacity:0.45;cursor:not-allowed}
-
-/* Quick replies */
-.qr-bar{padding:9px 18px 7px;background:var(--white);border-bottom:1px solid var(--border)}
-.qr-label{font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:var(--slate-light);font-weight:600;margin-bottom:6px}
-.qr-pills{display:flex;gap:6px;flex-wrap:wrap;max-height:130px;overflow-y:auto}
-.qr-pill{padding:5px 13px;border-radius:99px;border:1px solid var(--gold);background:var(--gold-bg);color:var(--navy);font-size:12px;cursor:pointer;font-family:inherit;transition:all 150ms ease;white-space:nowrap}
-.qr-pill:hover{background:rgba(184,146,61,0.2);transform:scale(1.02)}
-
-/* Staff input */
-.staff-input-row{display:flex;gap:7px;align-items:flex-end;padding:12px 18px}
-.staff-textarea{flex:1;border:1px solid var(--border);border-radius:8px;padding:9px 13px;font-size:13.5px;font-family:inherit;color:var(--navy);resize:none;outline:none;line-height:1.5;min-height:42px;max-height:110px;transition:border-color 150ms ease}
-.staff-textarea:focus{border-color:var(--gold)}
-.staff-textarea::placeholder{color:var(--slate-light);font-size:12.5px}
-.staff-textarea:disabled{opacity:0.5;cursor:not-allowed}
-.staff-mic-btn{width:42px;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--bg);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--slate);transition:all 150ms ease;flex-shrink:0}
-.staff-mic-btn:hover{border-color:var(--navy);color:var(--navy)}
-.staff-mic-btn.recording{background:var(--error);border-color:var(--error);color:var(--white)}
-.staff-mic-btn:disabled{opacity:0.4;cursor:not-allowed}
-.staff-mic-btn svg{width:16px;height:16px}
-.staff-send{height:42px;padding:0 15px;background:var(--navy);color:var(--white);border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;transition:background 150ms ease,opacity 150ms ease;white-space:nowrap;flex-shrink:0}
-.staff-send:hover{background:var(--navy-light)}
-.staff-send:disabled{opacity:0.5;cursor:not-allowed}
-.staff-send svg{width:14px;height:14px}
-.send-spin{width:13px;height:13px;border:1.5px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 600ms linear infinite;display:none}
-.staff-send.loading .send-txt{display:none}
-.staff-send.loading .send-spin{display:block}
-@keyframes spin{to{transform:rotate(360deg)}}
-
-/* TOAST */
-.toast{position:fixed;top:18px;right:22px;display:flex;align-items:center;gap:9px;background:var(--navy);color:var(--white);padding:12px 16px;border-radius:7px;font-size:13px;font-weight:500;transform:translateX(440px);transition:transform 300ms cubic-bezier(0.22,1,0.36,1);z-index:999}
-.toast.show{transform:translateX(0)}
-.toast svg{width:15px;height:15px;color:#4A9D6E;flex-shrink:0}
-.toast.err svg{color:rgba(255,255,255,0.7)}
-.toast.err{background:var(--error)}
-
-/* SUMMARY MODAL */
-.modal-overlay{position:fixed;inset:0;background:rgba(15,30,61,0.55);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity 300ms ease}
-.modal-overlay.show{opacity:1;pointer-events:all}
-.modal{background:var(--white);border-radius:12px;width:100%;max-width:800px;max-height:88vh;overflow-y:auto;padding:26px;transform:translateY(18px);transition:transform 300ms ease}
-.modal-overlay.show .modal{transform:translateY(0)}
-.modal-title{font-size:17px;font-weight:600;color:var(--navy);margin-bottom:3px}
-.modal-sub{font-size:12.5px;color:var(--slate);margin-bottom:20px}
-.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px}
-.sum-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px}
-.sum-label{font-size:10.5px;text-transform:uppercase;letter-spacing:0.07em;color:var(--slate-light);font-weight:600;margin-bottom:8px}
-.sum-text{font-size:13px;line-height:1.75;color:var(--slate);white-space:pre-wrap}
-.modal-actions{display:flex;gap:9px}
-.modal-primary{flex:1;height:42px;background:var(--success);color:var(--white);border:none;border-radius:7px;font-size:13.5px;font-weight:500;cursor:pointer;font-family:inherit;transition:background 150ms ease}
-.modal-primary:hover{background:#15803d}
-.modal-ghost{height:42px;padding:0 18px;background:transparent;color:var(--slate);border:1px solid var(--border);border-radius:7px;font-size:13.5px;font-weight:500;cursor:pointer;font-family:inherit;transition:background 150ms ease}
-.modal-ghost:hover{background:var(--bg)}
-
-/* Save success state */
-.save-success-banner{display:none;align-items:center;gap:10px;padding:12px 18px;background:rgba(22,163,74,0.1);border:1px solid rgba(22,163,74,0.3);border-radius:8px;margin-bottom:16px;font-size:13px;color:#166534;font-weight:500}
-.save-success-banner.show{display:flex}
-.save-success-banner svg{width:18px;height:18px;flex-shrink:0;color:#16a34a}
-
-/* Lead form card */
-.lead-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:20px}
-.lead-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px;flex-wrap:wrap}
-.lead-card-actions{display:flex;gap:8px}
-.lead-field{margin-bottom:10px}
-.lead-field label{display:block;font-size:11px;color:var(--slate-light);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px}
-.lead-field input{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;color:var(--navy);outline:none;transition:border-color 150ms ease}
-.lead-field input:focus{border-color:var(--gold)}
-.lead-field input::placeholder{color:var(--slate-light);font-style:italic}
-.lead-field input.auto-filled{border-color:rgba(22,163,74,0.45);background:rgba(22,163,74,0.05)}
-.lead-field .src-tag{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-left:6px;color:var(--success)}
-.modal-lead-btn{height:42px;padding:0 18px;background:var(--gold);color:var(--white);border:none;border-radius:7px;font-size:13.5px;font-weight:500;cursor:pointer;font-family:inherit;transition:background 150ms ease,opacity 150ms ease}
-.modal-lead-btn:hover{background:#9c7a30}
-.modal-lead-btn:disabled{opacity:0.6;cursor:not-allowed}
-.modal-lead-btn.secondary{background:var(--white);color:var(--navy);border:1px solid var(--border)}
-.modal-lead-btn.secondary:hover{background:var(--bg)}
-
-/* DPDP Consent Gate */
-.consent-overlay{position:fixed;inset:0;background:rgba(15,30,61,0.62);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px}
-.consent-card{background:var(--white);border-radius:12px;max-width:560px;width:100%;padding:26px;box-shadow:0 12px 40px rgba(15,30,61,0.3)}
-.consent-title-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.consent-title{font-size:16px;font-weight:600;color:var(--navy)}
-.consent-sub{font-size:12px;color:var(--slate-light);margin-bottom:16px}
-.consent-notice-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px 16px;font-size:14px;line-height:1.7;color:var(--navy);margin-bottom:14px}
-.consent-play-btn{width:100%;margin-bottom:16px;padding:9px;border-radius:7px;border:1px solid var(--gold);background:var(--gold-bg);color:var(--navy);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit}
-.consent-hint{font-size:11.5px;color:var(--slate-light);margin-bottom:14px}
-.consent-actions{display:flex;gap:10px}
-.consent-decline{flex:1;padding:11px;border-radius:7px;border:1px solid var(--border);background:var(--white);color:var(--error);font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit}
-.consent-accept{flex:1.4;padding:11px;border-radius:7px;border:none;background:var(--success);color:var(--white);font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit}
-.consent-declined-note{padding:12px;text-align:center;color:var(--error);font-size:13px}
-
-audio{display:none}
-</style>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/dashboard.css">
 </head>
 <body>
 
-<!-- TOPBAR -->
-<div class="topbar">
-  <a class="brand" href="dashboard.html">
-    <svg viewBox="0 0 24 24" fill="none" stroke="#D4AF6A" stroke-width="1.5">
-      <path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-    VoiceAssist AI
-  </a>
-  <div class="divider-v"></div>
-  <div class="chip chip-lang">
-    <span id="langFlag">हि</span>
-    <span id="langName">Hindi</span>
-  </div>
-  <div class="chip chip-intent">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" stroke-linecap="round"/></svg>
-    <span id="intentText">Loan enquiry</span>
-  </div>
-  <div class="guide-hint" id="guideHint">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01" stroke-linecap="round"/></svg>
-    <span id="guideText">Session starting…</span>
-  </div>
-  <div class="timer-wrap">Session: <span id="timerDisplay">00:00</span></div>
-  <button class="topbar-btn btn-back" onclick="window.location.href='dashboard.html'">← Dashboard</button>
-  <button class="topbar-btn btn-end" id="endBtn">End &amp; Summarise</button>
-</div>
+<!-- Liquid animated blobs -->
+<div class="liquid-blob blob-1"></div>
+<div class="liquid-blob blob-2"></div>
+<div class="liquid-blob blob-3"></div>
+<div class="liquid-blob blob-4"></div>
+<div class="liquid-blob blob-5"></div>
 
-<!-- PROGRESS STEPS -->
-<div class="progress-bar" id="progressBar"></div>
+<div class="dashboard-root">
 
-<!-- PANES -->
-<div class="panes">
-  <!-- LEFT: CUSTOMER -->
-  <div class="pane">
-    <div class="pane-header">
-      <div class="pane-label">Customer</div>
-      <div class="pane-lang" id="custLangTag">हिन्दी</div>
-      <div class="pane-status">
-        <div class="status-dot" id="custDot"></div>
-        <span id="custStatusTxt">Awaiting consent</span>
+  <!-- ==================== SIDEBAR ==================== -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img src="../images/ubi_logo.png" alt="Union Bank of India" class="sidebar-brand-logo">
+      <div>
+        <div class="sidebar-brand-name">VoiceAssist AI</div>
+        <div class="sidebar-brand-sub">Branch Portal</div>
       </div>
     </div>
-    <div class="transcript" id="custTranscript">
-      <div class="empty-state" id="custEmpty">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3" stroke-linecap="round"/></svg>
-        <p id="custEmptyTxt">Customer consent required before recording (DPDP Act, 2023)</p>
+
+    <div class="sidebar-staff">
+      <div class="sidebar-avatar">RJ</div>
+      <div class="sidebar-staff-info">
+        <div class="sidebar-staff-name">Rohan Jadhav</div>
+        <div class="sidebar-staff-role">Branch Officer</div>
       </div>
     </div>
-    <div class="pane-controls">
-      <div class="processing-bar" id="custProcessing">
-        <div class="proc-dot"></div>
-        Processing speech…
+
+    <div class="sidebar-section-label">Main</div>
+
+    <a class="nav-item active" data-section="overview" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+        <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+      </svg>
+      <span>Overview</span>
+    </a>
+
+    <a class="nav-item" data-section="conversation" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <rect x="9" y="3" width="6" height="11" rx="3"/>
+        <path d="M5 11a7 7 0 0014 0M12 18v3" stroke-linecap="round"/>
+      </svg>
+      <span>New Conversation</span>
+      <span class="nav-badge">Live</span>
+    </a>
+
+    <a class="nav-item" data-section="lead-generation" href="#">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+    <path d="M12 3v18" stroke-linecap="round"/>
+    <path d="M3 12h18" stroke-linecap="round"/>
+    <circle cx="12" cy="12" r="8"/>
+  </svg>
+  <span>Lead Generation</span>
+  <span class="nav-badge">NEW</span>
+</a>
+
+    <a class="nav-item" data-section="account" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <circle cx="12" cy="8" r="3.5"/>
+        <path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke-linecap="round"/>
+      </svg>
+      <span>Account Lookup</span>
+    </a>
+
+    <a class="nav-item" data-section="history" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <circle cx="12" cy="12" r="9"/>
+        <path d="M12 7v5l3 3" stroke-linecap="round"/>
+      </svg>
+      <span>Session History</span>
+    </a>
+
+    <div class="sidebar-section-label">CBS Services</div>
+
+    <a class="nav-item" data-section="open-account" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <circle cx="12" cy="8" r="3.5"/>
+        <path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke-linecap="round"/>
+        <path d="M18 8h3M19.5 6.5v3" stroke-linecap="round"/>
+      </svg>
+      <span>Open Account</span>
+    </a>
+
+    <a class="nav-item" data-section="credit-card" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <rect x="2.5" y="5" width="19" height="14" rx="2.5"/>
+        <path d="M2.5 9.5h19" stroke-linecap="round"/>
+        <path d="M6 14.5h5" stroke-linecap="round"/>
+      </svg>
+      <span>Credit Card</span>
+    </a>
+
+    <a class="nav-item" data-section="cash-transaction" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <rect x="2.5" y="6" width="19" height="13" rx="2"/>
+        <circle cx="12" cy="12.5" r="3"/>
+        <path d="M6 6V4.5M18 6V4.5" stroke-linecap="round"/>
+      </svg>
+      <span>Deposit / Withdraw</span>
+    </a>
+
+    <div class="sidebar-section-label">Tools</div>
+
+    <a class="nav-item" data-section="summary" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M4 6h16M4 10h12M4 14h8" stroke-linecap="round"/>
+      </svg>
+      <span>Bilingual Summary</span>
+    </a>
+
+    <a class="nav-item" href="conversation-desk.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-4l-4 4-4-4z" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Live Desk</span>
+    </a>
+
+    <div class="sidebar-bottom">
+      <div class="sidebar-status">
+        <div class="status-dot-sm"></div>
+        All systems operational
       </div>
-      <div class="mic-zone">
-        <button class="customer-mic" id="custMic" aria-label="Record customer" disabled>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3" stroke-linecap="round"/></svg>
+      <a class="nav-item" href="login.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+          <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Sign out</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- ==================== MAIN ==================== -->
+  <div class="main">
+
+    <!-- RED ACCENT STRIPE -->
+    <div class="topbar-stripe"></div>
+
+    <!-- TOP BAR -->
+    <div class="topbar">
+      <div class="topbar-page-title" id="topbarTitle">Overview</div>
+      <div class="topbar-actions">
+        <span class="topbar-time" id="liveTime"></span>
+        <div class="topbar-divider"></div>
+        <button class="topbar-btn topbar-btn-ghost" onclick="showToast('Refreshed')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="15" height="15">
+            <path d="M4 4v5h5M20 20v-5h-5" stroke-linecap="round"/>
+            <path d="M4 9a8 8 0 0114-3.5M20 15a8 8 0 01-14 3.5" stroke-linecap="round"/>
+          </svg>
+          Refresh
         </button>
-        <div class="mic-hint" id="custMicHint">Awaiting consent before recording</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- RIGHT: STAFF -->
-  <div class="pane">
-    <div class="pane-header">
-      <div class="pane-label">You (Staff)</div>
-      <div class="pane-lang" style="background:rgba(15,30,61,0.07);color:var(--navy)">English</div>
-      <div class="pane-status">
-        <div class="status-dot" id="staffDot"></div>
-        <span id="staffStatusTxt">Awaiting consent</span>
-      </div>
-    </div>
-    <div class="transcript" id="staffTranscript">
-      <div class="empty-state" id="staffEmpty">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-4l-4 4-4-4z" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <p>Waiting for DPDP consent before the conversation can begin…</p>
-      </div>
-    </div>
-    <div class="pane-controls" id="staffControls">
-      <div class="step-controls">
-        <button class="step-back" id="backBtn">← Back</button>
-        <div class="step-indicator" id="stepIndicator">Step 1 of 5</div>
-        <button class="step-next" id="nextBtn">Next ✓</button>
-      </div>
-      <div class="processing-bar" id="staffProcessing">
-        <div class="proc-dot"></div>
-        Translating &amp; generating audio…
-      </div>
-      <div class="staff-input-row">
-        <textarea class="staff-textarea" id="staffInput" placeholder="Type reply in English… or tap a quick reply above" rows="1" disabled></textarea>
-        <button class="staff-mic-btn" id="staffMic" aria-label="Record staff speech" disabled>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3" stroke-linecap="round"/></svg>
-        </button>
-        <button class="staff-send" id="staffSend" disabled>
-          <span class="send-txt" style="display:flex;align-items:center;gap:5px">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 19-7z" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Send &amp; Translate
-          </span>
-          <div class="send-spin"></div>
+        <button class="topbar-btn topbar-btn-primary" onclick="navigate('conversation')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="15" height="15">
+            <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
+          </svg>
+          New Interaction
         </button>
       </div>
     </div>
-  </div>
-</div>
 
-<audio id="audioPlayer"></audio>
+    <!-- TICKER BAR -->
+    <div class="dashboard-ticker">
+      <div class="ticker-title">Updates</div>
+      <div class="ticker-content">
+        <div class="ticker-text">
+          ⚠️ Secure Portal: Always sign out of your session when leaving the terminal. &nbsp;&nbsp;&nbsp;&bull;&nbsp;&nbsp;&nbsp; 🚀 Vyom App: Union Bank of India launches Union Vyom Mobile App with 350+ features! &nbsp;&nbsp;&nbsp;&bull;&nbsp;&nbsp;&nbsp; 📅 Alert: Mandatory KYC verification deadline has been extended to 31st August.
+        </div>
+      </div>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content">
+
+      <!-- ===== OVERVIEW ===== -->
+      <div class="section active" id="section-overview">
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-label">Sessions Today</div>
+            <div class="stat-value">12</div>
+            <div class="stat-sub"><span class="stat-trend-up">↑ 3</span> vs yesterday</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Avg. Duration</div>
+            <div class="stat-value">4.2<span style="font-size:16px;font-weight:400"> min</span></div>
+            <div class="stat-sub"><span class="stat-trend-down">↑ 0.4m</span> vs last week</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Languages Used</div>
+            <div class="stat-value">3</div>
+            <div class="stat-sub">Hindi · Marathi · Tamil</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Summaries Saved</div>
+            <div class="stat-value">11</div>
+            <div class="stat-sub"><span class="stat-trend-up">100%</span> completion rate</div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <!-- Recent sessions -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Recent sessions</div>
+              <button class="card-action" onclick="navigate('history')">View all</button>
+            </div>
+            <div class="session-item">
+              <div class="session-lang-badge">हि</div>
+              <div class="session-info">
+                <div class="session-title">Loan enquiry — Rajesh Sharma</div>
+                <div class="session-meta">Hindi · 6 min · Summary saved</div>
+              </div>
+              <div class="session-time">11:42 AM</div>
+            </div>
+            <div class="session-item">
+              <div class="session-lang-badge">मा</div>
+              <div class="session-info">
+                <div class="session-title">Account opening — Priya Kulkarni</div>
+                <div class="session-meta">Marathi · 8 min · Summary saved</div>
+              </div>
+              <div class="session-time">10:15 AM</div>
+            </div>
+            <div class="session-item">
+              <div class="session-lang-badge">த</div>
+              <div class="session-info">
+                <div class="session-title">General enquiry — Murugan K.</div>
+                <div class="session-meta">Tamil · 3 min · Summary saved</div>
+              </div>
+              <div class="session-time">9:50 AM</div>
+            </div>
+            <div class="session-item">
+              <div class="session-lang-badge">EN</div>
+              <div class="session-info">
+                <div class="session-title">Account opening — Vikram Patel</div>
+                <div class="session-meta">English · 5 min · Summary saved</div>
+              </div>
+              <div class="session-time">9:30 AM</div>
+            </div>
+          </div>
+
+          <!-- Quick actions -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Quick actions</div>
+            </div>
+            <div class="quick-actions">
+              <button class="quick-action-btn" onclick="navigate('conversation')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <rect x="9" y="3" width="6" height="11" rx="3"/>
+                  <path d="M5 11a7 7 0 0014 0M12 18v3" stroke-linecap="round"/>
+                </svg>
+                Start conversation
+              </button>
+              <button class="quick-action-btn" onclick="navigate('account')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <circle cx="11" cy="11" r="7"/>
+                  <path d="M21 21l-4-4" stroke-linecap="round"/>
+                </svg>
+                Account lookup
+              </button>
+              <button class="quick-action-btn" onclick="navigate('history')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <circle cx="12" cy="12" r="9"/>
+                  <path d="M12 7v5l3 3" stroke-linecap="round"/>
+                </svg>
+                Session history
+              </button>
+              <button class="quick-action-btn" onclick="navigate('summary')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <path d="M4 6h16M4 10h12M4 14h8" stroke-linecap="round"/>
+                </svg>
+                Bilingual summary
+              </button>
+              <button class="quick-action-btn" onclick="window.location.href='conversation-desk.html'">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <path d="M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-4l-4 4-4-4z" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Live desk
+              </button>
+              <button class="quick-action-btn" onclick="showToast('Opening process guide...')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" stroke-linecap="round"/>
+                  <rect x="9" y="3" width="6" height="4" rx="1" stroke-linecap="round"/>
+                  <path d="M9 12h6M9 16h4" stroke-linecap="round"/>
+                </svg>
+                Process guide
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ===== NEW CONVERSATION ===== -->
+      <div class="section" id="section-conversation">
+        <div class="conversation-start">
+          <div class="step-header">
+            <span class="step-label">New interaction</span>
+            <h1 class="step-title">Start the conversation</h1>
+            <p class="step-subtitle">Tap the mic to begin. The customer's language will be detected automatically, or choose manually.</p>
+          </div>
+
+          <div class="listen-card" id="listenCard">
+            <div class="listen-idle" id="listenIdle">
+              <button class="mic-button" id="micButton" aria-label="Start listening">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <rect x="9" y="3" width="6" height="11" rx="3"/>
+                  <path d="M5 11a7 7 0 0014 0M12 18v3" stroke-linecap="round"/>
+                </svg>
+              </button>
+              <p class="mic-hint">Tap to start listening</p>
+            </div>
+
+            <div class="listen-active" id="listenActive">
+              <div class="waveform">
+                <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+              </div>
+              <p class="listening-text">Listening<span class="dots"><span>.</span><span>.</span><span>.</span></span></p>
+            </div>
+
+            <div class="detected-result" id="detectedResult">
+              <div class="detected-row">
+                <div class="detected-info">
+                  <span class="detected-label">Detected language</span>
+                  <div class="detected-chip" id="detectedChip">
+                    <span class="chip-flag">मा</span>
+                    <span id="detectedLangName">Marathi</span>
+                  </div>
+                </div>
+                <button class="change-link" id="changeLangBtn">Not correct? Change</button>
+              </div>
+              <div id="detectedTranscriptWrap" class="detected-transcript-wrap" style="display:none">
+                <span id="detectedTranscriptText"></span>
+              </div>
+              <div class="lang-grid" id="langGrid">
+                <button class="lang-option" data-lang="Hindi" data-code="हि">Hindi</button>
+                <button class="lang-option" data-lang="Marathi" data-code="मा">Marathi</button>
+                <button class="lang-option" data-lang="Tamil" data-code="த">Tamil</button>
+                <button class="lang-option" data-lang="Telugu" data-code="తె">Telugu</button>
+                <button class="lang-option" data-lang="English" data-code="EN">English</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="process-section" id="processSection">
+            <p class="process-label">What does the customer need help with?</p>
+            <div class="process-grid">
+              <button class="process-card" data-process="Loan enquiry">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zM12 6v6l4 2" stroke-linecap="round"/>
+                </svg>
+                <span>Loan enquiry</span>
+              </button>
+              <button class="process-card" data-process="Account opening">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <circle cx="12" cy="8" r="3.5"/>
+                  <path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke-linecap="round"/>
+                  <path d="M18 8h3M19.5 6.5v3" stroke-linecap="round"/>
+                </svg>
+                <span>Account opening</span>
+              </button>
+              <button class="process-card" data-process="General enquiry">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <circle cx="12" cy="12" r="9"/>
+                  <path d="M12 17v-1.5c0-1 .6-1.5 1.5-2.2.9-.7 1.5-1.4 1.5-2.3a3 3 0 10-6 0" stroke-linecap="round"/>
+                  <circle cx="12" cy="17.5" r="0.4" fill="currentColor"/>
+                </svg>
+                <span>General enquiry</span>
+              </button>
+              <button class="process-card" data-process="Other">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <circle cx="6" cy="12" r="1.4" fill="currentColor" stroke="none"/>
+                  <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>
+                  <circle cx="18" cy="12" r="1.4" fill="currentColor" stroke="none"/>
+                </svg>
+                <span>Other</span>
+              </button>
+            </div>
+          </div>
+
+          <button class="btn-begin" id="btnBegin" disabled onclick="window.location.href='conversation-desk.html'">
+            Begin conversation
+          </button>
+        </div>
+      </div>
+
+     <!-- ===== LEAD GENERATION ===== -->
+      <div class="section" id="section-lead-generation">
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Lead Generation</div>
+          </div>
+
+          <div class="stat-grid lead-stat-row">
+            <!-- dashboard.js fills this with Total/Hot/Warm/Incomplete from backend -->
+            <div class="stat-card">
+              <div class="stat-label">Total leads</div>
+              <div class="stat-value">—</div>
+              <div class="stat-sub">Loading…</div>
+            </div>
+          </div>
+        </div>
+
+        <br>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Customer Leads</div>
+          </div>
+          <div id="leadList">
+            <div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px">Loading leads…</div>
+          </div>
+        </div>
+
+        <br>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Generate New Lead</div>
+          </div>
+
+          <div style="display:grid;gap:15px;">
+
+            <input class="lookup-input" id="manualLeadName" placeholder="Customer Name">
+
+            <input class="lookup-input" id="manualLeadPhone" placeholder="Mobile Number">
+
+            <select class="lookup-select" id="manualLeadInterest">
+              <option>Savings Account</option>
+              <option>Current Account</option>
+              <option>Home Loan</option>
+              <option>Personal Loan</option>
+              <option>Vehicle Loan</option>
+              <option>Credit Card</option>
+              <option>FD / RD</option>
+            </select>
+
+            <textarea class="lookup-input" id="manualLeadNotes" rows="4" placeholder="Lead Notes"></textarea>
+
+            <button class="topbar-btn topbar-btn-primary" id="manualLeadSaveBtn" onclick="saveManualLead()">
+              Save Lead
+            </button>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- ===== OPEN NEW ACCOUNT (CBS) ===== -->
+      <div class="section" id="section-open-account">
+        <div class="cbs-grid">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Open New Account</div>
+            </div>
+            <div style="display:grid;gap:15px;">
+              <input class="lookup-input" id="oaName" placeholder="Customer Full Name">
+              <input class="lookup-input" id="oaMobile" placeholder="Mobile Number" maxlength="10">
+              <input class="lookup-input" id="oaAadhaar" placeholder="Aadhaar Number (12 digits)" maxlength="14">
+              <select class="lookup-select" id="oaAccType" style="width:100%;height:48px">
+                <option>Savings</option>
+                <option>Current</option>
+                <option>Salary</option>
+                <option>Senior Citizen Savings</option>
+              </select>
+              <input class="lookup-input" type="number" id="oaInitialDeposit" placeholder="Initial Deposit (₹)" min="0">
+              <button class="topbar-btn topbar-btn-primary" id="oaSubmitBtn" onclick="submitOpenAccount()" style="height:48px;justify-content:center">
+                Open Account
+              </button>
+              <div class="cbs-success" id="oaResult" style="display:none"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Documents Required</div>
+            </div>
+            <ul class="cbs-checklist">
+              <li>Aadhaar Card (identity &amp; address proof)</li>
+              <li>PAN Card</li>
+              <li>Recent passport-size photograph</li>
+              <li>Initial deposit as per account type</li>
+              <li>Nominee details (optional, recommended)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== CREDIT CARD APPLICATION (CBS) ===== -->
+      <div class="section" id="section-credit-card">
+        <div class="cbs-grid">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Apply for Credit Card</div>
+            </div>
+            <div style="display:grid;gap:15px;">
+              <input class="lookup-input" id="ccName" placeholder="Customer Full Name">
+              <input class="lookup-input" id="ccAccountNo" placeholder="Linked Account Number">
+              <select class="lookup-select" id="ccCardType" style="width:100%;height:48px">
+                <option>Rupay Select</option>
+                <option>Union Platinum</option>
+                <option>Union World</option>
+                <option>Union Signature</option>
+              </select>
+              <input class="lookup-input" type="number" id="ccIncome" placeholder="Monthly Income (₹)" min="0">
+              <button class="topbar-btn topbar-btn-primary" id="ccSubmitBtn" onclick="submitCreditCardApplication()" style="height:48px;justify-content:center">
+                Submit Application
+              </button>
+              <div class="cbs-success" id="ccResult" style="display:none"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Eligibility Guide</div>
+            </div>
+            <ul class="cbs-checklist">
+              <li>Monthly income ≥ ₹20,000 — entry-level cards</li>
+              <li>Monthly income ≥ ₹40,000 — mid-tier cards, ₹1,00,000 limit</li>
+              <li>Monthly income ≥ ₹1,00,000 — premium cards, ₹3,00,000 limit</li>
+              <li>Existing savings/current account required</li>
+              <li>Final approval subject to CIBIL score &amp; credit policy</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== DEPOSIT / WITHDRAW (CBS) ===== -->
+      <div class="section" id="section-cash-transaction">
+        <div class="cbs-grid">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Deposit / Withdraw</div>
+            </div>
+            <div style="display:grid;gap:15px;">
+              <select class="lookup-select" id="txnAccountSelect" style="width:100%;height:48px" onchange="updateTxnBalancePreview()">
+              </select>
+
+              <div class="txn-balance-row">
+                <span>Current balance</span>
+                <strong id="txnCurrentBalance">—</strong>
+              </div>
+
+              <div class="txn-type-toggle">
+                <button type="button" class="txn-type-btn active" data-txn-type="deposit">Deposit</button>
+                <button type="button" class="txn-type-btn" data-txn-type="withdraw">Withdraw</button>
+              </div>
+
+              <input class="lookup-input" type="number" id="txnAmount" placeholder="Amount (₹)" min="0">
+              <button class="topbar-btn topbar-btn-primary" id="txnSubmitBtn" onclick="submitTransaction()" style="height:48px;justify-content:center">
+                Process Transaction
+              </button>
+              <div class="cbs-success" id="txnResult" style="display:none"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Branch Cash Limits</div>
+            </div>
+            <ul class="cbs-checklist">
+              <li>Over-the-counter cash deposit: up to ₹2,00,000/day</li>
+              <li>Over-the-counter cash withdrawal: up to ₹1,00,000/day</li>
+              <li>Amounts above limit require manager approval</li>
+              <li>PAN mandatory for cash transactions ≥ ₹50,000</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== ACCOUNT LOOKUP ===== -->
+      <div class="section" id="section-account">
+        <div class="lookup-search-bar">
+          <input class="lookup-input" type="text" id="accountInput" placeholder="Enter account number, name, or Aadhaar…" />
+          <select class="lookup-select" id="lookupType">
+            <option value="account">Account No.</option>
+            <option value="name">Name</option>
+            <option value="aadhaar">Aadhaar</option>
+            <option value="mobile">Mobile</option>
+          </select>
+          <button class="lookup-btn" onclick="doLookup()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+              <circle cx="11" cy="11" r="7"/>
+              <path d="M21 21l-4-4" stroke-linecap="round"/>
+            </svg>
+            Search
+          </button>
+        </div>
+
+        <div class="account-result" id="accountResult">
+
+          <div class="translate-strip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M3 5h12M9 3v2M12.6 18.6L15 12l2.4 6.6M14.1 16.5h1.8" stroke-linecap="round"/>
+              <path d="M21 5h-6l-3.6 9.6" stroke-linecap="round"/>
+            </svg>
+            <span class="translate-strip-text">Customer prefers <strong>Marathi</strong>. Account details will be read out in Marathi if spoken.</span>
+            <button class="translate-strip-btn" onclick="showToast('Reading account summary in Marathi...')">Read aloud →</button>
+          </div>
+
+          <!-- Account header -->
+          <div class="account-header-card">
+            <div class="account-avatar-lg">RS</div>
+            <div class="account-id-info">
+              <div class="account-name-lg">Rajesh Suresh Sharma</div>
+              <div class="account-no">ACCT · 4523 8811 2204 7700</div>
+            </div>
+            <div class="account-header-stats">
+              <div class="ah-stat">
+                <div class="ah-stat-label">Balance</div>
+                <div class="ah-stat-value green">₹1,24,832</div>
+              </div>
+              <div class="ah-stat">
+                <div class="ah-stat-label">Account type</div>
+                <div class="ah-stat-value">Savings</div>
+              </div>
+              <div class="ah-stat">
+                <div class="ah-stat-label">CIBIL score</div>
+                <div class="ah-stat-value gold">742</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabs -->
+          <div class="account-tabs">
+            <button class="account-tab active" data-tab="transactions">Transactions</button>
+            <button class="account-tab" data-tab="loans">Loans</button>
+            <button class="account-tab" data-tab="kyc">KYC Status</button>
+          </div>
+
+          <!-- Transactions -->
+          <div class="account-tab-content active" id="tab-transactions">
+            <div class="card">
+              <table class="txn-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>Balance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>17 Jun 2026</td>
+                    <td>UPI — Swiggy Order</td>
+                    <td><span class="txn-type-badge txn-debit">Debit</span></td>
+                    <td class="txn-amount-negative">– ₹380</td>
+                    <td>₹1,24,832</td>
+                  </tr>
+                  <tr>
+                    <td>16 Jun 2026</td>
+                    <td>Salary Credit — TCS Ltd</td>
+                    <td><span class="txn-type-badge txn-credit">Credit</span></td>
+                    <td class="txn-amount-positive">+ ₹68,000</td>
+                    <td>₹1,25,212</td>
+                  </tr>
+                  <tr>
+                    <td>15 Jun 2026</td>
+                    <td>NEFT — LIC Premium</td>
+                    <td><span class="txn-type-badge txn-debit">Debit</span></td>
+                    <td class="txn-amount-negative">– ₹4,200</td>
+                    <td>₹57,212</td>
+                  </tr>
+                  <tr>
+                    <td>14 Jun 2026</td>
+                    <td>ATM Withdrawal — Pune Main</td>
+                    <td><span class="txn-type-badge txn-debit">Debit</span></td>
+                    <td class="txn-amount-negative">– ₹5,000</td>
+                    <td>₹61,412</td>
+                  </tr>
+                  <tr>
+                    <td>12 Jun 2026</td>
+                    <td>IMPS — Sharma Family</td>
+                    <td><span class="txn-type-badge txn-credit">Credit</span></td>
+                    <td class="txn-amount-positive">+ ₹10,000</td>
+                    <td>₹66,412</td>
+                  </tr>
+                  <tr>
+                    <td>10 Jun 2026</td>
+                    <td>Electricity Bill — MSEDCL</td>
+                    <td><span class="txn-type-badge txn-debit">Debit</span></td>
+                    <td class="txn-amount-negative">– ₹1,140</td>
+                    <td>₹56,412</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Loans -->
+          <div class="account-tab-content" id="tab-loans">
+            <div class="loan-card">
+              <div class="loan-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M3 10l9-6 9 6M5 10v9h14v-9M9 19v-5h6v5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="loan-info">
+                <div class="loan-type">Home Loan</div>
+                <div class="loan-meta">Sanctioned ₹28,00,000 · 20 yr tenure · HDFC Ref #HL2021-8823</div>
+              </div>
+              <div class="loan-right">
+                <div class="loan-emi">₹21,400 / mo</div>
+                <div class="loan-emi-label">Outstanding: ₹19,42,000</div>
+                <span class="loan-status loan-active">Active</span>
+              </div>
+            </div>
+            <div class="loan-card">
+              <div class="loan-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2z" stroke-linecap="round"/>
+                  <path d="M9 12l2 2 4-4" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <div class="loan-info">
+                <div class="loan-type">Personal Loan</div>
+                <div class="loan-meta">Sanctioned ₹2,00,000 · 3 yr tenure · Ref #PL2023-441</div>
+              </div>
+              <div class="loan-right">
+                <div class="loan-emi">—</div>
+                <div class="loan-emi-label">Fully repaid Jun 2025</div>
+                <span class="loan-status loan-closed">Closed</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- KYC -->
+          <div class="account-tab-content" id="tab-kyc">
+            <div class="kyc-grid">
+              <div class="kyc-item">
+                <div class="kyc-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="3" y="5" width="18" height="14" rx="2"/>
+                    <path d="M3 10h18" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="kyc-doc-label">Aadhaar</div>
+                  <div class="kyc-doc-value">XXXX XXXX 7713</div>
+                </div>
+                <span class="kyc-status-badge kyc-verified">Verified</span>
+              </div>
+              <div class="kyc-item">
+                <div class="kyc-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M9 12h6M9 16h4M17 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2z" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="kyc-doc-label">PAN Card</div>
+                  <div class="kyc-doc-value">BSHPS4321K</div>
+                </div>
+                <span class="kyc-status-badge kyc-verified">Verified</span>
+              </div>
+              <div class="kyc-item">
+                <div class="kyc-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="5" y="3" width="14" height="18" rx="2"/>
+                    <circle cx="12" cy="9" r="3"/>
+                    <path d="M6.5 20c.5-2.5 2.5-4 5.5-4s5 1.5 5.5 4" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="kyc-doc-label">Photograph</div>
+                  <div class="kyc-doc-value">On file (2024)</div>
+                </div>
+                <span class="kyc-status-badge kyc-verified">Verified</span>
+              </div>
+              <div class="kyc-item">
+                <div class="kyc-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M3 21h18M5 21V9l7-5 7 5v12" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="kyc-doc-label">Address Proof</div>
+                  <div class="kyc-doc-value">Aadhaar linked</div>
+                </div>
+                <span class="kyc-status-badge kyc-verified">Verified</span>
+              </div>
+              <div class="kyc-item">
+                <div class="kyc-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M22 16.92V19a2 2 0 01-2.18 2A19.8 19.8 0 013.09 5.18 2 2 0 015 3h2.09a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 10a16 16 0 006.91 6.91l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 17.92v-.01z" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="kyc-doc-label">Mobile</div>
+                  <div class="kyc-doc-value">+91 98765 XXXXX</div>
+                </div>
+                <span class="kyc-status-badge kyc-verified">Verified</span>
+              </div>
+              <div class="kyc-item">
+                <div class="kyc-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke-linecap="round"/>
+                    <path d="M22 6l-10 7L2 6" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="kyc-doc-label">Email</div>
+                  <div class="kyc-doc-value">r.sha****@gmail.com</div>
+                </div>
+                <span class="kyc-status-badge kyc-pending">Pending</span>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /account-result -->
+      </div>
+
+      
+      <!-- ===== SESSION HISTORY ===== -->
+      <div class="section" id="section-history">
+        <div class="history-filters">
+          <button class="filter-chip active">All</button>
+          <button class="filter-chip">Today</button>
+          <button class="filter-chip">Hindi</button>
+          <button class="filter-chip">Marathi</button>
+          <button class="filter-chip">Tamil</button>
+          <button class="filter-chip">Telugu</button>
+          <button class="filter-chip">Loan enquiry</button>
+          <button class="filter-chip">Account opening</button>
+        </div>
+        <div class="history-table-wrap">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Date & Time</th>
+                <th>Customer</th>
+                <th>Language</th>
+                <th>Process</th>
+                <th>Duration</th>
+                <th>Summary</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>17 Jun 2026, 11:42 AM</td>
+                <td>Rajesh Sharma</td>
+                <td><span class="lang-pill">Hindi</span></td>
+                <td>Loan enquiry</td>
+                <td>6 min</td>
+                <td>✓ Saved</td>
+                <td><button class="view-link" onclick="showToast('Opening session summary...')">View →</button></td>
+              </tr>
+              <tr>
+                <td>17 Jun 2026, 10:15 AM</td>
+                <td>Priya Kulkarni</td>
+                <td><span class="lang-pill">Marathi</span></td>
+                <td>Account opening</td>
+                <td>8 min</td>
+                <td>✓ Saved</td>
+                <td><button class="view-link" onclick="showToast('Opening session summary...')">View →</button></td>
+              </tr>
+              <tr>
+                <td>17 Jun 2026, 9:50 AM</td>
+                <td>Murugan K.</td>
+                <td><span class="lang-pill">Tamil</span></td>
+                <td>General enquiry</td>
+                <td>3 min</td>
+                <td>✓ Saved</td>
+                <td><button class="view-link" onclick="showToast('Opening session summary...')">View →</button></td>
+              </tr>
+              <tr>
+                <td>17 Jun 2026, 9:30 AM</td>
+                <td>Vikram Patel</td>
+                <td><span class="lang-pill">English</span></td>
+                <td>Account opening</td>
+                <td>5 min</td>
+                <td>✓ Saved</td>
+                <td><button class="view-link" onclick="showToast('Opening session summary...')">View →</button></td>
+              </tr>
+              <tr>
+                <td>16 Jun 2026, 3:22 PM</td>
+                <td>Anita Reddy</td>
+                <td><span class="lang-pill">Telugu</span></td>
+                <td>Loan enquiry</td>
+                <td>9 min</td>
+                <td>✓ Saved</td>
+                <td><button class="view-link" onclick="showToast('Opening session summary...')">View →</button></td>
+              </tr>
+              <tr>
+                <td>16 Jun 2026, 2:05 PM</td>
+                <td>Deepak Nair</td>
+                <td><span class="lang-pill">Hindi</span></td>
+                <td>General enquiry</td>
+                <td>4 min</td>
+                <td>✓ Saved</td>
+                <td><button class="view-link" onclick="showToast('Opening session summary...')">View →</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== BILINGUAL SUMMARY ===== -->
+      <div class="section" id="section-summary">
+        <div class="two-col">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">English Summary</div>
+              <button class="card-action" onclick="showToast('Copied to clipboard')">Copy</button>
+            </div>
+            <p style="font-size:14px;line-height:1.75;color:var(--text-dim)">
+              Customer <strong style="color:var(--blue)">Rajesh Sharma</strong> visited the branch on 17 June 2026 at 11:42 AM to inquire about a home loan. Staff member verified customer identity (Aadhaar confirmed). Customer requested information on loan eligibility for ₹30,00,000 at a 20-year tenure. Staff explained current interest rate of 8.65% p.a. and EMI estimate of ₹26,400/month. Customer expressed interest and was informed about required documents: income proof, property papers, and 6-month bank statement. Customer will visit again within 7 days with documents.
+            </p>
+            <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);display:flex;gap:10px">
+              <button class="topbar-btn topbar-btn-primary" style="flex:1" onclick="showToast('Saved to Firestore')">Save to records</button>
+              <button class="topbar-btn topbar-btn-ghost" onclick="showToast('Printed')">Print</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">हिंदी सारांश</div>
+              <button class="card-action" onclick="showToast('Read aloud in Hindi...')">🔊 Read aloud</button>
+            </div>
+            <p style="font-size:14px;line-height:1.9;color:var(--text-dim);font-family:'Noto Sans Devanagari',sans-serif">
+              ग्राहक <strong style="color:var(--blue)">राजेश शर्मा</strong> ने 17 जून 2026 को सुबह 11:42 बजे शाखा का दौरा किया और होम लोन के बारे में जानकारी ली। स्टाफ ने आधार के माध्यम से पहचान सत्यापित की। ग्राहक ने ₹30,00,000 के लोन के लिए 20 वर्षीय अवधि पर पात्रता जाननी चाही। स्टाफ ने 8.65% वार्षिक ब्याज दर और ₹26,400 प्रति माह EMI की जानकारी दी। ग्राहक ने रुचि दिखाई और आवश्यक दस्तावेज़ — आय प्रमाण, संपत्ति के कागज़, 6 महीने का बैंक स्टेटमेंट — की सूची दी गई। ग्राहक 7 दिनों में दस्तावेज़ लेकर आएंगे।
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /dashboard-root -->
 
 <!-- TOAST -->
 <div class="toast" id="toast">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  <span id="toastTxt">Done</span>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+    <circle cx="12" cy="12" r="10"/>
+    <path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <span id="toastText">Done</span>
 </div>
 
-<!-- SUMMARY MODAL -->
-<div class="modal-overlay" id="summaryModal">
-  <div class="modal">
-    <div class="modal-title">Session Summary</div>
-    <div class="modal-sub" id="summaryMeta">Loading…</div>
-
-    <!-- Save success banner (shown after saving) -->
-    <div class="save-success-banner" id="saveBanner">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round"/></svg>
-      Session saved! Opening lead form…
-    </div>
-
-    <div class="modal-grid">
-      <div class="sum-card">
-        <div class="sum-label">English Summary</div>
-        <div class="sum-text" id="engSum">Generating…</div>
-      </div>
-      <div class="sum-card">
-        <div class="sum-label" id="regLabel">Regional Summary</div>
-        <div class="sum-text" id="regSum">Translating…</div>
-      </div>
-    </div>
-
-    <!-- LEAD AUTO-FILL CARD -->
-    <div class="lead-card">
-      <div class="lead-card-header">
-        <div class="sum-label" style="margin-bottom:0">📝 Lead Details (auto-filled — review &amp; edit before sending)</div>
-        <div class="lead-card-actions">
-          <button class="modal-lead-btn secondary" id="reExtractBtn" onclick="fetchLeadForm()">↻ Re-extract</button>
-          <button class="modal-lead-btn" id="submitLeadBtn" onclick="submitLead()">Send to Bank</button>
-        </div>
-      </div>
-      <div id="leadFormBody">
-        <div style="color:var(--slate-light);font-size:12px;">Extracting lead details…</div>
-      </div>
-    </div>
-
-    <div class="modal-actions">
-      <button class="modal-primary" id="saveRecordBtn" onclick="saveRecords()">
-        💾 Save to Records
-      </button>
-      <button class="modal-ghost" onclick="closeSummary()">Close</button>
-      <button class="modal-ghost" onclick="newSession()">New Session</button>
-    </div>
-  </div>
-</div>
-
-<script>
-// ═══════════════════════════════════════════════════════════
-// CONFIG
-// ═══════════════════════════════════════════════════════════
-const API = "https://rohan667-voiceassist-ai-backend-kj.hf.space/api/conversation";
-const params = new URLSearchParams(location.search);
-const LANG    = (params.get("lang")    || sessionStorage.getItem("va_lang")    || "Hindi").trim();
-const PROCESS = (params.get("process") || sessionStorage.getItem("va_process") || "Loan enquiry").trim();
-
-const LANG_META = {
-  Hindi:   { flag:"हि", tag:"हिन्दी" },
-  Marathi: { flag:"मा", tag:"मराठी" },
-  Tamil:   { flag:"த",  tag:"தமிழ்" },
-  Telugu:  { flag:"తె", tag:"తెలుగు" },
-  English: { flag:"EN", tag:"English" },
-};
-
-// ═══════════════════════════════════════════════════════════
-// DPDP ACT 2023 — CONSENT NOTICE TEXT (per language)
-// Shown (and read aloud via TTS) to the customer in their own
-// selected language before ANY recording, transcription, or AI
-// processing happens. Functional draft text — have compliance/legal
-// review final wording before production use.
-// ═══════════════════════════════════════════════════════════
-const CONSENT_NOTICE = {
-  Hindi: "बैंक अधिकारी आपकी सहायता के लिए एक AI सहायक का उपयोग कर रहे हैं। बातचीत के दौरान आपकी आवाज़ रिकॉर्ड की जाएगी और सही जानकारी देने के लिए AI द्वारा संसाधित (process) की जाएगी। यह जानकारी केवल इस बैंकिंग सेवा के लिए उपयोग होगी और डिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम, 2023 (DPDP Act) के अनुसार सुरक्षित रखी जाएगी। आप किसी भी समय सहमति वापस ले सकते हैं। क्या आप इसके लिए सहमत हैं?",
-  Marathi: "बँक अधिकारी तुम्हाला मदत करण्यासाठी AI सहाय्यक वापरत आहेत. संभाषणादरम्यान तुमचा आवाज रेकॉर्ड केला जाईल आणि अचूक माहिती देण्यासाठी AI द्वारे प्रक्रिया केली जाईल. ही माहिती फक्त या बँकिंग सेवेसाठी वापरली जाईल आणि डिजिटल वैयक्तिक डेटा संरक्षण कायदा, 2023 (DPDP Act) नुसार सुरक्षित ठेवली जाईल. तुम्ही कधीही संमती मागे घेऊ शकता. तुम्ही याला सहमत आहात का?",
-  Tamil: "வங்கி அதிகாரிகள் உங்களுக்கு உதவ AI உதவியாளரைப் பயன்படுத்துகின்றனர். உரையாடலின் போது உங்கள் குரல் பதிவு செய்யப்பட்டு, துல்லியமான தகவலை வழங்க AI மூலம் செயலாக்கப்படும். இந்தத் தகவல் இந்த வங்கி சேவைக்கு மட்டுமே பயன்படுத்தப்படும், மேலும் டிஜிட்டல் தனிநபர் தரவுப் பாதுகாப்புச் சட்டம், 2023 (DPDP Act) படி பாதுகாக்கப்படும். நீங்கள் எந்த நேரத்திலும் உங்கள் ஒப்புதலைத் திரும்பப் பெறலாம். இதற்கு நீங்கள் ஒப்புக்கொள்கிறீர்களா?",
-  Telugu: "మిమ్మల్ని సహాయం చేయడానికి బ్యాంక్ సిబ్బంది AI అసిస్టెంట్‌ను ఉపయోగిస్తున్నారు. సంభాషణ సమయంలో మీ స్వరం రికార్డ్ చేయబడి, ఖచ్చితమైన సమాచారం అందించడానికి AI ద్వారా ప్రాసెస్ చేయబడుతుంది. ఈ సమాచారం ఈ బ్యాంకింగ్ సేవ కోసం మాత్రమే ఉపయోగించబడుతుంది మరియు డిజిటల్ పర్సనల్ డేటా ప్రొటెక్షన్ యాక్ట్, 2023 (DPDP Act) ప్రకారం రక్షించబడుతుంది. మీరు ఎప్పుడైనా మీ సమ్మతిని ఉపసంహరించుకోవచ్చు. దీనికి మీరు అంగీకరిస్తున్నారా?",
-  English: "Bank staff are using an AI assistant to help you today. During this conversation, your voice will be recorded and processed by AI to give you accurate information. This data will be used only for this banking service and protected under the Digital Personal Data Protection Act, 2023 (DPDP Act). You can withdraw your consent at any time. Do you consent to this?",
-};
-
-const CONSENT_DECLINED_NOTICE = {
-  Hindi: "ठीक है, हम आपकी आवाज़ रिकॉर्ड या प्रोसेस नहीं करेंगे। हमारा स्टाफ आपकी मदद बिना रिकॉर्डिंग के करेगा।",
-  Marathi: "ठीक आहे, आम्ही तुमचा आवाज रेकॉर्ड किंवा प्रक्रिया करणार नाही. आमचे कर्मचारी रेकॉर्डिंगशिवाय तुम्हाला मदत करतील.",
-  Tamil: "சரி, நாங்கள் உங்கள் குரலை பதிவு செய்யவோ செயலாக்கவோ மாட்டோம். எங்கள் ஊழியர்கள் பதிவு செய்யாமல் உங்களுக்கு உதவுவார்கள்.",
-  Telugu: "సరే, మేము మీ స్వరాన్ని రికార్డ్ చేయము లేదా ప్రాసెస్ చేయము. మా సిబ్బంది రికార్డింగ్ లేకుండా మీకు సహాయం చేస్తారు.",
-  English: "Understood — we will not record or process your voice. Our staff will assist you manually without recording.",
-};
-
-const STEPS = {
-  "Loan enquiry":      ["Greeting","Loan Options","Eligibility","Documents","Next Steps"],
-  "Account opening":   ["Greeting","Account Type","KYC Details","Documents","Activate"],
-  "Balance enquiry":   ["Greeting","Verify Identity","Show Balance","Done"],
-  "Credit card apply": ["Greeting","Eligibility","Card Selection","Documents","Apply"],
-  "General enquiry":   ["Greeting","Understand","Answer","Resolved"],
-};
-
-const GREETINGS = {
-  "Loan enquiry": {
-    Hindi:"नमस्ते! Union Bank of India में आपका स्वागत है। आज मैं आपकी loan के बारे में कैसे मदद कर सकता हूँ?",
-    Marathi:"नमस्कार! Union Bank of India मध्ये आपले स्वागत आहे. आज कोणत्या loan बद्दल माहिती हवी आहे?",
-    Tamil:"வணக்கம்! Union Bank of India-வில் உங்களை வரவேற்கிறோம். இன்று கடன் பற்றி உதவலாம்?",
-    Telugu:"నమస్కారం! Union Bank of India కి స్వాగతం. ఈ రోజు రుణం గురించి ఎలా సహాయపడగలను?",
-    English:"Welcome to Union Bank of India! How can I assist you with your loan enquiry today?",
-  },
-  "Account opening": {
-    Hindi:"नमस्ते! Union Bank of India में आपका स्वागत है। नया खाता खोलने के लिए आप सही जगह पर आए हैं!",
-    Marathi:"नमस्कार! Union Bank of India मध्ये आपले स्वागत आहे. नवीन खाते उघडण्यासाठी आपण योग्य ठिकाणी आलात!",
-    Tamil:"வணக்கம்! புதிய கணக்கு திறக்க சரியான இடத்திற்கு வந்துள்ளீர்கள்!",
-    Telugu:"నమస్కారం! కొత్త ఖాతా తెరవడానికి Union Bank of India లో స్వాగతం!",
-    English:"Welcome to Union Bank of India! You're in the right place to open a new bank account today.",
-  },
-  "Balance enquiry": {
-    Hindi:"नमस्ते! Union Bank of India में आपका स्वागत है। मैं आपका account balance जाँचने में मदद करूँगा।",
-    Marathi:"नमस्कार! मी तुमचे account balance तपासण्यास मदत करतो.",
-    Tamil:"வணக்கம்! உங்கள் கணக்கு இருப்பை சரிபார்க்க உதவுகிறேன்.",
-    Telugu:"నమస్కారం! మీ ఖాతా బ్యాలెన్స్ తనిఖీ చేయడంలో సహాయపడతాను.",
-    English:"Welcome to Union Bank of India! I'll help you check your account balance today.",
-  },
-  "Credit card apply": {
-    Hindi:"नमस्ते! Credit card apply करने में मैं आपकी मदद करूँगा।",
-    Marathi:"नमस्कार! Credit card साठी apply करण्यास मी मदत करतो.",
-    Tamil:"வணக்கம்! கிரெடிட் கார்டு விண்ணப்பிக்க உதவுகிறேன்.",
-    Telugu:"నమస్కారం! క్రెడిట్ కార్డు దరఖాస్తుకు సహాయపడతాను.",
-    English:"Welcome to Union Bank of India! I'll help you apply for a credit card today.",
-  },
-  "General enquiry": {
-    Hindi:"नमस्ते! Union Bank of India में आपका स्वागत है। आज मैं आपकी कैसे मदद कर सकता हूँ?",
-    Marathi:"नमस्कार! मी तुम्हाला कशी मदत करू?",
-    Tamil:"வணக்கம்! இன்று உங்களுக்கு எவ்வாறு உதவலாம்?",
-    Telugu:"నమస్కారం! ఈ రోజు మీకు ఎలా సహాయపడగలను?",
-    English:"Welcome to Union Bank of India! How can I help you today?",
-  },
-};
-
-const CHECKLISTS = {
-  "Loan enquiry": [
-    ["Customer greeted in their native language"],
-    ["Loan type confirmed (Home/Personal/Car/Education)","Interest rate and EMI explained","Tenure preference confirmed","Loan amount noted"],
-    ["Monthly income confirmed","Salaried or self-employed noted","ITR/salary slips checked","Bank statement reviewed","CIBIL score checked (min 700)","Existing EMIs noted"],
-    ["Aadhaar Card collected","PAN Card collected","Salary slips collected","Bank statement collected","Form 16/ITR collected","Property documents collected (home loan)"],
-    ["Processing fee explained (0.5%)","Application submitted to portal","Disbursement timeline explained (7–10 days)","Contact number verified"],
-  ],
-  "Account opening": [
-    ["Customer greeted in their native language"],
-    ["Account type confirmed (Savings/Current/PMJDY/FD)","Minimum balance and interest explained"],
-    ["Full name as per Aadhaar confirmed","Date of birth confirmed","Address confirmed","Mobile number confirmed","Nominee details confirmed"],
-    ["Aadhaar Card collected","PAN Card collected","2 passport photos collected","Address proof collected (< 3 months)"],
-    ["Initial deposit ₹1000 received","Account number sent via SMS","Passbook and debit card issued","Net banking/UPI set up"],
-  ],
-  "Balance enquiry": [
-    ["Customer greeted in their native language"],
-    ["Account number last 4 digits confirmed","OTP verified on registered mobile"],
-    ["Current balance shown","Last 5 transactions shown (if requested)"],
-    ["Passbook update offered","Net banking/UPI enrollment offered"],
-  ],
-  "Credit card apply": [
-    ["Customer greeted in their native language"],
-    ["Annual income confirmed (min ₹2.5L)","CIBIL score checked (min 700)","Existing cards noted","Employment type noted"],
-    ["Card type recommended","Customer selected card type"],
-    ["Aadhaar + PAN collected","Salary slips collected","ITR collected (if self-employed)","Photograph collected"],
-    ["Application submitted","Credit limit SMS timeline explained (7 days)","Card delivery timeline explained (15 working days)"],
-  ],
-  "General enquiry": [
-    ["Customer greeted in their native language"],
-    ["Query understood — clarifying questions asked if needed"],
-    ["Accurate answer provided from Union Bank knowledge base"],
-    ["Customer confirmed query resolved"],
-  ],
-};
-
-const QUICK_REPLIES = {
-  "Loan enquiry": [
-    ["How can I help you today?","Which loan type are you interested in?","Are you an existing Union Bank customer?"],
-    ["🏠 Home Loan — 8.35% p.a., up to 30 years","💳 Personal Loan — 11.40% p.a., up to ₹15 lakh","🚗 Car Loan — 8.70% p.a., up to 90% on-road","🎓 Education Loan — 9.90% p.a., up to ₹20 lakh","Preferred tenure: 5 / 10 / 15 / 20 / 30 years?","What loan amount are you looking for?"],
-    ["What is your monthly income?","Are you salaried or self-employed?","Any existing loan EMIs?","Approximate CIBIL score?","Minimum CIBIL required is 700","EMI should not exceed 50% of monthly income"],
-    ["Please bring Aadhaar Card (original + photocopy)","PAN Card original + photocopy needed","Last 3 months salary slips required","Last 6 months bank statement required","Form 16 / ITR needed","Property sale agreement required (home loan)"],
-    ["Processing fee: 0.5% of loan amount — one-time","Approval: 7–10 working days after documents","You will get an SMS once approved","Is there anything else I can help you with?"],
-  ],
-  "Account opening": [
-    ["What brings you to the branch today?","Are you looking to open a new account?"],
-    ["💰 Savings — ₹1000 min balance, 2.75% p.a.","🏢 Current — ₹5000 min, unlimited transactions","🆓 PMJDY Zero-Balance + RuPay card","📈 Fixed Deposit — up to 7.00%, 7 days–10 yrs","Which account type would you prefer?"],
-    ["Please fill KYC form","Full name as per Aadhaar?","Date of birth?","Current address?","Nominee name and relation?","Aadhaar linked to mobile for OTP?"],
-    ["Aadhaar Card original + photocopy","PAN Card original + photocopy","2 passport size photographs","Address proof < 3 months old"],
-    ["Initial deposit ₹1000 — activates in 30 minutes","Passbook and debit card issued today","Net banking and UPI set up now","Account number sent via SMS"],
-  ],
-  "Balance enquiry": [
-    ["Welcome! How can I help you today?","Would you like to check your account balance?"],
-    ["Please share account number last 4 digits","OTP sent to your registered mobile","Please confirm your registered mobile number"],
-    ["Your balance is being fetched…","Would you like last 5 transactions too?","Would you like a mini-statement printed?"],
-    ["Would you like a passbook update today?","SMS BAL to 09223008586 anytime","Download Union Bank app for 24x7 access","Is there anything else I can help you with?"],
-  ],
-  "Credit card apply": [
-    ["What kind of credit card are you looking for?","Do you already hold a Union Bank account?"],
-    ["Annual income?","Existing credit cards?","Approximate CIBIL score?","Min annual income: ₹2.5 lakh","Min CIBIL score: 700"],
-    ["Union Classic — Free, 1% cashback","Union Platinum — ₹499/yr, 2X rewards, lounge access","Union Signature — ₹2999/yr, 3X rewards, unlimited lounge","Which card would you like to apply for?"],
-    ["Aadhaar Card + PAN Card required","Last 3 months salary slips","ITR for 2 years (if self-employed)","1 passport size photograph"],
-    ["Application submitted ✓","Credit limit SMS in 7 days","Card delivery in 15 working days","Is there anything else I can help you with?"],
-  ],
-  "General enquiry": [
-    ["How can I help you today?","Which banking service do you need?"],
-    ["Could you give more details?","Let me check that — one moment","Is this for an existing account or new service?"],
-    ["Here is the information you requested","Would you like more detail?","Let me connect you to the right department"],
-    ["Is there anything else I can help you with?","Your query has been resolved","Thank you for visiting Union Bank of India"],
-  ],
-};
-
-const GUIDE_HINTS = {
-  "Loan enquiry": [
-    "Greet customer warmly in their language","Explain loan types, interest rates, and tenure options",
-    "Verify income, employment, EMIs, and CIBIL score (min 700)","Collect all required documents based on loan type",
-    "Submit application — explain processing fee and disbursement timeline",
-  ],
-  "Account opening": [
-    "Greet customer — ask what brings them to the branch","Explain account types and FD tenure options",
-    "Fill KYC form — name, DOB, address, mobile, nominee details","Collect Aadhaar, PAN, 2 photos, address proof",
-    "Collect initial deposit, activate account, issue passbook and card",
-  ],
-  "Balance enquiry": [
-    "Greet customer warmly","Verify identity — account last 4 digits + OTP",
-    "Share balance and last 5 transactions","Offer passbook update or net banking enrollment",
-  ],
-  "Credit card apply": [
-    "Greet customer — ask what kind of card they need","Check eligibility — annual income min ₹2.5L, CIBIL min 700",
-    "Recommend card based on spending lifestyle","Collect Aadhaar, PAN, salary slips, passport photo",
-    "Submit application — explain delivery timeline (15 days)",
-  ],
-  "General enquiry": [
-    "Greet customer warmly","Understand their query — ask clarifying questions if needed",
-    "Provide accurate information from Union Bank knowledge base","Confirm query resolved — offer further help",
-  ],
-};
-
-// ═══════════════════════════════════════════════════════════
-// LEAD AUTO-FILL FORM SCHEMAS
-// ═══════════════════════════════════════════════════════════
-const LEAD_FORM_FIELDS = {
-  "Loan enquiry": [
-    { key:"customer_name",   label:"Customer Name" },
-    { key:"phone",           label:"Phone Number" },
-    { key:"loan_type",       label:"Loan Type" },
-    { key:"loan_amount",     label:"Loan Amount Requested" },
-    { key:"tenure",          label:"Tenure Preference" },
-    { key:"monthly_income",  label:"Monthly Income" },
-    { key:"employment_type", label:"Employment Type" },
-    { key:"cibil_score",     label:"CIBIL Score (approx)" },
-    { key:"existing_emi",    label:"Existing EMI Obligations" },
-  ],
-  "Account opening": [
-    { key:"customer_name",   label:"Customer Name" },
-    { key:"dob",             label:"Date of Birth" },
-    { key:"phone",           label:"Phone Number" },
-    { key:"address",         label:"Address" },
-    { key:"account_type",    label:"Account Type" },
-    { key:"nominee_name",    label:"Nominee Name" },
-    { key:"nominee_relation",label:"Nominee Relation" },
-  ],
-  "Balance enquiry": [
-    { key:"customer_name",   label:"Customer Name" },
-    { key:"account_last4",   label:"Account No. (last 4)" },
-  ],
-  "Credit card apply": [
-    { key:"customer_name",   label:"Customer Name" },
-    { key:"phone",           label:"Phone Number" },
-    { key:"annual_income",   label:"Annual Income" },
-    { key:"cibil_score",     label:"CIBIL Score (approx)" },
-    { key:"card_selected",   label:"Card Selected" },
-  ],
-  "General enquiry": [
-    { key:"customer_name",   label:"Customer Name" },
-    { key:"query_summary",   label:"Query Summary" },
-  ],
-};
-
-// ═══════════════════════════════════════════════════════════
-// CLIENT-SIDE LEAD EXTRACTION FALLBACK
-// ═══════════════════════════════════════════════════════════
-const FIELD_PATTERNS = {
-  customer_name: [
-    /my name is\s+([a-z][a-z.\s]*?)(?:\s+and\b|[.,!]|$)/i,
-    /this is\s+([a-z][a-z.\s]*?)(?:\s+speaking|\s+here|[.,!]|$)/i,
-    /i am\s+([a-z][a-z.\s]*?)(?:\s+and\b|[.,!]|$)/i,
-  ],
-  dob: [
-    /(?:date of birth|dob|born on)\s*(?:is)?\s*[:\-]?\s*([0-9]{1,2}(?:st|nd|rd|th)?\s+[a-z]+\s+[0-9]{4})/i,
-    /(?:date of birth|dob|born on)\s*(?:is)?\s*[:\-]?\s*([0-9]{1,2}[\/\-][0-9]{1,2}[\/\-][0-9]{2,4})/i,
-  ],
-  phone: [
-    /(?:phone|mobile|number|contact)\D{0,15}?([6-9][0-9]{9})\b/i,
-    /\b([6-9][0-9]{9})\b/,
-  ],
-  address: [
-    /(?:my address is|i live at|address is|residing at)\s*([^.,;\n]+)/i,
-  ],
-  account_type: [
-    /\b(union junior|savings account|current account|pmjdy|fixed deposit|fd account|savings|current)\b/i,
-  ],
-  nominee_name: [
-    /nominee(?:'s)?\s*name\s*(?:is)?\s*[:\-]?\s*([a-z][a-z.\s]*?)(?:[.,]|$)/i,
-  ],
-  nominee_relation: [
-    /nominee.*?relation(?:ship)?\s*(?:is)?\s*[:\-]?\s*([a-z][a-z\s]*?)(?:[.,]|$)/i,
-    /(?:my\s+)?(son|daughter|wife|husband|spouse|father|mother|brother|sister)\s+(?:is|as)\s+(?:my\s+)?nominee/i,
-  ],
-  loan_type: [
-    /\b(home loan|personal loan|car loan|education loan|gold loan)\b/i,
-  ],
-  loan_amount: [
-    /(?:loan amount|need|want|require)\D{0,10}?(?:rs\.?|₹|inr)?\s*([0-9][0-9,]*\s*(?:lakh|lac|crore)?)/i,
-  ],
-  tenure: [
-    /(?:tenure|for|over)\s*([0-9]+\s*(?:years?|yrs?|months?))/i,
-  ],
-  monthly_income: [
-    /monthly income\D{0,10}?(?:rs\.?|₹|inr)?\s*([0-9][0-9,]*)/i,
-  ],
-  employment_type: [
-    /\b(salaried|self[\s-]?employed|business owner|government employee)\b/i,
-  ],
-  cibil_score: [
-    /cibil\D{0,10}?([0-9]{3})\b/i,
-  ],
-  existing_emi: [
-    /existing emi\D{0,10}?(?:rs\.?|₹|inr)?\s*([0-9][0-9,]*)/i,
-  ],
-  annual_income: [
-    /annual income\D{0,10}?(?:rs\.?|₹|inr)?\s*([0-9][0-9,]*)/i,
-  ],
-  card_selected: [
-    /\b(union classic|union platinum|union signature)\b/i,
-  ],
-  account_last4: [
-    /(?:account number|account no\.?|last 4 digits?)\D{0,10}?([0-9]{4})\b/i,
-  ],
-};
-
-function buildConversationText() {
-  return log.map(t => {
-    if (t.role === "customer") return t.translation || t.text || "";
-    return t.text || t.translation || "";
-  }).join(". ");
-}
-
-function titleCase(s) {
-  return s.replace(/\s+/g, " ").trim().split(" ").map(w =>
-    w.length ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w
-  ).join(" ");
-}
-
-function clientSideExtractLead(fields) {
-  const text = buildConversationText();
-  const result = {};
-  fields.forEach(f => {
-    const patterns = FIELD_PATTERNS[f.key];
-    if (!patterns) return;
-    for (const re of patterns) {
-      const m = text.match(re);
-      if (m && m[1] && m[1].trim()) {
-        let val = m[1].trim().replace(/\s{2,}/g, " ");
-        if (f.key === "customer_name" || f.key === "nominee_name") val = titleCase(val);
-        result[f.key] = val;
-        break;
-      }
-    }
-  });
-  return result;
-}
-
-// ═══════════════════════════════════════════════════════════
-// STATE
-// ═══════════════════════════════════════════════════════════
-let log = [], sessionStart = Date.now(), timerID = null;
-let stepIdx = 0;
-let isRecording = false, mediaRecorder = null, audioChunks = [];
-let staffRecording = false, staffRecorder = null, staffChunks = [];
-let checkState = {};
-
-// DPDP consent state
-let consentGiven = false;
-let consentDeclined = false;
-let consentTimestamp = null;
-
-// ═══════════════════════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════════════════════
-document.addEventListener("DOMContentLoaded", () => {
-  initUI();
-  startTimer();
-  bindEvents();
-  setTimeout(showConsentGate, 400);
-});
-
-function cleanModelText(raw) {
-  if (raw === null || raw === undefined) return raw;
-  let t = String(raw).trim();
-  if (!t) return t;
-  const looksJsonWrapped =
-    t.includes("```") ||
-    /"english_translation"|"customer_text"|"translated_text"|"text"\s*:/.test(t) ||
-    (t.includes("{") && t.includes("}"));
-  if (!looksJsonWrapped) return t;
-  let stripped = t.replace(/^[^{]*?```(?:json)?/is, "").replace(/```[^]*$/i, "").trim();
-  if (!stripped.startsWith("{")) {
-    const start = t.indexOf("{"), end = t.lastIndexOf("}");
-    if (start !== -1 && end !== -1 && end > start) stripped = t.slice(start, end + 1);
-  }
-  if (!stripped.startsWith("{")) return t;
-  try {
-    const obj = JSON.parse(stripped);
-    return obj.english_translation ?? obj.customer_text ?? obj.translated_text ?? obj.text ?? t;
-  } catch (e) {
-    console.warn("[cleanModelText] failed to parse model JSON, showing raw text:", e);
-    return t;
-  }
-}
-
-function initUI() {
-  const meta = LANG_META[LANG] || LANG_META.Hindi;
-  document.getElementById("langFlag").textContent = meta.flag;
-  document.getElementById("langName").textContent = LANG;
-  document.getElementById("custLangTag").textContent = meta.tag;
-  document.getElementById("intentText").textContent = PROCESS;
-  document.getElementById("regLabel").textContent = `${LANG} Summary`;
-  document.getElementById("custEmptyTxt").textContent = `Customer consent required before recording (DPDP Act, 2023)`;
-  buildProgressBar();
-  updateStepUI();
-}
-
-function buildProgressBar() {
-  const steps = STEPS[PROCESS] || STEPS["General enquiry"];
-  const bar = document.getElementById("progressBar");
-  bar.innerHTML = "";
-  steps.forEach((name, i) => {
-    const item = document.createElement("div");
-    item.className = "step-item" + (i === 0 ? " active" : "");
-    item.id = `step-${i}`;
-    item.innerHTML = `<div class="step-dot"><span class="step-num-txt">${i+1}</span></div><span>${name}</span>`;
-    bar.appendChild(item);
-    if (i < steps.length - 1) {
-      const conn = document.createElement("div");
-      conn.className = "step-connector";
-      conn.id = `conn-${i}`;
-      bar.appendChild(conn);
-    }
-  });
-}
-
-function updateProgressBar() {
-  const steps = STEPS[PROCESS] || STEPS["General enquiry"];
-  steps.forEach((_, i) => {
-    const el = document.getElementById(`step-${i}`);
-    if (!el) return;
-    el.className = "step-item" + (i < stepIdx ? " done" : i === stepIdx ? " active" : "");
-    const conn = document.getElementById(`conn-${i}`);
-    if (conn) conn.className = "step-connector" + (i < stepIdx ? " done" : "");
-  });
-}
-
-function updateStepUI() {
-  const steps = STEPS[PROCESS] || STEPS["General enquiry"];
-  document.getElementById("stepIndicator").textContent = `Step ${stepIdx+1} of ${steps.length}: ${steps[stepIdx]||""}`;
-  document.getElementById("backBtn").disabled = stepIdx <= 0;
-  const atEnd = stepIdx >= steps.length - 1;
-  document.getElementById("nextBtn").textContent = atEnd ? "Finish & Summarise ✓" : "Next ✓";
-  document.getElementById("nextBtn").disabled = false;
-  const hints = GUIDE_HINTS[PROCESS] || GUIDE_HINTS["General enquiry"];
-  document.getElementById("guideText").textContent = hints[Math.min(stepIdx, hints.length-1)] || "";
-  updateProgressBar();
-  renderChecklist();
-  renderQuickReplies();
-}
-
-// ═══════════════════════════════════════════════════════════
-// DPDP ACT 2023 — CONSENT GATE
-// Blocks the customer mic, staff input/mic/send, and step nav
-// until staff confirms the customer has explicitly consented (in
-// their own language) to having their voice recorded and processed
-// by AI. A decline path halts the session without recording.
-// ═══════════════════════════════════════════════════════════
-function setControlsLocked(locked) {
-  const ids = ["custMic", "staffInput", "staffMic", "staffSend"];
-  ids.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.disabled = locked;
-  });
-  setCustStatus("", locked ? "Awaiting consent" : "Ready");
-  setStaffStatus("", locked ? "Awaiting consent" : "Ready");
-  if (locked) {
-    const hint = document.getElementById("custMicHint");
-    if (hint) hint.textContent = "Awaiting consent before recording";
-  } else {
-    const hint = document.getElementById("custMicHint");
-    if (hint) hint.textContent = "Tap to record customer";
-  }
-}
-
-function showConsentGate() {
-  document.getElementById("consentOverlay")?.remove();
-  setControlsLocked(true);
-
-  const meta = LANG_META[LANG] || LANG_META.Hindi;
-  const noticeText = CONSENT_NOTICE[LANG] || CONSENT_NOTICE.English;
-
-  const overlay = document.createElement("div");
-  overlay.id = "consentOverlay";
-  overlay.className = "consent-overlay";
-  overlay.innerHTML = `
-    <div class="consent-card">
-      <div class="consent-title-row">
-        <span style="font-size:18px;">🔐</span>
-        <div class="consent-title">Consent Required — DPDP Act, 2023</div>
-      </div>
-      <div class="consent-sub">Read or play this notice to the customer in <strong>${esc(meta.tag || LANG)}</strong> before recording anything.</div>
-      <div class="consent-notice-box">${esc(noticeText)}</div>
-      <button class="consent-play-btn" id="consentPlayBtn">🔊 Play notice to customer (${esc(LANG)})</button>
-      <div class="consent-hint">Only confirm consent below after the customer has clearly said yes in their own words.</div>
-      <div class="consent-actions">
-        <button class="consent-decline" id="consentDeclineBtn">❌ Customer Declined</button>
-        <button class="consent-accept" id="consentAcceptBtn">✅ Customer Consented — Begin</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-
-  document.getElementById("consentPlayBtn").addEventListener("click", () => browserSpeak(noticeText, LANG));
-  document.getElementById("consentAcceptBtn").addEventListener("click", onConsentAccepted);
-  document.getElementById("consentDeclineBtn").addEventListener("click", onConsentDeclined);
-}
-
-function onConsentAccepted() {
-  consentGiven = true;
-  consentDeclined = false;
-  consentTimestamp = new Date().toISOString();
-  document.getElementById("consentOverlay")?.remove();
-
-  log.push({
-    role: "system",
-    text: `[DPDP consent obtained — ${LANG} — ${consentTimestamp}]`,
-    translation: `[DPDP consent obtained — ${LANG} — ${consentTimestamp}]`,
-  });
-
-  setControlsLocked(false);
-  showToast("✓ Consent recorded — session unlocked");
-  autoGreet();
-}
-
-function onConsentDeclined() {
-  consentGiven = false;
-  consentDeclined = true;
-  document.getElementById("consentOverlay")?.remove();
-
-  const declineText = CONSENT_DECLINED_NOTICE[LANG] || CONSENT_DECLINED_NOTICE.English;
-  browserSpeak(declineText, LANG);
-
-  setControlsLocked(true);
-  setCustStatus("", "Consent declined");
-  setStaffStatus("", "Consent declined");
-  showToast("Customer declined — no recording or AI processing will occur", true);
-
-  const transcript = document.getElementById("custTranscript");
-  if (transcript) {
-    const note = document.createElement("div");
-    note.className = "consent-declined-note";
-    note.textContent = "Customer declined consent under the DPDP Act, 2023. Please assist manually without recording.";
-    transcript.appendChild(note);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-// AUTO GREETING
-// ═══════════════════════════════════════════════════════════
-async function autoGreet() {
-  if (!consentGiven) { showConsentGate(); return; }
-  const greetMap = GREETINGS[PROCESS] || GREETINGS["General enquiry"];
-  const greetText = greetMap[LANG] || greetMap.English;
-  hideEl("staffEmpty");
-  const wrap = document.createElement("div");
-  wrap.className = "staff-wrap";
-  wrap.innerHTML = `
-    <div class="bubble-staff greeting">
-      <span class="bubble-staff-label">👋 Auto Greeting</span>
-      ${esc(greetText)}
-    </div>
-    <div class="bubble-staff-meta"><span>${fmtTime()}</span><span class="eng-tag">auto</span></div>`;
-  document.getElementById("staffTranscript").appendChild(wrap);
-  scrollT("staffTranscript");
-  try {
-    const form = new FormData();
-    form.append("staff_text", greetText);
-    form.append("target_language", LANG);
-    const res = await fetch(`${API}/staff-reply`, {method:"POST", body:form});
-    const data = await res.json();
-    if (data.audio_b64) playAudio(data.audio_b64);
-    else browserSpeak(greetText, LANG);
-  } catch { browserSpeak(greetText, LANG); }
-  log.push({role:"staff", text:greetText, translation:greetText});
-  showToast("Greeting sent in " + LANG);
-}
-
-// ═══════════════════════════════════════════════════════════
-// CHECKLIST
-// ═══════════════════════════════════════════════════════════
-function renderChecklist() {
-  document.getElementById("checklistBar")?.remove();
-  const all = CHECKLISTS[PROCESS] || CHECKLISTS["General enquiry"];
-  const items = all[Math.min(stepIdx, all.length-1)] || [];
-  if (!items.length) return;
-  if (!checkState[stepIdx]) checkState[stepIdx] = new Set();
-  const checked = checkState[stepIdx];
-  const steps = STEPS[PROCESS] || [];
-  const bar = document.createElement("div");
-  bar.className = "checklist-bar";
-  bar.id = "checklistBar";
-  bar.innerHTML = `<div class="checklist-header">
-    <span class="checklist-title">📋 Checklist — ${esc(steps[stepIdx]||"")}</span>
-    <span class="checklist-prog" id="clProg">${checked.size}/${items.length}</span>
-  </div><div class="checklist-items" id="clItems"></div>`;
-  document.querySelector(".step-controls").after(bar);
-  const container = document.getElementById("clItems");
-  items.forEach((label, i) => {
-    const row = document.createElement("label");
-    row.className = "checklist-item" + (checked.has(i) ? " checked" : "");
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.checked = checked.has(i);
-    cb.addEventListener("change", () => {
-      if (cb.checked) checked.add(i); else checked.delete(i);
-      row.className = "checklist-item" + (cb.checked ? " checked" : "");
-      document.getElementById("clProg").textContent = `${checked.size}/${items.length}`;
-    });
-    const span = document.createElement("span");
-    span.textContent = label;
-    row.appendChild(cb);
-    row.appendChild(span);
-    container.appendChild(row);
-  });
-}
-
-// ═══════════════════════════════════════════════════════════
-// QUICK REPLIES
-// ═══════════════════════════════════════════════════════════
-function renderQuickReplies(pills, label) {
-  document.getElementById("qrBar")?.remove();
-  const all = pills || (QUICK_REPLIES[PROCESS] || QUICK_REPLIES["General enquiry"])[Math.min(stepIdx, (QUICK_REPLIES[PROCESS]||[]).length-1)] || [];
-  if (!all.length) return;
-  const bar = document.createElement("div");
-  bar.className = "qr-bar"; bar.id = "qrBar";
-  bar.innerHTML = `<div class="qr-label">${label || "⚡ Quick replies — tap to send instantly"}</div><div class="qr-pills" id="qrPills"></div>`;
-  const cl = document.getElementById("checklistBar");
-  if (cl) cl.after(bar); else document.querySelector(".step-controls").after(bar);
-  all.forEach(txt => {
-    const btn = document.createElement("button");
-    btn.className = "qr-pill"; btn.textContent = txt;
-    btn.onclick = () => { document.getElementById("staffInput").value = txt; sendStaff(); };
-    document.getElementById("qrPills").appendChild(btn);
-  });
-}
-
-// ═══════════════════════════════════════════════════════════
-// STEP NAV
-// ═══════════════════════════════════════════════════════════
-function nextStep() {
-  if (!consentGiven) { showToast("Customer consent is required first (DPDP Act, 2023)", true); showConsentGate(); return; }
-  const steps = STEPS[PROCESS] || [];
-  const atEnd = stepIdx >= steps.length - 1;
-  if (atEnd) {
-    endSession();
-    return;
-  }
-  stepIdx++;
-  updateStepUI();
-  showToast(`✓ Moved to: ${steps[stepIdx]}`);
-}
-function backStep() {
-  if (stepIdx <= 0) return;
-  stepIdx--;
-  const steps = STEPS[PROCESS] || [];
-  updateStepUI();
-  showToast(`← Back to: ${steps[stepIdx]}`);
-}
-
-// ═══════════════════════════════════════════════════════════
-// CUSTOMER RECORDING
-// ═══════════════════════════════════════════════════════════
-async function toggleCustMic() {
-  if (!consentGiven) { showToast("Customer consent is required before recording (DPDP Act, 2023)", true); showConsentGate(); return; }
-  if (isRecording) stopCustRec(); else await startCustRec();
-}
-async function startCustRec() {
-  if (!consentGiven) { showToast("Customer consent is required before recording (DPDP Act, 2023)", true); showConsentGate(); return; }
-  let stream;
-  try { stream = await navigator.mediaDevices.getUserMedia({audio:true}); }
-  catch(e) { showToast(e.name==="NotAllowedError"?"Mic permission denied":"Mic error: "+e.message, true); return; }
-  const mime = getMime();
-  mediaRecorder = new MediaRecorder(stream, mime?{mimeType:mime}:{});
-  audioChunks = [];
-  mediaRecorder.ondataavailable = e => { if(e.data.size>0) audioChunks.push(e.data); };
-  mediaRecorder.onstop = processCustAudio;
-  mediaRecorder.start(100);
-  isRecording = true;
-  document.getElementById("custMic").classList.add("recording");
-  const hint = document.getElementById("custMicHint");
-  hint.textContent = "Recording… Tap to stop"; hint.classList.add("recording");
-  setCustStatus("listening","Listening…");
-  hideEl("custEmpty");
-  addWaveform();
-  document.getElementById("qrBar")?.remove();
-}
-function stopCustRec() {
-  if (mediaRecorder?.state!=="inactive"){mediaRecorder.stop();mediaRecorder.stream.getTracks().forEach(t=>t.stop());}
-  isRecording=false;
-  document.getElementById("custMic").classList.remove("recording");
-  const hint=document.getElementById("custMicHint");
-  hint.textContent="Tap to record customer";hint.classList.remove("recording");
-  setCustStatus("processing","Processing…");
-}
-async function processCustAudio() {
-  document.getElementById("custWaveform")?.remove();
-  showEl("custProcessing");
-  try {
-    const mime=getMime();
-    const blob=new Blob(audioChunks,{type:mime||"audio/webm"});
-    const wav=await toWav(blob);
-    const form=new FormData();
-    form.append("audio",wav,"customer.wav");
-    form.append("language",LANG);
-    form.append("process_type",PROCESS);
-    const res=await fetch(`${API}/customer-speak`,{method:"POST",body:form});
-    const data=await res.json();
-    hideEl("custProcessing");
-
-    const cleanCustomerText = cleanModelText(data.customer_text);
-    const cleanTranslation  = cleanModelText(data.english_translation);
-    const cleanIntent       = cleanModelText(data.intent);
-
-    if(data.success && cleanCustomerText){
-      addCustBubble(cleanCustomerText, cleanTranslation, data.stt_engine, cleanIntent);
-      log.push({role:"customer",text:cleanCustomerText,translation:cleanTranslation});
-      if(cleanIntent && cleanIntent!=="General enquiry") document.getElementById("intentText").textContent=cleanIntent;
-      setCustStatus("done","Transcribed");
-      fetchSmartReplies();
-    } else {
-      showToast(data.error||"Could not transcribe. Try again.",true);
-      setCustStatus("","Ready");
-      renderQuickReplies();
-    }
-  } catch {
-    hideEl("custProcessing");
-    showToast("Backend error — is port 8000 running?",true);
-    setCustStatus("","Ready");
-    renderQuickReplies();
-  }
-}
-async function fetchSmartReplies() {
-  try {
-    const res=await fetch(`${API}/smart-replies`,{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({conversation:log.slice(-6),process_type:PROCESS,step_index:stepIdx,customer_language:LANG})});
-    const data=await res.json();
-    if(data.success&&data.replies?.length){
-      renderQuickReplies(data.replies.map(cleanModelText),"⚡ Smart replies");
-      return;
-    }
-  } catch {}
-  renderQuickReplies();
-}
-
-// ═══════════════════════════════════════════════════════════
-// STAFF SEND
-// ═══════════════════════════════════════════════════════════
-async function sendStaff() {
-  if (!consentGiven) { showToast("Customer consent is required first (DPDP Act, 2023)", true); showConsentGate(); return; }
-  const input=document.getElementById("staffInput");
-  const text=input.value.trim();
-  if(!text) return;
-  const sendBtn=document.getElementById("staffSend");
-  sendBtn.disabled=true;sendBtn.classList.add("loading");
-  showEl("staffProcessing");hideEl("staffEmpty");
-  try {
-    const form=new FormData();
-    form.append("staff_text",text);
-    form.append("target_language",LANG);
-    const res=await fetch(`${API}/staff-reply`,{method:"POST",body:form});
-    const data=await res.json();
-    hideEl("staffProcessing");
-    sendBtn.disabled=false;sendBtn.classList.remove("loading");
-    if(data.success){
-      const cleanTranslated = cleanModelText(data.translated_text);
-      addStaffBubble(text,cleanTranslated,data.tts_engine);
-      if(data.audio_b64) playAudio(data.audio_b64);
-      else browserSpeak(cleanTranslated,LANG);
-      log.push({role:"staff",text,translation:cleanTranslated});
-      input.value="";input.style.height="auto";
-      setStaffStatus("done","Sent");
-      setTimeout(()=>setStaffStatus("","Ready"),2000);
-    } else showToast(data.error||"Translation failed",true);
-  } catch {
-    hideEl("staffProcessing");
-    sendBtn.disabled=false;sendBtn.classList.remove("loading");
-    showToast("Backend error — is port 8000 running?",true);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-// STAFF MIC
-// ═══════════════════════════════════════════════════════════
-async function toggleStaffMic() {
-  if (!consentGiven) { showToast("Customer consent is required first (DPDP Act, 2023)", true); showConsentGate(); return; }
-  const btn=document.getElementById("staffMic");
-  if(staffRecording){
-    if(staffRecorder?.state!=="inactive"){staffRecorder.stop();staffRecorder.stream.getTracks().forEach(t=>t.stop());}
-    staffRecording=false;btn.classList.remove("recording");
-  } else {
-    try {
-      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-      const mime=getMime();
-      staffRecorder=new MediaRecorder(stream,mime?{mimeType:mime}:{});
-      staffChunks=[];
-      staffRecorder.ondataavailable=e=>{if(e.data.size>0)staffChunks.push(e.data);};
-      staffRecorder.onstop=async()=>{
-        btn.classList.remove("recording");staffRecording=false;
-        const blob=new Blob(staffChunks,{type:mime||"audio/webm"});
-        const wav=await toWav(blob);
-        const form=new FormData();form.append("audio",wav,"staff.wav");
-        try{
-          const res=await fetch(`${API}/staff-speak`,{method:"POST",body:form});
-          const d=await res.json();
-          if(d.success&&d.text) document.getElementById("staffInput").value=cleanModelText(d.text);
-        } catch{showToast("Staff mic failed",true);}
-      };
-      staffRecorder.start(100);staffRecording=true;btn.classList.add("recording");
-    } catch{showToast("Mic denied",true);}
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-// LEAD AUTO-FILL
-// ═══════════════════════════════════════════════════════════
-let lastLeadSources = {}; // key -> "backend" | "fallback" | "manual"
-
-async function fetchLeadForm() {
-  const fields = LEAD_FORM_FIELDS[PROCESS] || LEAD_FORM_FIELDS["General enquiry"];
-  const container = document.getElementById("leadFormBody");
-  if (container) container.innerHTML = `<div style="color:var(--slate-light);font-size:12px;">Extracting lead details…</div>`;
-
-  let backendLead = {};
-  let backendOk = false;
-
-  try {
-    const res = await fetch(`${API}/extract-lead`, {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({
-        conversation: log.map(t => ({role:t.role, text:t.text, translation:t.translation})),
-        process_type: PROCESS,
-        fields: fields.map(f => f.key),
-      })
-    });
-    const data = await res.json();
-    if (data.success && data.lead) {
-      backendLead = data.lead;
-      backendOk = true;
-    }
-  } catch (e) {
-    console.warn("[fetchLeadForm] backend extraction failed, using local fallback:", e);
-  }
-
-  const fallbackLead = clientSideExtractLead(fields);
-
-  const merged = {};
-  lastLeadSources = {};
-  fields.forEach(f => {
-    const raw = backendLead[f.key];
-    const bVal = (raw === undefined || raw === null) ? "" : String(raw).trim();
-    if (bVal) {
-      merged[f.key] = bVal;
-      lastLeadSources[f.key] = "backend";
-    } else if (fallbackLead[f.key]) {
-      merged[f.key] = fallbackLead[f.key];
-      lastLeadSources[f.key] = "fallback";
-    } else {
-      merged[f.key] = "";
-      lastLeadSources[f.key] = "";
-    }
-  });
-
-  renderLeadForm(fields, merged);
-
-  const filledCount = Object.values(merged).filter(v => v).length;
-  if (filledCount === 0) {
-    showToast("Could not auto-extract — fill manually", true);
-  } else if (!backendOk) {
-    showToast(`Filled ${filledCount}/${fields.length} fields from conversation (backend unavailable)`);
-  } else {
-    showToast(`Filled ${filledCount}/${fields.length} fields`);
-  }
-}
-
-function renderLeadForm(fields, leadData) {
-  const container = document.getElementById("leadFormBody");
-  if (!container) return;
-  container.innerHTML = "";
-  fields.forEach(f => {
-    const raw = leadData[f.key];
-    const value = (raw === undefined || raw === null) ? "" : cleanModelText(String(raw));
-    const src = lastLeadSources[f.key];
-    const row = document.createElement("div");
-    row.className = "lead-field";
-    row.innerHTML = `
-      <label>${esc(f.label)}${src === "fallback" ? '<span class="src-tag">auto from chat</span>' : ""}</label>
-      <input type="text" data-field="${esc(f.key)}" value="${esc(value)}"
-        class="${value ? "auto-filled" : ""}"
-        placeholder="${value ? "" : "Not captured — enter manually"}" />`;
-    container.appendChild(row);
-  });
-}
-
-async function submitLead() {
-  const inputs = document.querySelectorAll("#leadFormBody input[data-field]");
-  if (!inputs.length) { showToast("No lead form to submit", true); return; }
-
-  const lead = {};
-  inputs.forEach(inp => { lead[inp.dataset.field] = inp.value.trim(); });
-
-  const btn = document.getElementById("submitLeadBtn");
-  if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
-
-  try {
-    const res = await fetch(`${API}/submit-lead`, {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({
-        process_type: PROCESS,
-        customer_language: LANG,
-        lead,
-        session_duration: document.getElementById("timerDisplay")?.textContent || "",
-        consent_given: consentGiven,
-        consent_timestamp: consentTimestamp,
-        consent_language: LANG,
-      })
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast("Lead sent to bank ✓");
-      if (btn) btn.textContent = "Sent ✓";
-    } else {
-      showToast(data.error || "Submit failed", true);
-      if (btn) { btn.disabled = false; btn.textContent = "Send to Bank"; }
-    }
-  } catch (e) {
-    showToast("Network error sending lead", true);
-    if (btn) { btn.disabled = false; btn.textContent = "Send to Bank"; }
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-// SESSION END / SUMMARY
-// ═══════════════════════════════════════════════════════════
-function endSession() {
-  if(!log.length){showToast("No conversation yet",true);return;}
-  clearInterval(timerID);
-  document.getElementById("summaryModal").classList.add("show");
-  document.getElementById("engSum").textContent = "Generating…";
-  document.getElementById("regSum").textContent = "Translating…";
-  document.getElementById("summaryMeta").textContent =
-    `${LANG} · ${PROCESS} · ${document.getElementById("timerDisplay").textContent}`;
-  const duration = document.getElementById("timerDisplay").textContent;
-  fetchSummary(duration);
-  fetchLeadForm();
-}
-
-async function fetchSummary(duration) {
-  try {
-    const res=await fetch(`${API}/summary`,{
-      method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({conversation:log.map(t=>({role:t.role,text:t.text})),customer_language:LANG,process_type:PROCESS})
-    });
-    const data=await res.json();
-    if(data.success){
-      const cleanEnglish = cleanModelText(data.english_summary);
-      const cleanRegional = cleanModelText(data.regional_summary);
-      const engText = cleanEnglish + (data.action_items?.length?"\n\nACTION ITEMS:\n"+data.action_items.map(a=>`• ${cleanModelText(a)}`).join("\n"):"");
-      document.getElementById("engSum").textContent=engText;
-      document.getElementById("regSum").textContent=cleanRegional;
-    } else {
-      document.getElementById("engSum").textContent="Error: "+(data.error||"");
-    }
-  } catch {
-    document.getElementById("engSum").textContent="Network error.";
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-// SAVE TO RECORDS → hands off to lead-form.html via sessionStorage,
-// now also carrying the DPDP consent record.
-// ═══════════════════════════════════════════════════════════
-function saveRecords() {
-  const duration = document.getElementById("timerDisplay")?.textContent || "";
-
-  try {
-    const sessionRecord = {
-      id: "session_" + Date.now(),
-      timestamp: new Date().toISOString(),
-      language: LANG,
-      process: PROCESS,
-      duration: duration,
-      englishSummary: document.getElementById("engSum").textContent,
-      regionalSummary: document.getElementById("regSum").textContent,
-      conversationLog: log,
-      consentGiven: consentGiven,
-      consentTimestamp: consentTimestamp,
-    };
-    let sessions = [];
-    try { sessions = JSON.parse(localStorage.getItem("va_sessions") || "[]"); } catch(e) { sessions = []; }
-    sessions.unshift(sessionRecord);
-    if (sessions.length > 50) sessions = sessions.slice(0, 50);
-    localStorage.setItem("va_sessions", JSON.stringify(sessions));
-  } catch (e) { console.warn("[saveRecords] local history save failed:", e); }
-
-  sessionStorage.setItem("va_lead_conversation", JSON.stringify(log));
-  sessionStorage.setItem("va_lead_process", PROCESS);
-  sessionStorage.setItem("va_lead_language", LANG);
-  sessionStorage.setItem("va_lead_duration", duration);
-  sessionStorage.setItem("va_lead_consent_given", JSON.stringify(consentGiven));
-  sessionStorage.setItem("va_lead_consent_timestamp", consentTimestamp || "");
-
-  const saveBtn = document.getElementById("saveRecordBtn");
-  saveBtn.textContent = "✓ Saved!";
-  saveBtn.disabled = true;
-  document.getElementById("saveBanner").classList.add("show");
-  showToast("Saved — opening lead form ✓");
-
-  setTimeout(() => { window.location.href = "lead-form.html"; }, 900);
-}
-
-function closeSummary() { document.getElementById("summaryModal").classList.remove("show"); startTimer(); }
-function newSession()   { location.href="dashboard.html"; }
-
-// ═══════════════════════════════════════════════════════════
-// BUBBLE BUILDERS
-// ═══════════════════════════════════════════════════════════
-function addCustBubble(orig,trans,engine,intent){
-  hideEl("custEmpty");
-  const wrap=document.createElement("div");
-  wrap.className="bubble-customer";
-  wrap.innerHTML=`<div class="bubble-orig">${esc(orig)}</div>
-    ${trans?`<div class="bubble-trans">🌐 ${esc(trans)}</div>`:""}
-    <div class="bubble-meta"><span>${fmtTime()}</span><span class="eng-tag">${engine||"stt"}</span>${intent?`<span class="eng-tag">${esc(intent)}</span>`:""}</div>`;
-  document.getElementById("custTranscript").appendChild(wrap);
-  scrollT("custTranscript");
-}
-function addStaffBubble(orig,trans,engine){
-  hideEl("staffEmpty");
-  const wrap=document.createElement("div");
-  wrap.className="staff-wrap";
-  wrap.innerHTML=`<div class="bubble-staff">${esc(orig)}</div>
-    ${trans?`<div class="bubble-staff-trans">→ ${esc(trans)}</div>`:""}
-    <div class="bubble-staff-meta"><span>${fmtTime()}</span><span class="eng-tag">${engine||"llm"}</span></div>`;
-  document.getElementById("staffTranscript").appendChild(wrap);
-  scrollT("staffTranscript");
-}
-function addWaveform(){
-  const d=document.createElement("div");
-  d.className="waveform show";d.id="custWaveform";
-  d.innerHTML="<span></span><span></span><span></span><span></span><span></span>";
-  document.getElementById("custTranscript").appendChild(d);
-  scrollT("custTranscript");
-}
-
-// ═══════════════════════════════════════════════════════════
-// HELPERS
-// ═══════════════════════════════════════════════════════════
-function bindEvents(){
-  document.getElementById("custMic").addEventListener("click",toggleCustMic);
-  document.getElementById("staffSend").addEventListener("click",sendStaff);
-  document.getElementById("staffMic").addEventListener("click",toggleStaffMic);
-  document.getElementById("endBtn").addEventListener("click",endSession);
-  document.getElementById("nextBtn").addEventListener("click",nextStep);
-  document.getElementById("backBtn").addEventListener("click",backStep);
-  const inp=document.getElementById("staffInput");
-  inp.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendStaff();}});
-  inp.addEventListener("input",()=>{inp.style.height="auto";inp.style.height=Math.min(inp.scrollHeight,110)+"px";});
-}
-function startTimer(){
-  timerID=setInterval(()=>{
-    const e=Math.floor((Date.now()-sessionStart)/1000);
-    document.getElementById("timerDisplay").textContent=
-      `${String(Math.floor(e/60)).padStart(2,"0")}:${String(e%60).padStart(2,"0")}`;
-  },1000);
-}
-function setCustStatus(state,txt){
-  document.getElementById("custDot").className="status-dot"+(state?" "+state:"");
-  document.getElementById("custStatusTxt").textContent=txt;
-}
-function setStaffStatus(state,txt){
-  document.getElementById("staffDot").className="status-dot"+(state?" "+state:"");
-  document.getElementById("staffStatusTxt").textContent=txt;
-}
-function hideEl(id){const e=document.getElementById(id);if(e)e.style.display="none";}
-function showEl(id){const e=document.getElementById(id);if(e)e.classList.add("show");}
-function scrollT(id){const e=document.getElementById(id);if(e)e.scrollTop=99999;}
-function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
-function fmtTime(){return new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit",hour12:true});}
-function showToast(msg,isErr=false){
-  const t=document.getElementById("toast");
-  document.getElementById("toastTxt").textContent=msg;
-  t.className="toast"+(isErr?" err":"");
-  t.classList.add("show");
-  setTimeout(()=>t.classList.remove("show"),3000);
-}
-function browserSpeak(text,lang){
-  if(!text||!("speechSynthesis" in window))return;
-  const locale={Hindi:"hi-IN",Marathi:"mr-IN",Tamil:"ta-IN",Telugu:"te-IN",English:"en-IN"}[lang]||"en-IN";
-  const utter=new SpeechSynthesisUtterance(text);
-  utter.lang=locale;utter.rate=0.95;
-  const go=()=>{
-    const voices=speechSynthesis.getVoices();
-    const v=voices.find(v=>v.lang===locale)||voices.find(v=>v.lang?.startsWith(locale.split("-")[0]));
-    if(v)utter.voice=v;
-    speechSynthesis.cancel();speechSynthesis.speak(utter);
-  };
-  speechSynthesis.getVoices().length>0?go():(speechSynthesis.onvoiceschanged=go,setTimeout(go,500));
-}
-function playAudio(b64){
-  const p=document.getElementById("audioPlayer");
-  p.src=`data:audio/wav;base64,${b64}`;
-  p.play().catch(()=>{p.src=`data:audio/mpeg;base64,${b64}`;p.play().catch(()=>{});});
-}
-function getMime(){
-  for(const t of["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/mp4"])
-    if(typeof MediaRecorder!=="undefined"&&MediaRecorder.isTypeSupported(t))return t;
-  return "";
-}
-async function toWav(blob){
-  try{
-    const ab=await blob.arrayBuffer();
-    const ctx=new AudioContext({sampleRate:16000});
-    const dec=await ctx.decodeAudioData(ab);
-    const s=dec.getChannelData(0),n=s.length;
-    const buf=new ArrayBuffer(44+n*2),v=new DataView(buf);
-    const ws=(o,str)=>{for(let i=0;i<str.length;i++)v.setUint8(o+i,str.charCodeAt(i));};
-    ws(0,"RIFF");v.setUint32(4,36+n*2,true);ws(8,"WAVE");
-    ws(12,"fmt ");v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
-    v.setUint32(24,16000,true);v.setUint32(28,32000,true);v.setUint16(32,2,true);v.setUint16(34,16,true);
-    ws(36,"data");v.setUint32(40,n*2,true);
-    let off=44;for(let i=0;i<n;i++,off+=2){const x=Math.max(-1,Math.min(1,s[i]));v.setInt16(off,x<0?x*0x8000:x*0x7FFF,true);}
-    await ctx.close();return new Blob([buf],{type:"audio/wav"});
-  }catch{return blob;}
-}
-</script>
+<script src="../js/dashboard.js"></script>
 </body>
 </html>
