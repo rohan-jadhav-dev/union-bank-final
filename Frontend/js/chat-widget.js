@@ -7,7 +7,7 @@
   "use strict";
 
   // ── Constants (same as conversation-desk.js) ────────────────────────────
-  const API_BASE = "http://localhost:8000/api/conversation";
+  const API_BASE = "https://rohan667-voiceassist-ai-backend-kj.hf.space/api/conversation";
 
   const LANG_META = {
     Hindi: { flag: "हि", tag: "हिन्दी" },
