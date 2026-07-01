@@ -1,5 +1,13 @@
-
 // dashboard.js — VoiceAssist AI (merged: new UI + old logic)
+// ─────────────────────────────────────────────────────────────────────────
+// CHANGE (this version): "Begin Conversation" no longer navigates to
+// conversation-desk.html. It now opens the floating Conversation Desk
+// widget (window.chatWidget from chat-widget.js) directly on the
+// dashboard, using the SAME startSession()/open() logic the widget already
+// has — so all STT/translate/TTS/checklist/steps/quick-replies/summary/
+// lead-gen functionality is 100% unchanged, just launched inline instead
+// of via a new page. Everything else in this file is untouched.
+// ─────────────────────────────────────────────────────────────────────────
 
 // ── LIVE CLOCK ────────────────────────────────────────────────────────────────
 function updateClock() {
@@ -18,7 +26,10 @@ const sectionTitles = {
   account: 'Account Lookup',
   "lead-generation": 'Lead Generation',
   history: 'Session History',
-  summary: 'Bilingual Summary'
+  summary: 'Bilingual Summary',
+  "open-account": 'Open New Account',
+  "credit-card": 'Apply for Credit Card',
+  "cash-transaction": 'Deposit / Withdraw'
 };
 
 function navigate(sectionId) {
@@ -33,6 +44,7 @@ function navigate(sectionId) {
   if (sectionId === 'summary')  loadBilingualSummary();
   if (sectionId === 'overview') loadOverviewStats();
   if (sectionId === 'lead-generation') loadLeads();
+  if (sectionId === 'cash-transaction') loadCbsAccountsIntoSelects();
 }
 
 document.querySelectorAll('.nav-item[data-section]').forEach(item => {
@@ -342,6 +354,12 @@ function checkBegin() {
 }
 
 // ── BEGIN CONVERSATION ─────────────────────────────────────────────────────
+// CHANGED: instead of window.location.href = 'conversation-desk.html?...'
+// we now open the SAME conversation logic inline via the floating widget
+// (window.chatWidget, defined in chat-widget.js). chatWidget.open(lang,
+// process) internally calls startSession() + setState('normal') — this is
+// the exact same session-start flow conversation-desk.html used, just
+// rendered as a widget instead of a full page navigation.
 btnBegin && btnBegin.addEventListener('click', () => {
   if (btnBegin.disabled) return;
 
@@ -351,12 +369,55 @@ btnBegin && btnBegin.addEventListener('click', () => {
   const procCard = document.querySelector('.process-card.selected');
   const actualProcess = procCard ? procCard.dataset.process : selectedProcess;
 
+  // Keep sessionStorage in sync (other pages/tools may still read these)
   sessionStorage.setItem('va_lang', actualLang);
   sessionStorage.setItem('va_process', actualProcess);
   if (lastTranscript) sessionStorage.setItem('va_first_utterance', lastTranscript);
 
-  window.location.href = `conversation-desk.html?lang=${encodeURIComponent(actualLang)}&process=${encodeURIComponent(actualProcess)}`;
+  if (window.chatWidget) {
+    // Open the floating Conversation Desk widget with the detected
+    // language + selected process — starts the session, auto-greets,
+    // shows process steps/checklist, quick replies, mic controls, etc.
+    // exactly like conversation-desk.html did.
+    window.chatWidget.open(actualLang, actualProcess);
+
+    // Reset the "New Conversation" form so it's fresh for the next customer,
+    // and jump back to Overview so the widget floats over a clean screen.
+    resetNewConversationForm();
+    navigate('overview');
+    showToast(`Conversation Desk opened — ${actualLang} · ${actualProcess}`);
+  } else {
+    // Fallback: if for some reason chat-widget.js hasn't loaded, don't
+    // silently do nothing — warn the staff member instead of failing quietly.
+    console.error('[dashboard] window.chatWidget not found — is chat-widget.js loaded?');
+    showToast('Conversation widget failed to load. Please refresh the page.', true);
+  }
 });
+
+// Resets the language/process picker UI back to its idle state after a
+// conversation has been handed off to the widget, so returning to
+// "New Conversation" later starts clean for the next customer.
+function resetNewConversationForm() {
+  selectedLang = null;
+  selectedProcess = null;
+  langDetected = false;
+  processSelected = false;
+  lastTranscript = "";
+
+  if (listenIdle) listenIdle.style.display = '';
+  if (listenActive) { listenActive.classList.remove('show'); listenActive.style.display = 'none'; }
+  if (detectedResult) { detectedResult.classList.remove('show'); detectedResult.style.display = 'none'; }
+  if (processSection) processSection.classList.remove('show');
+  if (langGrid) langGrid.classList.remove('open');
+
+  document.querySelectorAll('.lang-option').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.process-card').forEach(c => c.classList.remove('selected'));
+
+  const transcriptWrap = document.getElementById('detectedTranscriptWrap');
+  if (transcriptWrap) transcriptWrap.style.display = 'none';
+
+  if (btnBegin) btnBegin.disabled = true;
+}
 
 // ── DOM HELPERS ───────────────────────────────────────────────────────────────
 function showEl(id) {
@@ -576,7 +637,8 @@ function escHtml(s) {
 
 // ── LEAD GENERATION ────────────────────────────────────────────────────────
 // Pulls REAL leads from the backend (/api/conversation/leads), which is fed
-// by the "Send to Bank" button on the Live Desk conversation summary modal.
+// by the "Send to Bank Lead?" popup on the Conversation Desk widget's
+// summary modal (chat-widget.js -> submitLeadFromPop / saveToRecords).
 // Backend doesn't return a lead-quality score, so we compute one client-side
 // from field completeness — this is just for sorting hot/warm/cold, not a
 // claim about actual creditworthiness.
@@ -688,7 +750,7 @@ async function loadLeads() {
 
   if (leads.length === 0) {
     listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px">
-      No leads yet. Leads appear here automatically when staff click "Send to Bank" at the end of a conversation on the Live Desk.
+      No leads yet. Leads appear here automatically when staff click "Send" in the Conversation Desk widget's lead popup.
     </div>`;
     return;
   }
@@ -773,10 +835,225 @@ async function saveManualLead() {
   }
 }
 
+// ── CBS (CORE BANKING SERVICES) — Open Account / Credit Card / Deposit-Withdraw ──
+// These flows don't have a live core-banking backend, so they behave like the
+// rest of this dashboard's "offline demo" pieces (e.g. doLookup): submissions
+// are validated client-side, persisted to localStorage so Session History /
+// Overview style screens stay consistent across reloads, and confirmed with a
+// toast + reference number. Swap the TODO sections for real API calls once a
+// CBS endpoint exists.
+
+function genRefNo(prefix) {
+  const n = Math.floor(100000 + Math.random() * 900000);
+  return `${prefix}${n}`;
+}
+
+function getCbsAccounts() {
+  try { return JSON.parse(localStorage.getItem('va_cbs_accounts') || '[]'); } catch (e) { return []; }
+}
+function setCbsAccounts(list) {
+  localStorage.setItem('va_cbs_accounts', JSON.stringify(list));
+}
+
+// Seed one demo account (Rajesh Sharma, looked up elsewhere in the portal) so
+// Deposit/Withdraw has something to act on out of the box.
+function ensureSeedAccount() {
+  const accounts = getCbsAccounts();
+  if (accounts.length === 0) {
+    accounts.push({
+      accountNo: '4523881122047700',
+      name: 'Rajesh Suresh Sharma',
+      type: 'Savings',
+      balance: 124832,
+    });
+    setCbsAccounts(accounts);
+  }
+}
+ensureSeedAccount();
+
+// ---- Open New Account ----
+function submitOpenAccount() {
+  const name = document.getElementById('oaName')?.value.trim();
+  const mobile = document.getElementById('oaMobile')?.value.trim();
+  const aadhaar = document.getElementById('oaAadhaar')?.value.trim();
+  const accType = document.getElementById('oaAccType')?.value;
+  const initialDeposit = parseFloat(document.getElementById('oaInitialDeposit')?.value || '0');
+
+  if (!name) { showToast('Enter customer name first', true); return; }
+  if (!mobile || mobile.length < 10) { showToast('Enter a valid mobile number', true); return; }
+  if (!aadhaar || aadhaar.replace(/\s/g,'').length < 12) { showToast('Enter a valid 12-digit Aadhaar number', true); return; }
+  if (isNaN(initialDeposit) || initialDeposit < 0) { showToast('Enter a valid initial deposit amount', true); return; }
+
+  const btn = document.getElementById('oaSubmitBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Opening account…'; }
+
+  setTimeout(() => {
+    const accountNo = genRefNo('45239');
+    const accounts = getCbsAccounts();
+    accounts.unshift({ accountNo, name, type: accType, balance: initialDeposit });
+    setCbsAccounts(accounts);
+
+    if (btn) { btn.disabled = false; btn.textContent = 'Open Account'; }
+    showToast(`Account opened — No. ${accountNo}`);
+
+    ['oaName','oaMobile','oaAadhaar','oaInitialDeposit'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+
+    const resultEl = document.getElementById('oaResult');
+    if (resultEl) {
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = `
+        <div class="cbs-success-row">
+          <div>
+            <div class="cbs-success-label">New ${escHtml(accType)} account</div>
+            <div class="cbs-success-value">${escHtml(name)}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="cbs-success-label">Account no.</div>
+            <div class="cbs-success-value">${accountNo}</div>
+          </div>
+        </div>`;
+    }
+    loadCbsAccountsIntoSelects();
+  }, 900);
+}
+
+// ---- Apply for Credit Card ----
+function submitCreditCardApplication() {
+  const name = document.getElementById('ccName')?.value.trim();
+  const accountNo = document.getElementById('ccAccountNo')?.value.trim();
+  const income = parseFloat(document.getElementById('ccIncome')?.value || '0');
+  const cardType = document.getElementById('ccCardType')?.value;
+
+  if (!name) { showToast('Enter customer name first', true); return; }
+  if (!accountNo) { showToast('Enter the linked account number', true); return; }
+  if (isNaN(income) || income <= 0) { showToast('Enter a valid monthly income', true); return; }
+
+  const btn = document.getElementById('ccSubmitBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
+
+  setTimeout(() => {
+    // Simple, transparent eligibility heuristic — not a real credit decision.
+    let status = 'Pending review';
+    let limit = 0;
+    if (income >= 100000) { status = 'Pre-approved'; limit = 300000; }
+    else if (income >= 40000) { status = 'Pre-approved'; limit = 100000; }
+    else if (income >= 20000) { status = 'Pre-approved'; limit = 40000; }
+
+    const appRef = genRefNo('CC');
+
+    if (btn) { btn.disabled = false; btn.textContent = 'Submit Application'; }
+    showToast(`Application ${appRef} submitted — ${status}`);
+
+    const resultEl = document.getElementById('ccResult');
+    if (resultEl) {
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = `
+        <div class="cbs-success-row">
+          <div>
+            <div class="cbs-success-label">${escHtml(cardType)} application</div>
+            <div class="cbs-success-value">${escHtml(name)} · Ref ${appRef}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="cbs-success-label">${status}</div>
+            <div class="cbs-success-value">${limit ? '₹' + limit.toLocaleString('en-IN') + ' limit' : '—'}</div>
+          </div>
+        </div>`;
+    }
+
+    ['ccName','ccAccountNo','ccIncome'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+  }, 1000);
+}
+
+// ---- Deposit / Withdraw ----
+function loadCbsAccountsIntoSelects() {
+  const accounts = getCbsAccounts();
+  const select = document.getElementById('txnAccountSelect');
+  if (!select) return;
+  select.innerHTML = accounts.map(a =>
+    `<option value="${a.accountNo}">${a.accountNo} — ${escHtml(a.name)} (₹${a.balance.toLocaleString('en-IN')})</option>`
+  ).join('') || `<option value="">No accounts found</option>`;
+  updateTxnBalancePreview();
+}
+
+function updateTxnBalancePreview() {
+  const select = document.getElementById('txnAccountSelect');
+  const balEl = document.getElementById('txnCurrentBalance');
+  if (!select || !balEl) return;
+  const accounts = getCbsAccounts();
+  const acc = accounts.find(a => a.accountNo === select.value);
+  balEl.textContent = acc ? `₹${acc.balance.toLocaleString('en-IN')}` : '—';
+}
+
+document.querySelectorAll('.txn-type-toggle .txn-type-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.txn-type-toggle .txn-type-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+function submitTransaction() {
+  const select = document.getElementById('txnAccountSelect');
+  const amountEl = document.getElementById('txnAmount');
+  const activeTypeBtn = document.querySelector('.txn-type-toggle .txn-type-btn.active');
+  const type = activeTypeBtn ? activeTypeBtn.dataset.txnType : 'deposit';
+
+  const accountNo = select?.value;
+  const amount = parseFloat(amountEl?.value || '0');
+
+  if (!accountNo) { showToast('Select an account first', true); return; }
+  if (isNaN(amount) || amount <= 0) { showToast('Enter a valid amount', true); return; }
+
+  const accounts = getCbsAccounts();
+  const acc = accounts.find(a => a.accountNo === accountNo);
+  if (!acc) { showToast('Account not found', true); return; }
+
+  if (type === 'withdraw' && amount > acc.balance) {
+    showToast('Insufficient balance for this withdrawal', true);
+    return;
+  }
+
+  const btn = document.getElementById('txnSubmitBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Processing…'; }
+
+  setTimeout(() => {
+    acc.balance = type === 'deposit' ? acc.balance + amount : acc.balance - amount;
+    setCbsAccounts(accounts);
+
+    const txnRef = genRefNo('TXN');
+    if (btn) { btn.disabled = false; btn.textContent = 'Process Transaction'; }
+    showToast(`${type === 'deposit' ? 'Deposit' : 'Withdrawal'} of ₹${amount.toLocaleString('en-IN')} processed — Ref ${txnRef}`);
+
+    if (amountEl) amountEl.value = '';
+    loadCbsAccountsIntoSelects();
+
+    const resultEl = document.getElementById('txnResult');
+    if (resultEl) {
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = `
+        <div class="cbs-success-row">
+          <div>
+            <div class="cbs-success-label">${type === 'deposit' ? 'Deposit' : 'Withdrawal'} · Ref ${txnRef}</div>
+            <div class="cbs-success-value">${escHtml(acc.name)} — ${accountNo}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="cbs-success-label">New balance</div>
+            <div class="cbs-success-value">₹${acc.balance.toLocaleString('en-IN')}</div>
+          </div>
+        </div>`;
+    }
+  }, 800);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   loadOverviewStats();
+  loadCbsAccountsIntoSelects();
 });
 window.addEventListener('load', () => {
   loadOverviewStats();
 });
-Done
