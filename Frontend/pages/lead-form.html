@@ -20,6 +20,7 @@
   --slate-light:#9CA3AF;
   --success:#16A34A;
   --error:#B91C1C;
+  --blue:#00579C;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',sans-serif;background:var(--bg);min-height:100vh;display:flex;flex-direction:column}
@@ -58,11 +59,13 @@ body{font-family:'Inter',sans-serif;background:var(--bg);min-height:100vh;displa
 .lead-field.full{grid-column:1 / -1}
 .lead-field label{font-size:11px;color:var(--slate-light);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;display:flex;align-items:center;gap:6px}
 .auto-tag{background:var(--gold-bg);color:var(--gold);font-size:9.5px;text-transform:none;letter-spacing:0;padding:1px 6px;border-radius:4px;font-weight:600}
+.pattern-tag{background:rgba(0,87,156,0.08);color:var(--blue);font-size:9.5px;text-transform:none;letter-spacing:0;padding:1px 6px;border-radius:4px;font-weight:600}
 .manual-tag{background:var(--bg);color:var(--slate-light);font-size:9.5px;text-transform:none;letter-spacing:0;padding:1px 6px;border-radius:4px;font-weight:600;border:1px solid var(--border)}
 .lead-field input,.lead-field textarea{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:13.5px;font-family:inherit;color:var(--navy);outline:none;transition:border-color 150ms ease,background 150ms ease}
 .lead-field input:focus,.lead-field textarea:focus{border-color:var(--gold)}
 .lead-field input::placeholder,.lead-field textarea::placeholder{color:var(--slate-light);font-style:italic;font-size:12.5px}
 .lead-field input.filled{background:var(--gold-bg)}
+.lead-field input.filled.pattern-filled{background:rgba(0,87,156,0.06)}
 .lead-field textarea{resize:vertical;min-height:60px}
 
 .lead-actions{display:flex;gap:10px;margin-top:22px;padding-top:18px;border-top:1px solid var(--border)}
@@ -270,6 +273,89 @@ function renderConvPreview() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// CLIENT-SIDE FALLBACK EXTRACTION
+// ─────────────────────────────────────────────────────────────
+// The backend /extract-lead call handles the bulk of extraction, but on
+// some sessions it comes back with customer_name / phone left blank even
+// though the customer clearly stated them during the conversation (staff
+// reported this — the LLM extractor missed fields it should have caught).
+// As a safety net, once the backend result comes back we scan the RAW
+// conversation ourselves (both the customer's original-language text AND
+// its English translation) with pattern matching, and fill in ONLY the
+// fields the backend left empty. Backend-extracted values always win —
+// this fallback never overwrites something the backend already found.
+// ═══════════════════════════════════════════════════════════
+function isBlank(v) {
+  return !cleanModelText(String(v ?? "")).trim();
+}
+
+function extractPhoneFallback(allText) {
+  // Indian mobile numbers: 10 digits starting 6-9, optional +91/91 prefix,
+  // optionally split with spaces/hyphens (e.g. "98765 43210", "+91-98765-43210").
+  const m = allText.replace(/[\s-]+/g, "").match(/(?:\+?91)?([6-9]\d{9})\b/);
+  return m ? m[1] : "";
+}
+
+function extractNameFallback(allOriginal, allTranslated) {
+  // 1) English self-introduction phrasing — checked against the English
+  //    translation line, since translations are always rendered in English
+  //    regardless of the customer's spoken language.
+  const enPatterns = [
+    /\bmy name is\s+([A-Z][a-zA-Z]{1,25}(?:\s[A-Z][a-zA-Z]{1,25}){0,2})/,
+    /\bthis is\s+([A-Z][a-zA-Z]{1,25}(?:\s[A-Z][a-zA-Z]{1,25}){0,2})\s+(?:speaking|here)\b/i,
+    /\bi am\s+([A-Z][a-zA-Z]{1,25}(?:\s[A-Z][a-zA-Z]{1,25}){0,2})\s*[,.]?\s*(?:and|from|calling|here)?/,
+    /\bcall me\s+([A-Z][a-zA-Z]{1,25})/i,
+    /\b(?:full\s+)?name\s*[:\-]?\s*([A-Z][a-zA-Z]{1,25}(?:\s[A-Z][a-zA-Z]{1,25}){0,2})/i,
+  ];
+  for (const re of enPatterns) {
+    const m = allTranslated.match(re);
+    if (m && m[1]) return m[1].trim();
+  }
+
+  // 2) Native-script self-introduction phrasing, matched directly against
+  //    the customer's ORIGINAL text (Devanagari for Hindi/Marathi, Tamil
+  //    script, Telugu script) — catches names that only ever appear in
+  //    the original language and were dropped from the translation.
+  const scriptPatterns = [
+    // Hindi / Marathi — "मेरा नाम …", "माझं नाव …", "नाव आहे …"
+    /(?:माझं|माझे|मेरा|मेरी)?\s*(?:नाव|नाम)\s*(?:आहे|है)?\s*[:\-]?\s*([\u0900-\u097F]{2,25}(?:\s[\u0900-\u097F]{2,25}){0,2})/,
+    // Tamil — "என் பெயர் …"
+    /பெயர்\s*([\u0B80-\u0BFF]{2,25}(?:\s[\u0B80-\u0BFF]{2,25}){0,2})/,
+    // Telugu — "నా పేరు …"
+    /పేరు\s*([\u0C00-\u0C7F]{2,25}(?:\s[\u0C00-\u0C7F]{2,25}){0,2})/,
+  ];
+  for (const re of scriptPatterns) {
+    const m = allOriginal.match(re);
+    if (m && m[1]) return m[1].trim();
+  }
+
+  return "";
+}
+
+function extractFallbackLead(fields, existing) {
+  const filled = { ...existing };
+  const fieldKeys = new Set(fields.map(f => f.key));
+
+  // Only customer-side turns are relevant for self-reported details.
+  const customerTurns = conversation.filter(t => t.role !== "staff");
+  const allOriginal = customerTurns.map(t => t.text || "").join(" \n ");
+  const allTranslated = customerTurns.map(t => t.translation || "").join(" \n ");
+  const allCombined = `${allOriginal} \n ${allTranslated}`;
+
+  if (fieldKeys.has("phone") && isBlank(filled.phone)) {
+    const phone = extractPhoneFallback(allCombined);
+    if (phone) filled.phone = phone;
+  }
+
+  if (fieldKeys.has("customer_name") && isBlank(filled.customer_name)) {
+    const name = extractNameFallback(allOriginal, allTranslated);
+    if (name) filled.customer_name = name;
+  }
+
+  return filled;
+}
+
+// ═══════════════════════════════════════════════════════════
 // FETCH + RENDER LEAD FORM
 // ═══════════════════════════════════════════════════════════
 async function fetchLeadForm() {
@@ -297,26 +383,48 @@ async function fetchLeadForm() {
   }
 
   document.getElementById("extractingFlag").style.display = "none";
-  renderLeadForm(fields, leadData);
+
+  // Track which fields the backend actually filled BEFORE running the
+  // client-side fallback, so we can label fallback-filled fields
+  // differently in the UI (staff should know it was pattern-matched
+  // locally, not confirmed by the extraction model).
+  const backendFilledKeys = new Set(
+    Object.keys(leadData).filter(k => !isBlank(leadData[k]))
+  );
+  leadData = extractFallbackLead(fields, leadData);
+  const fallbackFilledKeys = new Set(
+    Object.keys(leadData).filter(k => !backendFilledKeys.has(k) && !isBlank(leadData[k]))
+  );
+
+  renderLeadForm(fields, leadData, fallbackFilledKeys);
 }
 
-function renderLeadForm(fields, leadData) {
+function renderLeadForm(fields, leadData, fallbackKeys) {
+  fallbackKeys = fallbackKeys || new Set();
   const grid = document.getElementById("leadFormGrid");
   grid.innerHTML = "";
   fields.forEach(f => {
     const raw = leadData[f.key];
     const value = (raw === undefined || raw === null) ? "" : cleanModelText(String(raw));
     const isFilled = value.trim().length > 0;
+    const isFallback = fallbackKeys.has(f.key);
     const wide = f.full ? " full" : "";
     const useTextarea = f.key === "query_summary" || f.key === "address";
+
+    let tag;
+    if (isFilled && isFallback) tag = `<span class="pattern-tag">auto-filled · matched in chat</span>`;
+    else if (isFilled) tag = `<span class="auto-tag">auto-filled</span>`;
+    else tag = `<span class="manual-tag">enter manually</span>`;
+
+    const inputClass = isFilled ? (isFallback ? "filled pattern-filled" : "filled") : "";
 
     const row = document.createElement("div");
     row.className = "lead-field" + wide;
     row.innerHTML = `
-      <label>${esc(f.label)} ${isFilled ? `<span class="auto-tag">auto-filled</span>` : `<span class="manual-tag">enter manually</span>`}</label>
+      <label>${esc(f.label)} ${tag}</label>
       ${useTextarea
-        ? `<textarea data-field="${esc(f.key)}" class="${isFilled?"filled":""}" placeholder="Not captured — enter manually">${esc(value)}</textarea>`
-        : `<input type="text" data-field="${esc(f.key)}" class="${isFilled?"filled":""}" value="${esc(value)}" placeholder="Not captured — enter manually" />`
+        ? `<textarea data-field="${esc(f.key)}" class="${inputClass}" placeholder="Not captured — enter manually">${esc(value)}</textarea>`
+        : `<input type="text" data-field="${esc(f.key)}" class="${inputClass}" value="${esc(value)}" placeholder="Not captured — enter manually" />`
       }`;
     grid.appendChild(row);
 
