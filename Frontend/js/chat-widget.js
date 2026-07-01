@@ -639,7 +639,9 @@
       this.conversationLog = [];
       this.stepIndex = 0;
       this.kycShown = false;
-      this.isActive = true;
+      this.panelOpen = false;
+      this.isActive = false; // true when a session is running
+      this._pendingExtractedLead = null;
       this.sessionStart = Date.now();
 
       // Update header
@@ -982,6 +984,14 @@
     }
 
     _manualNextStep() {
+      const steps = PROCESS_STEPS[this.selectedProcess] || [];
+      const atLastStep = this.stepIndex >= steps.length - 1;
+      if (atLastStep) {
+        // Final step reached ("Activate" etc.) — Next now finishes the
+        // conversation and opens the summary, same as "End & Summarise".
+        this.endSession();
+        return;
+      }
       this._advanceStep();
       this._showStaticQuickReplies();
     }
@@ -1132,77 +1142,104 @@
       this._startTimer();
     }
 
-    saveToRecords() {
-      // ── Populate Lead Popup and Show it ──
+    async saveToRecords() {
+      // ── Show the popup immediately (loading state) then auto-extract
+      // real lead details from the conversation via the backend — same
+      // /extract-lead endpoint conversation-desk.html already used. ──
       const steps = PROCESS_STEPS[this.selectedProcess] || PROCESS_STEPS["General enquiry"] || [];
       const completeness = Math.min(100, Math.round((this.stepIndex / (steps.length || 1)) * 100));
       const rating = completeness >= 80 ? "Hot lead" : "Warm lead";
-
-      const name = sessionStorage.getItem('va_looked_up_name') || "Rohan Rajabhau Jadhav";
-      const phone = sessionStorage.getItem('va_looked_up_phone') || "9830687690";
-
-      this.els.leadPopName.value = name;
-      this.els.leadPopPhone.value = phone;
-      this.els.leadPopProduct.value = this.selectedProcess || "saving";
-      this.els.leadPopRating.value = rating;
-
-      // Close summary, show lead popup
+ 
       this.els.summaryModal.classList.remove("show");
       this.els.leadPopup.style.display = "flex";
+      this.els.leadPopName.value = "Extracting…";
+      this.els.leadPopPhone.value = "";
+      this.els.leadPopProduct.value = this.selectedProcess || "saving";
+      this.els.leadPopRating.value = rating;
+      this.els.leadPopSendBtn.disabled = true;
+ 
+      let extracted = {};
+      try {
+        const res = await fetch(`${API_BASE}/extract-lead`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            conversation: this.conversationLog.map(t => ({ role: t.role, text: t.text, translation: t.translation })),
+            process_type: this.selectedProcess,
+            fields: ["customer_name", "phone", "account_last4", "loan_type", "account_type",
+                     "card_selected", "monthly_income", "cibil_score", "nominee_name", "nominee_relation"],
+          }),
+        });
+        const data = await res.json();
+        if (data.success && data.lead) extracted = data.lead;
+      } catch (e) {
+        console.warn("[ChatWidget] lead auto-extract failed, falling back to manual entry:", e);
+      }
+ 
+      // Keep the full extracted object so process-specific fields
+      // (loan_type, nominee_name, etc.) aren't lost when we submit —
+      // the popup only shows/edits name + phone, but we send everything.
+      this._pendingExtractedLead = extracted;
+ 
+      this.els.leadPopName.value = extracted.customer_name || "";
+      this.els.leadPopPhone.value = extracted.phone || extracted.account_last4 || "";
+      this.els.leadPopSendBtn.disabled = false;
+ 
+      if (!extracted.customer_name && !extracted.phone) {
+        this._showToast("Could not auto-extract — please fill manually", true);
+      } else {
+        this._showToast("Lead details auto-filled from conversation ✓");
+      }
     }
-
-    submitLeadFromPop() {
+ 
+    async submitLeadFromPop() {
       const name = this.els.leadPopName.value.trim();
       const phone = this.els.leadPopPhone.value.trim();
       const product = this.els.leadPopProduct.value;
-      const rating = this.els.leadPopRating.value;
-
+ 
       if (!name || !phone) {
         this._showToast("Name and Phone are required", true);
         return;
       }
-
-      const steps = PROCESS_STEPS[product] || PROCESS_STEPS["General enquiry"] || [];
-      const completeness = Math.min(100, Math.round((this.stepIndex / (steps.length || 1)) * 100));
-
-      const now = new Date();
-      const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) + ", " + 
-                      now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
-
-      const newLead = {
-        id: Date.now(),
-        name: name,
-        type: product,
-        lang: this.selectedLanguage || "Marathi",
+ 
+      this.els.leadPopSendBtn.disabled = true;
+      this.els.leadPopSendBtn.textContent = "Sending…";
+ 
+      // Merge backend-extracted fields (loan_type, nominee, etc.) with
+      // whatever the staff confirmed/edited in the popup.
+      const lead = {
+        ...(this._pendingExtractedLead || {}),
+        customer_name: name,
         phone: phone,
-        date: dateStr,
-        rating: rating,
-        completeness: completeness
       };
-
-      const leads = JSON.parse(localStorage.getItem('va_leads') || "[]");
-      leads.unshift(newLead);
-      localStorage.setItem('va_leads', JSON.stringify(leads));
-
-      // Refresh list if dashboard has it loaded
-      if (window.renderLeads) {
-        window.renderLeads(leads);
+ 
+      try {
+        const res = await fetch(`${API_BASE}/submit-lead`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            process_type: product,
+            customer_language: this.selectedLanguage || "English",
+            lead,
+            session_duration: this.els.timerDisplay.textContent || "",
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          this.els.leadPopup.style.display = "none";
+          this.els.leadPopSendBtn.textContent = "Send";
+          this._showToast("Lead sent to bank ✓");
+          setTimeout(() => this.newSession(), 1200);
+        } else {
+          this._showToast(data.error || "Failed to send lead", true);
+          this.els.leadPopSendBtn.disabled = false;
+          this.els.leadPopSendBtn.textContent = "Send";
+        }
+      } catch (e) {
+        this._showToast("Network error sending lead", true);
+        this.els.leadPopSendBtn.disabled = false;
+        this.els.leadPopSendBtn.textContent = "Send";
       }
-
-      this.els.leadPopup.style.display = "none";
-      this._showToast("Lead successfully added & saved to records ✓");
-      setTimeout(() => this.newSession(), 1200);
-    }
-
-    skipLeadFromPop() {
-      this.els.leadPopup.style.display = "none";
-      this._showToast("Lead skipped. Session saved ✓");
-      setTimeout(() => this.newSession(), 1200);
-    }
-
-    newSession() {
-      this.els.summaryModal.classList.remove("show");
-      this.resetSession();
     }
 
     // ── Chat Bubble Rendering ───────────────────────────────────────────
@@ -1466,9 +1503,10 @@
       }
 
       // Manual step controls
+  const atLastStep = this.stepIndex >= steps.length - 1;
       html += `<div class="cw-step-controls">
         <button class="cw-step-btn back" id="cwStepBack">← Back</button>
-        <button class="cw-step-btn next" id="cwStepNext">Next ✓</button>
+        <button class="cw-step-btn next" id="cwStepNext">${atLastStep ? "Finish &amp; Summarise ✓" : "Next ✓"}</button>
       </div>`;
 
       this.els.panelBody.innerHTML = html;
