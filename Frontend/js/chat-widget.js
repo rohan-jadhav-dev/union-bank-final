@@ -296,7 +296,7 @@
   class ChatWidget {
     constructor() {
       // State
-      this.state = "minimized"; // minimized | normal | maximized
+      this.state = "closed"; // closed | minimized | normal | maximized
       this.selectedLanguage = null;
       this.selectedProcess = null;
       this.conversationLog = [];
@@ -502,6 +502,7 @@
         headerTimer: this.window.querySelector("#cwHeaderTimer"),
         timerDisplay: this.window.querySelector("#cwTimerDisplay"),
         btnPanel: this.window.querySelector("#cwBtnPanel"),
+        header: this.window.querySelector(".cw-header"),
         btnEndSession: this.window.querySelector("#cwBtnEndSession"),
         btnMinimize: this.window.querySelector("#cwBtnMinimize"),
         btnMaximize: this.window.querySelector("#cwBtnMaximize"),
@@ -539,6 +540,11 @@
       this.els.btnMinimize.addEventListener("click", () => this.minimize());
       this.els.btnMaximize.addEventListener("click", () => this.toggleMaximize());
       this.els.btnClose.addEventListener("click", () => this.close());
+      this.els.header.addEventListener("click", (e) => {
+        if (this.state === "minimized" && !e.target.closest(".cw-hdr-btn")) {
+          this.setState("normal");
+        }
+      });
       this.els.btnPanel.addEventListener("click", () => this.togglePanel());
       this.els.panelClose.addEventListener("click", () => this.togglePanel());
       this.els.btnEndSession.addEventListener("click", () => this.endSession());
@@ -570,8 +576,8 @@
 
     // ── Window State Management ─────────────────────────────────────────
     toggle() {
-      if (this.state === "minimized") this.open();
-      else this.minimize();
+      if (this.state === "closed" || this.state === "minimized") this.open();
+      else this.close();
     }
 
     open(lang, process) {
@@ -582,11 +588,15 @@
     }
 
     minimize() {
-      this.setState("minimized");
+      if (this.state === "minimized") {
+        this.setState("normal");
+      } else {
+        this.setState("minimized");
+      }
     }
 
     close() {
-      this.setState("minimized");
+      this.setState("closed");
     }
 
     toggleMaximize() {
@@ -596,21 +606,22 @@
 
     setState(newState) {
       this.state = newState;
-      this.window.classList.remove("closed", "open", "maximized");
-      this.bubble.classList.remove("hidden");
+      this.window.classList.remove("closed", "open", "maximized", "minimized");
 
       switch (newState) {
-        case "minimized":
+        case "closed":
           this.window.classList.add("closed");
+          break;
+        case "minimized":
+          this.window.classList.add("minimized");
+          this._updateMaxBtn(false);
           break;
         case "normal":
           this.window.classList.add("open");
-          this.bubble.classList.add("hidden");
           this._updateMaxBtn(false);
           break;
         case "maximized":
           this.window.classList.add("open", "maximized");
-          this.bubble.classList.add("hidden");
           this._updateMaxBtn(true);
           break;
       }

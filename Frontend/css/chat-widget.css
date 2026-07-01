@@ -5,6 +5,21 @@
 
 /* ── CSS Custom Properties (widget-scoped) ─────────────────────────────── */
 :root {
+  /* Theme color variables derived from base.css */
+  --navy: #0F1E3D;
+  --navy-light: #1B2D54;
+  --gold: #B8923D;
+  --gold-light: #D4AF6A;
+  --bg: #F7F8FA;
+  --white: #FFFFFF;
+  --slate: #5B6573;
+  --slate-light: #8B93A1;
+  --border: #E2E5EA;
+  --error: #B3261E;
+  --success: #2E7D5B;
+  --blue: #00579C;
+
+  /* Widget structural variables */
   --cw-width: 460px;
   --cw-height: 700px;
   --cw-radius: 16px;
@@ -142,12 +157,12 @@
 /* ── Widget Window (Normal + Maximized) ────────────────────────────────── */
 .cw-window {
   position: fixed;
-  bottom: 28px;
+  bottom: 96px;
   right: 28px;
   z-index: calc(var(--cw-z) + 1);
   width: var(--cw-width);
   height: var(--cw-height);
-  max-height: calc(100vh - 56px);
+  max-height: calc(100vh - 120px);
   border-radius: var(--cw-radius);
   background: var(--cw-glass-bg);
   backdrop-filter: var(--cw-glass-blur);
@@ -182,12 +197,24 @@
 }
 
 .cw-window.maximized {
-  width: 90vw;
-  height: 90vh;
-  max-height: 90vh;
-  bottom: 5vh;
-  right: 5vw;
-  border-radius: 12px;
+  width: 95vw !important;
+  height: 88vh !important;
+  max-height: 88vh !important;
+  bottom: 6vh !important;
+  right: 2.5vw !important;
+  border-radius: 12px !important;
+}
+
+.cw-window.minimized {
+  opacity: 1 !important;
+  transform: scale(1) translateY(0) !important;
+  pointer-events: all !important;
+  height: 56px !important;
+  max-height: 56px !important;
+  overflow: hidden !important;
+  border-radius: 12px 12px 0 0 !important;
+  bottom: 96px !important;
+  right: 28px !important;
 }
 
 /* ── Widget Header ─────────────────────────────────────────────────────── */

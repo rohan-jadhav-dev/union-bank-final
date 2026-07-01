@@ -29,10 +29,25 @@ const sectionTitles = {
   summary: 'Bilingual Summary',
   "open-account": 'Open New Account',
   "credit-card": 'Apply for Credit Card',
-  "cash-transaction": 'Deposit / Withdraw'
+  "cash-transaction": 'Deposit / Withdraw',
+  "live-desk": 'Live Desk'
 };
 
 function navigate(sectionId) {
+  if (sectionId === 'live-desk') {
+    if (window.chatWidget) {
+      window.chatWidget.setState('normal');
+    }
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    const overviewSec = document.getElementById('section-overview');
+    if (overviewSec) overviewSec.classList.add('active');
+    
+    document.querySelectorAll('.nav-item[data-section]').forEach(n => n.classList.remove('active'));
+    const navItem = document.querySelector(`.nav-item[data-section="live-desk"]`);
+    if (navItem) navItem.classList.add('active');
+    document.getElementById('topbarTitle').textContent = 'Live Desk';
+    return;
+  }
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item[data-section]').forEach(n => n.classList.remove('active'));
   const section = document.getElementById('section-' + sectionId);
