@@ -483,6 +483,10 @@
         .cw-consent-listen-btn:hover { background: rgba(184,146,61,0.18); }
         .cw-consent-listen-btn svg { width: 15px; height: 15px; }
         .cw-consent-listen-btn.speaking { background: rgba(184,146,61,0.28); }
+        .cw-consent-english-label {
+          font-size: 10px !important; font-weight: 700; letter-spacing: 0.08em;
+          color: var(--slate-light); text-align: center; margin-top: 2px;
+        }
       `;
       document.head.appendChild(style);
     }
@@ -571,6 +575,7 @@
             <button class="cw-consent-listen-btn" id="cwConsentListenBtn" type="button">
               ${ICONS.speaker}<span id="cwConsentListenLabel">Listen again</span>
             </button>
+            <div class="cw-consent-english-label">ENGLISH</div>
             <div class="cw-consent-english" id="cwConsentEnglish"></div>
             <div class="cw-modal-actions cw-consent-actions">
               <button class="cw-modal-btn decline" id="cwConsentDeclineBtn">No</button>
@@ -830,11 +835,18 @@
       const consentEn = CONSENT_TEXT["English"];
 
       this.els.consentTitle.textContent = consent.title;
+      // Native-language statement is what the customer sees first and what
+      // gets spoken aloud. "DPDP Act" itself is intentionally left
+      // untranslated inside the native sentence (it's a proper/legal term),
+      // everything else is fully in the customer's identified language.
       this.els.consentNative.textContent = consent.body;
-      // Only show a separate English reference line if the selected
-      // language isn't already English (avoids a duplicate line).
-      this.els.consentEnglish.textContent = (lang === "English") ? "" : consentEn.body;
-      this.els.consentEnglish.style.display = (lang === "English") ? "none" : "block";
+      // English line is COMPULSORY and always shown — per DPDP Act
+      // disclosure requirements the English wording must be visible
+      // alongside the native-language version regardless of which
+      // language the customer speaks (even when that language is English,
+      // so staff always have the reference text on screen too).
+      this.els.consentEnglish.textContent = consentEn.body;
+      this.els.consentEnglish.style.display = "block";
       this.els.consentAgreeBtn.textContent = consent.agree;
       this.els.consentDeclineBtn.textContent = consent.decline;
       this.els.consentListenLabel.textContent = (consent.listen || "🔊 Listen again").replace(/^🔊\s*/, "");
