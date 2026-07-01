@@ -392,9 +392,7 @@
             </div>
           </div>
 
-          <button class="btn-begin" id="btnBegin" disabled onclick="window.location.href='conversation-desk.html'">
-            Begin conversation
-          </button>
+        
         </div>
       </div>
 
@@ -827,24 +825,6 @@
         </div><!-- /account-result -->
       </div>
 
-      // ── BEGIN CONVERSATION — open floating widget ─────────────────────────────────
-btnBegin && btnBegin.addEventListener('click', () => {
-  if (btnBegin.disabled) return;
-
-  const langEl = document.getElementById('detectedLangName');
-  const actualLang = langEl ? langEl.textContent.trim() : selectedLang;
-
-  const procCard = document.querySelector('.process-card.selected');
-  const actualProcess = procCard ? procCard.dataset.process : selectedProcess;
-
-  sessionStorage.setItem('va_lang', actualLang);
-  sessionStorage.setItem('va_process', actualProcess);
-  if (lastTranscript) sessionStorage.setItem('va_first_utterance', lastTranscript);
-
-  // Open the floating chat widget instead of navigating away
-  if (window.chatWidget) {
-    window.chatWidget.open(actualLang, actualProcess);
-  }
 });
 
       <!-- ===== SESSION HISTORY ===== -->
