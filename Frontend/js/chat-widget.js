@@ -13,8 +13,8 @@
 //      larger, more legible font.
 //   3. saveToRecords() no longer opens the in-widget lead popup. It now
 //      stores the conversation/process/language/duration in
-//      sessionStorage (the same keys lead-details.html already expects)
-//      and redirects straight to lead-details.html, which auto-extracts
+//      sessionStorage (the same keys lead-form.html already expects)
+//      and redirects straight to lead-form.html, which auto-extracts
 //      and auto-fills the lead form — and ALWAYS opens/renders that form
 //      even when extraction is incomplete or fields are missing.
 // ============================================================================
@@ -511,7 +511,7 @@
 
         <!-- LEAD CONFIRMATION POPUP (legacy — kept for backwards compat but
              no longer opened by saveToRecords(); saveToRecords() now
-             redirects to lead-details.html directly, see below) -->
+             redirects to lead-form.html directly, see below) -->
         <div class="cw-modal-overlay" id="cwLeadPopup" style="display:none; align-items:center; justify-content:center; position:absolute; inset:0; background:rgba(15,30,61,0.55); z-index:20;">
           <div class="cw-modal" style="width: 300px; padding: 20px; border-radius: 12px; background: white; box-shadow: 0 8px 32px rgba(15,30,61,0.25); display: flex; flex-direction: column; gap: 12px;">
             <div class="cw-modal-title" style="font-size: 15px; font-weight: 700; color: var(--navy); margin-bottom: 2px;">Send to Bank Lead?</div>
@@ -1232,8 +1232,8 @@
     // ── Save to Records ──────────────────────────────────────────────────
     // UPDATED: no longer shows the in-widget lead popup. It stashes the
     // conversation + metadata into sessionStorage (same keys
-    // lead-details.html reads) and redirects the browser straight to
-    // lead-details.html, which does its own /extract-lead call and
+    // lead-form.html reads) and redirects the browser straight to
+    // lead-form.html, which does its own /extract-lead call and
     // ALWAYS renders the full lead form — every field the process
     // requires is shown, auto-filled where extraction succeeded and
     // left blank/"enter manually" where it didn't. The form opening is
@@ -1256,7 +1256,9 @@
       this.els.summaryModal.classList.remove("show");
       // Redirect to the dedicated lead form page — it opens unconditionally
       // and handles its own extraction + manual-fill fallback.
-      window.location.href = "lead-details.html";
+      // NOTE: filename must match the actual file in /pages exactly
+      // (case-sensitive on Vercel). Your project's file is "lead-form.html".
+      window.location.href = "lead-form.html";
     }
 
     // ── Legacy popup handlers (kept so nothing else in the file breaks if
