@@ -1,6 +1,22 @@
 // ============================================================================
 // chat-widget.js — Floating Conversation Widget for VoiceAssist AI Dashboard
 // Reuses all business logic from conversation-desk.js, adapted for widget DOM
+//
+// UPDATED IN THIS VERSION:
+//   1. cleanTranslationText() now strips <think>...</think> reasoning
+//      blocks (and the "→ <think>" pattern seen when the model's raw
+//      chain-of-thought leaks into the response) BEFORE any JSON
+//      unwrapping, so only the clean translation ever reaches the DOM.
+//   2. Both _addCustomerBubble() and _addStaffBubble() now run the
+//      ORIGINAL text through the same cleaner too (previously only the
+//      translation was cleaned), and the translation line renders in a
+//      larger, more legible font.
+//   3. saveToRecords() no longer opens the in-widget lead popup. It now
+//      stores the conversation/process/language/duration in
+//      sessionStorage (the same keys lead-details.html already expects)
+//      and redirects straight to lead-details.html, which auto-extracts
+//      and auto-fills the lead form — and ALWAYS opens/renders that form
+//      even when extraction is incomplete or fields are missing.
 // ============================================================================
 
 (function () {
@@ -209,9 +225,25 @@
   function escHtml(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
   function formatTime() { return new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }); }
 
+  // ── cleanTranslationText ────────────────────────────────────────────────
+  // UPDATED: strips <think>...</think> reasoning blocks (closed OR
+  // unterminated) and the "→ <think>" leak pattern FIRST, before any
+  // JSON unwrapping — this is what was showing up as huge raw reasoning
+  // dumps inside the chat bubbles instead of a clean translation.
   function cleanTranslationText(text) {
     if (!text) return "";
+    text = String(text).trim();
+
+    // 1) Strip fully-closed <think>...</think> blocks (any casing, multiline)
+    text = text.replace(/<think>[\s\S]*?<\/think>/gi, "");
+    // 2) Strip an unterminated <think> block that runs to the end of the string
+    text = text.replace(/<think>[\s\S]*$/gi, "");
+    // 3) Strip the "→ <think>" leak pattern seen when the arrow marker precedes it
+    text = text.replace(/→\s*<think>[\s\S]*/gi, "");
+    // 4) Strip any other stray <think>/</think> tags that survived
+    text = text.replace(/<\/?think>/gi, "");
     text = text.trim();
+
     if (text.includes("{") && text.includes("}")) {
       try {
         const start = text.indexOf("{");
@@ -444,12 +476,14 @@
           </div>
         </div>
 
-        <!-- LEAD CONFIRMATION POPUP -->
+        <!-- LEAD CONFIRMATION POPUP (legacy — kept for backwards compat but
+             no longer opened by saveToRecords(); saveToRecords() now
+             redirects to lead-details.html directly, see below) -->
         <div class="cw-modal-overlay" id="cwLeadPopup" style="display:none; align-items:center; justify-content:center; position:absolute; inset:0; background:rgba(15,30,61,0.55); z-index:20;">
           <div class="cw-modal" style="width: 300px; padding: 20px; border-radius: 12px; background: white; box-shadow: 0 8px 32px rgba(15,30,61,0.25); display: flex; flex-direction: column; gap: 12px;">
             <div class="cw-modal-title" style="font-size: 15px; font-weight: 700; color: var(--navy); margin-bottom: 2px;">Send to Bank Lead?</div>
             <div style="font-size: 11px; color: var(--slate-light); line-height: 1.4; margin-bottom: 4px;">Would you like to send this session to Lead Generation or skip?</div>
-            
+
             <div style="display: flex; flex-direction: column; gap: 8px;">
               <div style="display: flex; flex-direction: column; gap: 3px;">
                 <label style="font-size: 9px; font-weight: 700; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.05em;">Customer Name</label>
@@ -910,7 +944,7 @@
 
         const res = await fetch(`${API_BASE}/staff-speak`, { method: "POST", body: form });
         const data = await res.json();
-        
+
         if (data.success && data.text) {
           this.els.textInput.value = data.text;
           this.els.textInput.style.height = "auto";
@@ -1121,11 +1155,11 @@
         });
         const data = await res.json();
         if (data.success) {
-          this.els.englishSummary.textContent = data.english_summary;
-          this.els.regionalSummary.textContent = data.regional_summary;
+          this.els.englishSummary.textContent = cleanTranslationText(data.english_summary);
+          this.els.regionalSummary.textContent = cleanTranslationText(data.regional_summary);
           if (data.action_items && data.action_items.length > 0) {
             this.els.englishSummary.textContent +=
-              "\n\nACTION ITEMS:\n" + data.action_items.map(a => `• ${a}`).join("\n");
+              "\n\nACTION ITEMS:\n" + data.action_items.map(a => `• ${cleanTranslationText(a)}`).join("\n");
           }
         } else {
           this.els.englishSummary.textContent = "Error: " + (data.error || "Failed to generate summary.");
@@ -1142,77 +1176,58 @@
       this._startTimer();
     }
 
-    async saveToRecords() {
-      // ── Show the popup immediately (loading state) then auto-extract
-      // real lead details from the conversation via the backend — same
-      // /extract-lead endpoint conversation-desk.html already used. ──
-      const steps = PROCESS_STEPS[this.selectedProcess] || PROCESS_STEPS["General enquiry"] || [];
-      const completeness = Math.min(100, Math.round((this.stepIndex / (steps.length || 1)) * 100));
-      const rating = completeness >= 80 ? "Hot lead" : "Warm lead";
- 
-      this.els.summaryModal.classList.remove("show");
-      this.els.leadPopup.style.display = "flex";
-      this.els.leadPopName.value = "Extracting…";
-      this.els.leadPopPhone.value = "";
-      this.els.leadPopProduct.value = this.selectedProcess || "saving";
-      this.els.leadPopRating.value = rating;
-      this.els.leadPopSendBtn.disabled = true;
- 
-      let extracted = {};
+    // ── Save to Records ──────────────────────────────────────────────────
+    // UPDATED: no longer shows the in-widget lead popup. It stashes the
+    // conversation + metadata into sessionStorage (same keys
+    // lead-details.html reads) and redirects the browser straight to
+    // lead-details.html, which does its own /extract-lead call and
+    // ALWAYS renders the full lead form — every field the process
+    // requires is shown, auto-filled where extraction succeeded and
+    // left blank/"enter manually" where it didn't. The form opening is
+    // not gated on extraction being complete or exact.
+    saveToRecords() {
+      if (this.conversationLog.length === 0) {
+        this._showToast("No conversation yet", true);
+        return;
+      }
+
       try {
-        const res = await fetch(`${API_BASE}/extract-lead`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            conversation: this.conversationLog.map(t => ({ role: t.role, text: t.text, translation: t.translation })),
-            process_type: this.selectedProcess,
-            fields: ["customer_name", "phone", "account_last4", "loan_type", "account_type",
-                     "card_selected", "monthly_income", "cibil_score", "nominee_name", "nominee_relation"],
-          }),
-        });
-        const data = await res.json();
-        if (data.success && data.lead) extracted = data.lead;
+        sessionStorage.setItem("va_lead_conversation", JSON.stringify(this.conversationLog));
+        sessionStorage.setItem("va_lead_process", this.selectedProcess || "General enquiry");
+        sessionStorage.setItem("va_lead_language", this.selectedLanguage || "English");
+        sessionStorage.setItem("va_lead_duration", this.els.timerDisplay.textContent || "");
       } catch (e) {
-        console.warn("[ChatWidget] lead auto-extract failed, falling back to manual entry:", e);
+        console.warn("[ChatWidget] could not write sessionStorage for lead handoff:", e);
       }
- 
-      // Keep the full extracted object so process-specific fields
-      // (loan_type, nominee_name, etc.) aren't lost when we submit —
-      // the popup only shows/edits name + phone, but we send everything.
-      this._pendingExtractedLead = extracted;
- 
-      this.els.leadPopName.value = extracted.customer_name || "";
-      this.els.leadPopPhone.value = extracted.phone || extracted.account_last4 || "";
-      this.els.leadPopSendBtn.disabled = false;
- 
-      if (!extracted.customer_name && !extracted.phone) {
-        this._showToast("Could not auto-extract — please fill manually", true);
-      } else {
-        this._showToast("Lead details auto-filled from conversation ✓");
-      }
+
+      this.els.summaryModal.classList.remove("show");
+      // Redirect to the dedicated lead form page — it opens unconditionally
+      // and handles its own extraction + manual-fill fallback.
+      window.location.href = "lead-details.html";
     }
- 
+
+    // ── Legacy popup handlers (kept so nothing else in the file breaks if
+    // referenced elsewhere; the popup itself is no longer opened by
+    // saveToRecords() above). ──────────────────────────────────────────
     async submitLeadFromPop() {
       const name = this.els.leadPopName.value.trim();
       const phone = this.els.leadPopPhone.value.trim();
       const product = this.els.leadPopProduct.value;
- 
+
       if (!name || !phone) {
         this._showToast("Name and Phone are required", true);
         return;
       }
- 
+
       this.els.leadPopSendBtn.disabled = true;
       this.els.leadPopSendBtn.textContent = "Sending…";
- 
-      // Merge backend-extracted fields (loan_type, nominee, etc.) with
-      // whatever the staff confirmed/edited in the popup.
+
       const lead = {
         ...(this._pendingExtractedLead || {}),
         customer_name: name,
         phone: phone,
       };
- 
+
       try {
         const res = await fetch(`${API_BASE}/submit-lead`, {
           method: "POST",
@@ -1242,18 +1257,26 @@
       }
     }
 
+    skipLeadFromPop() {
+      this.els.leadPopup.style.display = "none";
+    }
+
     // ── Chat Bubble Rendering ───────────────────────────────────────────
+    // UPDATED: both `orig` and `trans` now go through cleanTranslationText()
+    // so a leaked <think> block never reaches the DOM in either line, and
+    // the translation line renders in a larger font (18px) for legibility.
     _addCustomerBubble(orig, trans, engine) {
       this._removeEmpty();
       const langMeta = LANG_META[this.selectedLanguage] || {};
       const msg = document.createElement("div");
       msg.className = "cw-msg customer";
+      const cleanOrig = cleanTranslationText(orig);
       const cleanTrans = cleanTranslationText(trans);
       msg.innerHTML = `
         <div class="cw-msg-avatar">${langMeta.flag || "C"}</div>
         <div class="cw-msg-content">
-          <div class="cw-msg-bubble">${escHtml(orig)}</div>
-          ${cleanTrans ? `<div class="cw-msg-translation">🌐 ${escHtml(cleanTrans)}</div>` : ""}
+          <div class="cw-msg-bubble">${escHtml(cleanOrig)}</div>
+          ${cleanTrans ? `<div class="cw-msg-translation" style="font-size:18px;line-height:1.5;font-weight:500;">🌐 ${escHtml(cleanTrans)}</div>` : ""}
           <div class="cw-msg-meta">
             <span>${formatTime()}</span>
             <span class="cw-msg-engine">${engine || "stt"}</span>
@@ -1269,15 +1292,16 @@
       msg.className = "cw-msg staff";
       const bubbleClass = isGreeting ? "cw-msg-bubble greeting" : "cw-msg-bubble";
       const greetingLabel = isGreeting ? `<span class="cw-msg-greeting-label">👋 Auto Greeting</span>` : "";
+      const cleanOrig = cleanTranslationText(orig);
       const cleanTrans = cleanTranslationText(trans);
       msg.innerHTML = `
         <div class="cw-msg-avatar">RJ</div>
         <div class="cw-msg-content">
           <div class="${bubbleClass}">
             ${greetingLabel}
-            ${escHtml(orig)}
+            ${escHtml(cleanOrig)}
           </div>
-          ${cleanTrans && !isGreeting ? `<div class="cw-msg-translation">→ ${escHtml(cleanTrans)}</div>` : ""}
+          ${cleanTrans && !isGreeting ? `<div class="cw-msg-translation" style="font-size:18px;line-height:1.5;font-weight:500;">→ ${escHtml(cleanTrans)}</div>` : ""}
           <div class="cw-msg-meta">
             <span>${formatTime()}</span>
             <span class="cw-msg-engine">${engine || "llm"}</span>
@@ -1503,7 +1527,7 @@
       }
 
       // Manual step controls
-  const atLastStep = this.stepIndex >= steps.length - 1;
+      const atLastStep = this.stepIndex >= steps.length - 1;
       html += `<div class="cw-step-controls">
         <button class="cw-step-btn back" id="cwStepBack">← Back</button>
         <button class="cw-step-btn next" id="cwStepNext">${atLastStep ? "Finish &amp; Summarise ✓" : "Next ✓"}</button>
@@ -1517,7 +1541,7 @@
         currentChecklist.forEach((item, idx) => {
           const inlineChk = this.els.inlineChecklist.querySelector(`#cw-inline-chk-${this.stepIndex}-${idx}`);
           const sidebarChk = this.els.panelBody.querySelector(`#cw-chk-${this.stepIndex}-${idx}`);
-          
+
           if (inlineChk && sidebarChk) {
             inlineChk.addEventListener("change", (e) => {
               sidebarChk.checked = e.target.checked;
@@ -1579,6 +1603,10 @@
     }
 
     _delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    newSession() {
+      this.resetSession();
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════════
