@@ -34,6 +34,16 @@
 //      can't read, only understand spoken language). A "🔊 Listen again"
 //      button lets them replay it. Speech is stopped automatically the
 //      moment they tap Yes/No/Close so it never talks over the greeting.
+//   6. FIX — the consent narration now uses the SAME backend TTS engine
+//      already used for the auto-greeting, instead of the browser's
+//      built-in speechSynthesis. Browser voices for Marathi/Hindi/Tamil/
+//      Telugu are missing or unreliable on many devices, which caused
+//      only the embedded English fragment ("DPDP Act, 2023") to be
+//      spoken while the rest of the native sentence was silently
+//      dropped. Backend TTS reads the FULL native-language statement
+//      correctly, start to finish, with only "DPDP Act" left as-is
+//      inside it (it's a proper/legal term). Browser speech is kept only
+//      as a last-resort fallback if the backend call fails.
 // ============================================================================
 
 (function () {
@@ -861,14 +871,58 @@
     }
 
     // Speaks the currently-displayed consent notice in the customer's
-    // language. Cancels any speech already in progress first so replays
-    // don't stack. Toggles a "speaking" visual state on the listen button.
+    // language. UPDATED: browser speech synthesis on many devices has no
+    // installed voice for Marathi/Tamil/Telugu/Hindi, or it can't render
+    // Devanagari/Tamil/Telugu script mixed with Latin text — in practice
+    // that made it only utter the English fragment ("DPDP Act, 2023") and
+    // silently drop the rest of the native sentence. To fix this reliably,
+    // we now generate real speech audio from the SAME backend TTS engine
+    // already used for the auto-greeting (which is proven to read full
+    // native-language sentences correctly) and play that back. Browser
+    // speechSynthesis is kept only as a last-resort fallback if the
+    // backend call fails (e.g. offline).
     async _speakConsentNotice() {
       if (!this._consentSpeechText) return;
-      try { if ("speechSynthesis" in window) window.speechSynthesis.cancel(); } catch (e) {}
+      this._stopConsentSpeech();
       this.els.consentListenBtn.classList.add("speaking");
+
+      try {
+        const form = new FormData();
+        form.append("staff_text", this._consentSpeechText);
+        form.append("target_language", this._consentSpeechLang);
+        const res = await fetch(`${API_BASE}/staff-reply`, { method: "POST", body: form });
+        const data = await res.json();
+        if (data.audio_b64) {
+          await this._playConsentAudio(data.audio_b64);
+          this.els.consentListenBtn.classList.remove("speaking");
+          return;
+        }
+      } catch (e) {
+        console.warn("[ChatWidget] backend consent TTS failed, falling back to browser voice:", e);
+      }
+
+      // Fallback: browser speech synthesis (best-effort — may not fully
+      // support every Indian-language voice/script on every device).
       await speakWithBrowserSynthesis(this._consentSpeechText, this._consentSpeechLang);
       this.els.consentListenBtn.classList.remove("speaking");
+    }
+
+    // Plays backend-generated consent audio through the shared audio
+    // element and resolves once playback finishes (or errors out), so
+    // callers can await the full statement being read before continuing.
+    _playConsentAudio(b64) {
+      return new Promise((resolve) => {
+        const p = document.getElementById("cwAudioPlayer");
+        if (!p) { resolve(); return; }
+        const cleanup = () => { p.onended = null; p.onerror = null; resolve(); };
+        p.onended = cleanup;
+        p.onerror = cleanup;
+        p.src = `data:audio/wav;base64,${b64}`;
+        p.play().catch(() => {
+          p.src = `data:audio/mpeg;base64,${b64}`;
+          p.play().catch(() => cleanup());
+        });
+      });
     }
 
     _replayConsentNotice() {
@@ -877,9 +931,15 @@
 
     // Stops any consent narration in progress — called the instant the
     // customer taps Yes / No / Close so speech never talks over the
-    // greeting or lingers after the popup is gone.
+    // greeting or lingers after the popup is gone. Stops BOTH the backend
+    // audio player and any browser speechSynthesis fallback that might be
+    // mid-utterance.
     _stopConsentSpeech() {
       try { if ("speechSynthesis" in window) window.speechSynthesis.cancel(); } catch (e) {}
+      try {
+        const p = document.getElementById("cwAudioPlayer");
+        if (p) { p.pause(); p.currentTime = 0; }
+      } catch (e) {}
       if (this.els.consentListenBtn) this.els.consentListenBtn.classList.remove("speaking");
     }
 
