@@ -221,6 +221,35 @@
     Hindi: "hi-IN", Marathi: "mr-IN", Tamil: "ta-IN", Telugu: "te-IN", English: "en-IN",
   };
 
+  // ── DPDP Act, 2023 Consent Notice ───────────────────────────────────────
+  // Shown to the customer, in their own language, BEFORE the session's
+  // auto-greeting fires. Explains that the conversation uses AI
+  // translation and will be recorded/stored by the bank. The session
+  // (and any conversationLog entries) is only created if the customer
+  // affirmatively consents ("Yes"). A "No" ends the flow immediately —
+  // no greeting, no API calls, nothing stored.
+  const DPDP_CONSENT_TEXT = {
+    Hindi: "यह बातचीत AI अनुवाद की सहायता से होगी और डिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम, 2023 के अनुसार बैंक द्वारा रिकॉर्ड और संग्रहीत की जा सकती है। क्या आप आगे बढ़ने के लिए सहमत हैं?",
+    Marathi: "हे संभाषण AI भाषांतराच्या मदतीने होईल आणि डिजिटल वैयक्तिक डेटा संरक्षण कायदा, २०२३ नुसार बँकेद्वारे रेकॉर्ड आणि साठवले जाऊ शकते. तुम्ही पुढे जाण्यास सहमत आहात का?",
+    Tamil: "இந்த உரையாடல் AI மொழிபெயர்ப்பு உதவியுடன் நடைபெறும் மற்றும் டிஜிட்டல் தனிநபர் தரவு பாதுகாப்பு சட்டம், 2023-ன் படி வங்கியால் பதிவு செய்யப்பட்டு சேமிக்கப்படலாம். தொடர உங்கள் ஒப்புதல் உண்டா?",
+    Telugu: "ఈ సంభాషణ AI అనువాదం సహాయంతో జరుగుతుంది మరియు డిజిటల్ పర్సనల్ డేటా ప్రొటెక్షన్ యాక్ట్, 2023 ప్రకారం బ్యాంకు ద్వారా రికార్డ్ చేయబడి నిల్వ చేయబడవచ్చు. కొనసాగడానికి మీరు అంగీకరిస్తున్నారా?",
+    English: "This conversation will be assisted by AI translation and may be recorded and stored by the bank as per the Digital Personal Data Protection Act, 2023, for service purposes. Do you consent to proceed?",
+  };
+  const DPDP_CONSENT_TITLE = {
+    Hindi: "डेटा गोपनीयता सहमति",
+    Marathi: "डेटा गोपनीयता संमती",
+    Tamil: "தரவு தனியுரிமை ஒப்புதல்",
+    Telugu: "డేటా గోప్యతా అంగీకారం",
+    English: "Data Privacy Consent",
+  };
+  const DPDP_YES_LABEL = {
+    Hindi: "हाँ, मैं सहमत हूँ", Marathi: "होय, मी सहमत आहे", Tamil: "ஆம், ஒப்புக்கொள்கிறேன்",
+    Telugu: "అవును, అంగీకరిస్తున్నాను", English: "Yes, I consent",
+  };
+  const DPDP_NO_LABEL = {
+    Hindi: "नहीं", Marathi: "नाही", Tamil: "இல்லை", Telugu: "కాదు", English: "No",
+  };
+
   // ── Utility functions ───────────────────────────────────────────────────
   function escHtml(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
   function formatTime() { return new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }); }
@@ -486,8 +515,26 @@
         <!-- TOAST -->
         <div class="cw-toast" id="cwToast"><span id="cwToastText"></span></div>
 
+        <!-- DPDP ACT 2023 CONSENT MODAL — shown before greeting fires -->
+        <div class="cw-modal-overlay" id="cwConsentModal" style="z-index:25;">
+          <div class="cw-modal" style="max-width:340px;">
+            <div class="cw-modal-title" id="cwConsentTitle">Data Privacy Consent</div>
+            <div style="font-size:15px; line-height:1.6; color:var(--navy); margin:14px 0 20px; font-weight:500;" id="cwConsentText">
+              Loading…
+            </div>
+            <div class="cw-modal-actions">
+              <button class="cw-modal-btn ghost" id="cwConsentNoBtn">No</button>
+              <button class="cw-modal-btn primary" id="cwConsentYesBtn">Yes, I consent</button>
+            </div>
+          </div>
+        </div>
+
         <!-- SUMMARY MODAL -->
-        <div class="cw-modal-overlay" id="cwSummaryModal">
+        <div class="cw-modal-overlay" id="cwSummaryModal"></div>
+        <div class="cw-modal-overlay" id="cwSummaryModalReal"></div>
+      `.replace(
+        '<div class="cw-modal-overlay" id="cwSummaryModal"></div>\n        <div class="cw-modal-overlay" id="cwSummaryModalReal"></div>',
+        `<div class="cw-modal-overlay" id="cwSummaryModal">
           <div class="cw-modal">
             <div class="cw-modal-title">Session Summary</div>
             <div class="cw-modal-subtitle" id="cwSummaryMeta">Loading…</div>
@@ -507,7 +554,12 @@
               <button class="cw-modal-btn ghost" id="cwNewSessionBtn">New Session</button>
             </div>
           </div>
-        </div>
+        </div>`
+      );
+    }
+
+    _windowHTML_UNUSED_PLACEHOLDER() {
+      return `
 
         <!-- LEAD CONFIRMATION POPUP (legacy — kept for backwards compat but
              no longer opened by saveToRecords(); saveToRecords() now
