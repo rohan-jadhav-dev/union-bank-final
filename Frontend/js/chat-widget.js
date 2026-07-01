@@ -17,6 +17,18 @@
 //      and redirects straight to lead-form.html, which auto-extracts
 //      and auto-fills the lead form — and ALWAYS opens/renders that form
 //      even when extraction is incomplete or fields are missing.
+//   4. NEW — DPDP Act, 2023 consent gate. When "Begin conversation" opens
+//      the widget, the session no longer starts immediately. A consent
+//      popup is shown first, in the customer's selected language, stating
+//      that the conversation will be processed/translated by AI and
+//      stored in bank records. If the customer agrees, the session
+//      proceeds exactly as before (auto-greeting, etc). If they decline,
+//      the widget closes and no conversation/log is started. The consent
+//      decision (yes/no + language + process + timestamp) is recorded in
+//      sessionStorage as "va_consent_record" and is also attached to the
+//      lead handoff payload in saveToRecords() for audit purposes.
+//      NOTE: consent notice text below is a functional placeholder — have
+//      it reviewed/finalised by legal/compliance before production use.
 // ============================================================================
 
 (function () {
@@ -221,6 +233,44 @@
     Hindi: "hi-IN", Marathi: "mr-IN", Tamil: "ta-IN", Telugu: "te-IN", English: "en-IN",
   };
 
+  // ── DPDP Act, 2023 consent notice text (per language) ──────────────────
+  // NOTE: functional placeholder copy — have legal/compliance finalise the
+  // exact wording, retention period, and grievance-officer contact before
+  // this goes to production. Kept short & plain-language per Section 6
+  // "clear affirmative action" requirement.
+  const CONSENT_TEXT = {
+    Hindi: {
+      title: "सहमति आवश्यक है",
+      body: "डिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम (DPDP Act), 2023 के अनुसार सूचित किया जाता है कि आपकी यह बातचीत AI द्वारा अनुवादित की जाएगी और Union Bank of India के रिकॉर्ड में सुरक्षित रखी जाएगी, ताकि आपकी सेवा से जुड़ी प्रक्रिया पूरी की जा सके। क्या आप इसके लिए सहमत हैं?",
+      agree: "हाँ, मैं सहमत हूँ",
+      decline: "नहीं",
+    },
+    Marathi: {
+      title: "संमती आवश्यक आहे",
+      body: "डिजिटल वैयक्तिक डेटा संरक्षण कायदा (DPDP Act), 2023 नुसार कळवण्यात येते की तुमचे हे संभाषण AI द्वारे भाषांतरित केले जाईल आणि Union Bank of India च्या नोंदींमध्ये सुरक्षित ठेवले जाईल, जेणेकरून तुमची सेवा प्रक्रिया पूर्ण करता येईल. तुम्ही यास सहमत आहात का?",
+      agree: "होय, मी सहमत आहे",
+      decline: "नाही",
+    },
+    Tamil: {
+      title: "ஒப்புதல் தேவை",
+      body: "டிஜிட்டல் தனிநபர் தரவு பாதுகாப்புச் சட்டம் (DPDP Act), 2023-ன் படி, உங்கள் இந்த உரையாடல் AI மூலம் மொழிபெயர்க்கப்பட்டு Union Bank of India-வின் பதிவுகளில் சேமிக்கப்படும் என்பதை அறிவிக்கிறோம். இதற்கு நீங்கள் ஒப்புக்கொள்கிறீர்களா?",
+      agree: "ஆம், ஒப்புக்கொள்கிறேன்",
+      decline: "இல்லை",
+    },
+    Telugu: {
+      title: "అనుమతి అవసరం",
+      body: "డిజిటల్ పర్సనల్ డేటా ప్రొటెక్షన్ చట్టం (DPDP Act), 2023 ప్రకారం తెలియజేయడమైనది — మీ ఈ సంభాషణ AI ద్వారా అనువదించబడి Union Bank of India రికార్డులలో భద్రపరచబడుతుంది. దీనికి మీరు అంగీకరిస్తున్నారా?",
+      agree: "అవును, అంగీకరిస్తున్నాను",
+      decline: "వద్దు",
+    },
+    English: {
+      title: "Consent required",
+      body: "As per the Digital Personal Data Protection Act (DPDP Act), 2023, this conversation will be processed and translated by AI, and stored in Union Bank of India's records to complete your requested service. Do you agree to this?",
+      agree: "Yes, I agree",
+      decline: "No",
+    },
+  };
+
   // ── Utility functions ───────────────────────────────────────────────────
   function escHtml(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
   function formatTime() { return new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }); }
@@ -320,6 +370,7 @@
     send: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 19-7z" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     panel: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" stroke-linecap="round"/><rect x="9" y="3" width="6" height="4" rx="1" stroke-linecap="round"/><path d="M9 12h6M9 16h4" stroke-linecap="round"/></svg>`,
     chevronRight: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    shield: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3z" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   };
 
   // ════════════════════════════════════════════════════════════════════════
@@ -344,6 +395,11 @@
       this.kycShown = false;
       this.panelOpen = false;
       this.isActive = false; // true when a session is running
+
+      // DPDP consent state
+      this._pendingSessionLang = null;
+      this._pendingSessionProcess = null;
+      this._consentRecord = null;
 
       // Build DOM
       this._buildDOM();
@@ -483,6 +539,21 @@
           </div>
         </div>
 
+        <!-- DPDP CONSENT MODAL — shown before every session starts -->
+        <div class="cw-modal-overlay cw-consent-overlay" id="cwConsentModal">
+          <div class="cw-modal cw-consent-modal">
+            <button class="cw-consent-close" id="cwConsentCloseBtn" title="Decline & close" aria-label="Decline & close">${ICONS.close}</button>
+            <div class="cw-consent-icon">${ICONS.shield}</div>
+            <div class="cw-modal-title" id="cwConsentTitle">Consent required</div>
+            <div class="cw-consent-native" id="cwConsentNative"></div>
+            <div class="cw-consent-english" id="cwConsentEnglish"></div>
+            <div class="cw-modal-actions cw-consent-actions">
+              <button class="cw-modal-btn decline" id="cwConsentDeclineBtn">No</button>
+              <button class="cw-modal-btn agree" id="cwConsentAgreeBtn">Yes, I agree</button>
+            </div>
+          </div>
+        </div>
+
         <!-- TOAST -->
         <div class="cw-toast" id="cwToast"><span id="cwToastText"></span></div>
 
@@ -598,6 +669,14 @@
         leadPopRating: this.window.querySelector("#cwLeadPopRating"),
         leadPopSendBtn: this.window.querySelector("#cwLeadPopSendBtn"),
         leadPopSkipBtn: this.window.querySelector("#cwLeadPopSkipBtn"),
+        // Consent modal refs
+        consentModal: this.window.querySelector("#cwConsentModal"),
+        consentTitle: this.window.querySelector("#cwConsentTitle"),
+        consentNative: this.window.querySelector("#cwConsentNative"),
+        consentEnglish: this.window.querySelector("#cwConsentEnglish"),
+        consentAgreeBtn: this.window.querySelector("#cwConsentAgreeBtn"),
+        consentDeclineBtn: this.window.querySelector("#cwConsentDeclineBtn"),
+        consentCloseBtn: this.window.querySelector("#cwConsentCloseBtn"),
       };
     }
 
@@ -623,6 +702,11 @@
       this.els.newSessionBtn.addEventListener("click", () => this.newSession());
       this.els.leadPopSendBtn.addEventListener("click", () => this.submitLeadFromPop());
       this.els.leadPopSkipBtn.addEventListener("click", () => this.skipLeadFromPop());
+
+      // DPDP consent controls
+      this.els.consentAgreeBtn.addEventListener("click", () => this._handleConsentAgree());
+      this.els.consentDeclineBtn.addEventListener("click", () => this._handleConsentDecline());
+      this.els.consentCloseBtn.addEventListener("click", () => this._handleConsentDecline());
 
       // Text input
       this.els.textInput.addEventListener("keydown", (e) => {
@@ -699,8 +783,86 @@
       this.els.btnMaximize.title = isMax ? "Restore" : "Maximize";
     }
 
+    // ── DPDP Consent Gate ────────────────────────────────────────────────
+    // Called first, in place of the old immediate session start. Stores the
+    // requested lang/process, then shows the consent popup rendered in the
+    // customer's language (with an English line underneath for staff
+    // reference). Nothing about the session (log, timer, greeting) starts
+    // until the customer explicitly agrees.
+    _showConsentPopup(lang, process) {
+      this._pendingSessionLang = lang;
+      this._pendingSessionProcess = process;
+
+      const consent = CONSENT_TEXT[lang] || CONSENT_TEXT["English"];
+      const consentEn = CONSENT_TEXT["English"];
+
+      this.els.consentTitle.textContent = consent.title;
+      this.els.consentNative.textContent = consent.body;
+      // Only show a separate English reference line if the selected
+      // language isn't already English (avoids a duplicate line).
+      this.els.consentEnglish.textContent = (lang === "English") ? "" : consentEn.body;
+      this.els.consentEnglish.style.display = (lang === "English") ? "none" : "block";
+      this.els.consentAgreeBtn.textContent = consent.agree;
+      this.els.consentDeclineBtn.textContent = consent.decline;
+
+      this.els.consentModal.classList.add("show");
+    }
+
+    _handleConsentAgree() {
+      this.els.consentModal.classList.remove("show");
+      const lang = this._pendingSessionLang;
+      const process = this._pendingSessionProcess;
+
+      this._consentRecord = {
+        given: true,
+        language: lang,
+        process: process,
+        timestamp: new Date().toISOString(),
+      };
+      try {
+        sessionStorage.setItem("va_consent_record", JSON.stringify(this._consentRecord));
+      } catch (e) {
+        console.warn("[ChatWidget] could not persist consent record:", e);
+      }
+
+      this._beginSessionAfterConsent(lang, process);
+    }
+
+    _handleConsentDecline() {
+      this.els.consentModal.classList.remove("show");
+
+      this._consentRecord = {
+        given: false,
+        language: this._pendingSessionLang,
+        process: this._pendingSessionProcess,
+        timestamp: new Date().toISOString(),
+      };
+      try {
+        sessionStorage.setItem("va_consent_record", JSON.stringify(this._consentRecord));
+      } catch (e) {
+        console.warn("[ChatWidget] could not persist consent record:", e);
+      }
+
+      this._pendingSessionLang = null;
+      this._pendingSessionProcess = null;
+
+      this._showToast("Consent declined — conversation not started", true);
+      // No session was ever created (no log, no timer), so just close.
+      this.close();
+    }
+
     // ── Session Lifecycle ───────────────────────────────────────────────
+    // Public entry point (called by the dashboard's "Begin conversation"
+    // flow via open(lang, process) → startSession(lang, process)).
+    // UPDATED: no longer starts the session directly — shows the DPDP
+    // consent popup first. The actual session build-out moved to
+    // _beginSessionAfterConsent(), which only runs once the customer taps
+    // "Yes, I agree".
     startSession(lang, process) {
+      this._showConsentPopup(lang, process);
+    }
+
+    _beginSessionAfterConsent(lang, process) {
       this.selectedLanguage = lang;
       this.selectedProcess = process;
       this.conversationLog = [];
@@ -733,6 +895,7 @@
 
       // Add system message
       this._addSystemMsg(`Session started · ${lang} · ${process}`);
+      this._addSystemMsg(`✓ DPDP Act consent recorded`);
 
       // Start timer
       this._startTimer();
@@ -1232,12 +1395,13 @@
     // ── Save to Records ──────────────────────────────────────────────────
     // UPDATED: no longer shows the in-widget lead popup. It stashes the
     // conversation + metadata into sessionStorage (same keys
-    // lead-form.html reads) and redirects the browser straight to
+    // lead-form.html expects) and redirects the browser straight to
     // lead-form.html, which does its own /extract-lead call and
     // ALWAYS renders the full lead form — every field the process
     // requires is shown, auto-filled where extraction succeeded and
     // left blank/"enter manually" where it didn't. The form opening is
     // not gated on extraction being complete or exact.
+    // Also now attaches the DPDP consent record for audit purposes.
     saveToRecords() {
       if (this.conversationLog.length === 0) {
         this._showToast("No conversation yet", true);
@@ -1249,6 +1413,7 @@
         sessionStorage.setItem("va_lead_process", this.selectedProcess || "General enquiry");
         sessionStorage.setItem("va_lead_language", this.selectedLanguage || "English");
         sessionStorage.setItem("va_lead_duration", this.els.timerDisplay.textContent || "");
+        sessionStorage.setItem("va_lead_consent", JSON.stringify(this._consentRecord || {}));
       } catch (e) {
         console.warn("[ChatWidget] could not write sessionStorage for lead handoff:", e);
       }

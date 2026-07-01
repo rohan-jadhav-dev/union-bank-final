@@ -1527,3 +1527,113 @@
 
 /* ── Audio player hidden ───────────────────────────────────────────────── */
 #cwAudioPlayer { display: none; }
+
+/* ============================================================================
+   DPDP ACT CONSENT MODAL
+   Shown before every session starts. Sits above all other overlays
+   (summary modal z-index:10, legacy lead popup z-index:20) so it is
+   always the first thing the customer/staff sees on "Begin conversation".
+   ============================================================================ */
+
+.cw-consent-overlay {
+  z-index: 30;
+}
+
+.cw-consent-modal {
+  position: relative;
+  max-width: 380px;
+  text-align: center;
+  padding: 28px 24px 24px;
+}
+
+.cw-consent-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--slate-light);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.cw-consent-close:hover {
+  background: var(--bg);
+  color: var(--navy);
+}
+
+.cw-consent-close svg {
+  width: 14px;
+  height: 14px;
+}
+
+.cw-consent-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+  background: rgba(184, 146, 61, 0.12);
+  color: var(--gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cw-consent-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.cw-consent-modal .cw-modal-title {
+  text-align: center;
+  margin-bottom: 14px;
+}
+
+.cw-consent-native {
+  font-size: 16px !important;
+  font-weight: 600;
+  color: var(--navy);
+  line-height: 1.65;
+  margin-bottom: 12px;
+  font-family: 'Noto Sans Devanagari', 'Inter', sans-serif;
+}
+
+.cw-consent-english {
+  font-size: 12.5px;
+  font-style: italic;
+  color: var(--slate);
+  line-height: 1.55;
+  border-top: 1px dashed var(--border);
+  padding-top: 12px;
+  margin-bottom: 20px;
+}
+
+.cw-consent-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.cw-consent-actions .cw-modal-btn.decline {
+  background: var(--white);
+  color: var(--error);
+  border: 1px solid rgba(179, 38, 30, 0.3);
+}
+
+.cw-consent-actions .cw-modal-btn.decline:hover {
+  background: rgba(179, 38, 30, 0.06);
+}
+
+.cw-consent-actions .cw-modal-btn.agree {
+  background: var(--success);
+  color: var(--white);
+}
+
+.cw-consent-actions .cw-modal-btn.agree:hover {
+  background: #256b4d;
+}
