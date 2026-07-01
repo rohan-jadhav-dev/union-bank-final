@@ -17,7 +17,7 @@
 //      and redirects straight to lead-form.html, which auto-extracts
 //      and auto-fills the lead form — and ALWAYS opens/renders that form
 //      even when extraction is incomplete or fields are missing.
-//   4. NEW — DPDP Act, 2023 consent gate. When "Begin conversation" opens
+//   4. DPDP Act, 2023 consent gate. When "Begin conversation" opens
 //      the widget, the session no longer starts immediately. A consent
 //      popup is shown first, in the customer's selected language, stating
 //      that the conversation will be processed/translated by AI and
@@ -29,6 +29,11 @@
 //      lead handoff payload in saveToRecords() for audit purposes.
 //      NOTE: consent notice text below is a functional placeholder — have
 //      it reviewed/finalised by legal/compliance before production use.
+//   5. NEW — Consent notice is now READ ALOUD to the customer in their
+//      selected language as soon as the popup appears (many customers
+//      can't read, only understand spoken language). A "🔊 Listen again"
+//      button lets them replay it. Speech is stopped automatically the
+//      moment they tap Yes/No/Close so it never talks over the greeting.
 // ============================================================================
 
 (function () {
@@ -244,30 +249,35 @@
       body: "डिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम (DPDP Act), 2023 के अनुसार सूचित किया जाता है कि आपकी यह बातचीत AI द्वारा अनुवादित की जाएगी और Union Bank of India के रिकॉर्ड में सुरक्षित रखी जाएगी, ताकि आपकी सेवा से जुड़ी प्रक्रिया पूरी की जा सके। क्या आप इसके लिए सहमत हैं?",
       agree: "हाँ, मैं सहमत हूँ",
       decline: "नहीं",
+      listen: "🔊 फिर से सुनें",
     },
     Marathi: {
       title: "संमती आवश्यक आहे",
       body: "डिजिटल वैयक्तिक डेटा संरक्षण कायदा (DPDP Act), 2023 नुसार कळवण्यात येते की तुमचे हे संभाषण AI द्वारे भाषांतरित केले जाईल आणि Union Bank of India च्या नोंदींमध्ये सुरक्षित ठेवले जाईल, जेणेकरून तुमची सेवा प्रक्रिया पूर्ण करता येईल. तुम्ही यास सहमत आहात का?",
       agree: "होय, मी सहमत आहे",
       decline: "नाही",
+      listen: "🔊 पुन्हा ऐका",
     },
     Tamil: {
       title: "ஒப்புதல் தேவை",
       body: "டிஜிட்டல் தனிநபர் தரவு பாதுகாப்புச் சட்டம் (DPDP Act), 2023-ன் படி, உங்கள் இந்த உரையாடல் AI மூலம் மொழிபெயர்க்கப்பட்டு Union Bank of India-வின் பதிவுகளில் சேமிக்கப்படும் என்பதை அறிவிக்கிறோம். இதற்கு நீங்கள் ஒப்புக்கொள்கிறீர்களா?",
       agree: "ஆம், ஒப்புக்கொள்கிறேன்",
       decline: "இல்லை",
+      listen: "🔊 மீண்டும் கேளுங்கள்",
     },
     Telugu: {
       title: "అనుమతి అవసరం",
       body: "డిజిటల్ పర్సనల్ డేటా ప్రొటెక్షన్ చట్టం (DPDP Act), 2023 ప్రకారం తెలియజేయడమైనది — మీ ఈ సంభాషణ AI ద్వారా అనువదించబడి Union Bank of India రికార్డులలో భద్రపరచబడుతుంది. దీనికి మీరు అంగీకరిస్తున్నారా?",
       agree: "అవును, అంగీకరిస్తున్నాను",
       decline: "వద్దు",
+      listen: "🔊 మళ్ళీ వినండి",
     },
     English: {
       title: "Consent required",
       body: "As per the Digital Personal Data Protection Act (DPDP Act), 2023, this conversation will be processed and translated by AI, and stored in Union Bank of India's records to complete your requested service. Do you agree to this?",
       agree: "Yes, I agree",
       decline: "No",
+      listen: "🔊 Listen again",
     },
   };
 
@@ -371,6 +381,7 @@
     panel: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" stroke-linecap="round"/><rect x="9" y="3" width="6" height="4" rx="1" stroke-linecap="round"/><path d="M9 12h6M9 16h4" stroke-linecap="round"/></svg>`,
     chevronRight: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     shield: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3z" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    speaker: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 5L6 9H3v6h3l5 4V5z" stroke-linecap="round" stroke-linejoin="round"/><path d="M15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13" stroke-linecap="round"/></svg>`,
   };
 
   // ════════════════════════════════════════════════════════════════════════
@@ -461,6 +472,17 @@
         .cw-info-badge, .cw-suggestion-badge { font-size: 13px !important; }
         .cw-empty p { font-size: 14px !important; }
         .cw-translation-missing { font-size: 15px !important; line-height: 1.5 !important; color: #B91C1C !important; font-style: italic; margin-top: 4px; }
+        .cw-consent-listen-btn {
+          display: inline-flex; align-items: center; gap: 6px;
+          margin: 4px auto 14px; padding: 6px 14px;
+          border-radius: 99px; border: 1px solid rgba(184,146,61,0.35);
+          background: rgba(184,146,61,0.08); color: var(--navy);
+          font-size: 13px !important; font-weight: 600; cursor: pointer;
+          font-family: inherit; transition: background 150ms ease;
+        }
+        .cw-consent-listen-btn:hover { background: rgba(184,146,61,0.18); }
+        .cw-consent-listen-btn svg { width: 15px; height: 15px; }
+        .cw-consent-listen-btn.speaking { background: rgba(184,146,61,0.28); }
       `;
       document.head.appendChild(style);
     }
@@ -546,6 +568,9 @@
             <div class="cw-consent-icon">${ICONS.shield}</div>
             <div class="cw-modal-title" id="cwConsentTitle">Consent required</div>
             <div class="cw-consent-native" id="cwConsentNative"></div>
+            <button class="cw-consent-listen-btn" id="cwConsentListenBtn" type="button">
+              ${ICONS.speaker}<span id="cwConsentListenLabel">Listen again</span>
+            </button>
             <div class="cw-consent-english" id="cwConsentEnglish"></div>
             <div class="cw-modal-actions cw-consent-actions">
               <button class="cw-modal-btn decline" id="cwConsentDeclineBtn">No</button>
@@ -677,6 +702,8 @@
         consentAgreeBtn: this.window.querySelector("#cwConsentAgreeBtn"),
         consentDeclineBtn: this.window.querySelector("#cwConsentDeclineBtn"),
         consentCloseBtn: this.window.querySelector("#cwConsentCloseBtn"),
+        consentListenBtn: this.window.querySelector("#cwConsentListenBtn"),
+        consentListenLabel: this.window.querySelector("#cwConsentListenLabel"),
       };
     }
 
@@ -707,6 +734,7 @@
       this.els.consentAgreeBtn.addEventListener("click", () => this._handleConsentAgree());
       this.els.consentDeclineBtn.addEventListener("click", () => this._handleConsentDecline());
       this.els.consentCloseBtn.addEventListener("click", () => this._handleConsentDecline());
+      this.els.consentListenBtn.addEventListener("click", () => this._replayConsentNotice());
 
       // Text input
       this.els.textInput.addEventListener("keydown", (e) => {
@@ -789,6 +817,11 @@
     // customer's language (with an English line underneath for staff
     // reference). Nothing about the session (log, timer, greeting) starts
     // until the customer explicitly agrees.
+    //
+    // UPDATED: the native-language notice is now also SPOKEN aloud as soon
+    // as the popup appears, because many customers understand spoken
+    // language far better than reading dense legal text. A "Listen again"
+    // button lets them replay it as many times as needed before deciding.
     _showConsentPopup(lang, process) {
       this._pendingSessionLang = lang;
       this._pendingSessionProcess = process;
@@ -804,11 +837,42 @@
       this.els.consentEnglish.style.display = (lang === "English") ? "none" : "block";
       this.els.consentAgreeBtn.textContent = consent.agree;
       this.els.consentDeclineBtn.textContent = consent.decline;
+      this.els.consentListenLabel.textContent = (consent.listen || "🔊 Listen again").replace(/^🔊\s*/, "");
 
       this.els.consentModal.classList.add("show");
+
+      // Store the current native text/lang so the replay button always
+      // speaks exactly what's on screen, then read it out immediately.
+      this._consentSpeechText = consent.body;
+      this._consentSpeechLang = lang;
+      this._speakConsentNotice();
+    }
+
+    // Speaks the currently-displayed consent notice in the customer's
+    // language. Cancels any speech already in progress first so replays
+    // don't stack. Toggles a "speaking" visual state on the listen button.
+    async _speakConsentNotice() {
+      if (!this._consentSpeechText) return;
+      try { if ("speechSynthesis" in window) window.speechSynthesis.cancel(); } catch (e) {}
+      this.els.consentListenBtn.classList.add("speaking");
+      await speakWithBrowserSynthesis(this._consentSpeechText, this._consentSpeechLang);
+      this.els.consentListenBtn.classList.remove("speaking");
+    }
+
+    _replayConsentNotice() {
+      this._speakConsentNotice();
+    }
+
+    // Stops any consent narration in progress — called the instant the
+    // customer taps Yes / No / Close so speech never talks over the
+    // greeting or lingers after the popup is gone.
+    _stopConsentSpeech() {
+      try { if ("speechSynthesis" in window) window.speechSynthesis.cancel(); } catch (e) {}
+      if (this.els.consentListenBtn) this.els.consentListenBtn.classList.remove("speaking");
     }
 
     _handleConsentAgree() {
+      this._stopConsentSpeech();
       this.els.consentModal.classList.remove("show");
       const lang = this._pendingSessionLang;
       const process = this._pendingSessionProcess;
@@ -829,6 +893,7 @@
     }
 
     _handleConsentDecline() {
+      this._stopConsentSpeech();
       this.els.consentModal.classList.remove("show");
 
       this._consentRecord = {
