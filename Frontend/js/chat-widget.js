@@ -374,6 +374,39 @@
 
       // Cache DOM refs
       this._cacheRefs();
+
+      // Inject a font-size boost stylesheet so all widget text renders
+      // larger/more readable, overriding whatever base sizes the external
+      // stylesheet sets.
+      this._injectFontBoost();
+    }
+
+    // ── Readability: bump up font sizes across the whole widget ─────────
+    _injectFontBoost() {
+      if (document.getElementById("cwFontBoost")) return;
+      const style = document.createElement("style");
+      style.id = "cwFontBoost";
+      style.textContent = `
+        .cw-msg-bubble { font-size: 16px !important; line-height: 1.55 !important; }
+        .cw-msg-translation { font-size: 18px !important; line-height: 1.55 !important; }
+        .cw-msg-meta { font-size: 12px !important; }
+        .cw-system-msg { font-size: 13px !important; }
+        .cw-qr-btn { font-size: 14px !important; padding: 8px 12px !important; }
+        .cw-qr-label { font-size: 13px !important; }
+        .cw-text-input { font-size: 15px !important; }
+        .cw-checklist-item span, .cw-inline-chk-item span { font-size: 14px !important; }
+        .cw-checklist-title, .cw-checklist-header { font-size: 13.5px !important; }
+        .cw-step-item span, .cw-inline-step span { font-size: 14px !important; }
+        .cw-guide-hint, .cw-inline-guide-tip span { font-size: 14px !important; line-height: 1.5 !important; }
+        .cw-kyc-item { font-size: 13.5px !important; }
+        .cw-header-title { font-size: 16px !important; }
+        .cw-status-text, .cw-header-lang, .cw-header-timer { font-size: 13px !important; }
+        .cw-toast { font-size: 14px !important; }
+        .cw-info-badge, .cw-suggestion-badge { font-size: 13px !important; }
+        .cw-empty p { font-size: 14px !important; }
+        .cw-translation-missing { font-size: 15px !important; line-height: 1.5 !important; color: #B91C1C !important; font-style: italic; margin-top: 4px; }
+      `;
+      document.head.appendChild(style);
     }
 
     _windowHTML() {
@@ -983,10 +1016,30 @@
         this.els.sendBtn.classList.remove("loading");
 
         if (data.success) {
-          this._addStaffBubble(text, data.translated_text, data.tts_engine, false);
-          if (data.audio_b64) this._playAudio(data.audio_b64);
-          else speakWithBrowserSynthesis(data.translated_text, this.selectedLanguage);
-          this.conversationLog.push({ role: "staff", text, translation: data.translated_text });
+          let finalData = data;
+          // If the translation came back empty after stripping reasoning
+          // (backend returned only <think> content, no real answer),
+          // retry the call once before giving up and showing the
+          // "translation unavailable" fallback in the bubble.
+          if (!cleanTranslationText(data.translated_text)) {
+            try {
+              const retryForm = new FormData();
+              retryForm.append("staff_text", text);
+              retryForm.append("target_language", this.selectedLanguage);
+              const retryRes = await fetch(`${API_BASE}/staff-reply`, { method: "POST", body: retryForm });
+              const retryData = await retryRes.json();
+              if (retryData.success && cleanTranslationText(retryData.translated_text)) {
+                finalData = retryData;
+              }
+            } catch (e) {
+              console.warn("[ChatWidget] translation retry failed:", e);
+            }
+          }
+
+          this._addStaffBubble(text, finalData.translated_text, finalData.tts_engine, false);
+          if (finalData.audio_b64) this._playAudio(finalData.audio_b64);
+          else speakWithBrowserSynthesis(cleanTranslationText(finalData.translated_text) || text, this.selectedLanguage);
+          this.conversationLog.push({ role: "staff", text, translation: finalData.translated_text });
           this.els.textInput.value = "";
           this.els.textInput.style.height = "auto";
           this.els.quickReplies.innerHTML = "";
@@ -1272,11 +1325,14 @@
       msg.className = "cw-msg customer";
       const cleanOrig = cleanTranslationText(orig);
       const cleanTrans = cleanTranslationText(trans);
+      const translationLine = cleanTrans
+        ? `<div class="cw-msg-translation" style="font-weight:500;">🌐 ${escHtml(cleanTrans)}</div>`
+        : `<div class="cw-translation-missing">⚠️ Translation unavailable — please resend</div>`;
       msg.innerHTML = `
         <div class="cw-msg-avatar">${langMeta.flag || "C"}</div>
         <div class="cw-msg-content">
           <div class="cw-msg-bubble">${escHtml(cleanOrig)}</div>
-          ${cleanTrans ? `<div class="cw-msg-translation" style="font-size:18px;line-height:1.5;font-weight:500;">🌐 ${escHtml(cleanTrans)}</div>` : ""}
+          ${translationLine}
           <div class="cw-msg-meta">
             <span>${formatTime()}</span>
             <span class="cw-msg-engine">${engine || "stt"}</span>
@@ -1294,6 +1350,12 @@
       const greetingLabel = isGreeting ? `<span class="cw-msg-greeting-label">👋 Auto Greeting</span>` : "";
       const cleanOrig = cleanTranslationText(orig);
       const cleanTrans = cleanTranslationText(trans);
+      let translationLine = "";
+      if (!isGreeting) {
+        translationLine = cleanTrans
+          ? `<div class="cw-msg-translation" style="font-weight:500;">→ ${escHtml(cleanTrans)}</div>`
+          : `<div class="cw-translation-missing">⚠️ Translation unavailable — please resend this reply</div>`;
+      }
       msg.innerHTML = `
         <div class="cw-msg-avatar">RJ</div>
         <div class="cw-msg-content">
@@ -1301,7 +1363,7 @@
             ${greetingLabel}
             ${escHtml(cleanOrig)}
           </div>
-          ${cleanTrans && !isGreeting ? `<div class="cw-msg-translation" style="font-size:18px;line-height:1.5;font-weight:500;">→ ${escHtml(cleanTrans)}</div>` : ""}
+          ${translationLine}
           <div class="cw-msg-meta">
             <span>${formatTime()}</span>
             <span class="cw-msg-engine">${engine || "llm"}</span>
