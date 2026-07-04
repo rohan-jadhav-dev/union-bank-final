@@ -416,6 +416,7 @@
       this.kycShown = false;
       this.panelOpen = false;
       this.isActive = false; // true when a session is running
+      this._busy = false;    // true while a turn (staff reply / customer audio) is being processed
 
       // DPDP consent state
       this._pendingSessionLang = null;
@@ -887,10 +888,19 @@
       this.els.consentListenBtn.classList.add("speaking");
 
       try {
-        const form = new FormData();
-        form.append("staff_text", this._consentSpeechText);
-        form.append("target_language", this._consentSpeechLang);
-        const res = await fetch(`${API_BASE}/staff-reply`, { method: "POST", body: form });
+        // Use the dedicated /tts endpoint (pure text-to-speech) — NOT
+        // /staff-reply. /staff-reply runs the text through the LLM
+        // translator, which could paraphrase or alter the DPDP consent
+        // wording (a compliance risk) and is slower. The consent text is
+        // already in the customer's language, so we only need to speak it.
+        const res = await fetch(`${API_BASE}/tts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: this._consentSpeechText,
+            language: this._consentSpeechLang,
+          }),
+        });
         const data = await res.json();
         if (data.audio_b64) {
           await this._playConsentAudio(data.audio_b64);
@@ -1064,6 +1074,24 @@
       this.kycShown = false;
       this.isRecording = false;
       this.staffRecording = false;
+      this._busy = false;
+
+      // Stop any live mic streams so the OS mic indicator turns off and the
+      // MediaRecorder doesn't leak (previously only the flags were reset).
+      try {
+        if (this.mediaRecorder && this.mediaRecorder.state === "recording") {
+          this.mediaRecorder.stop();
+          this.mediaRecorder.stream.getTracks().forEach(t => t.stop());
+        }
+      } catch (e) {}
+      try {
+        if (this.staffRecorder && this.staffRecorder.state === "recording") {
+          this.staffRecorder.stop();
+          this.staffRecorder.stream.getTracks().forEach(t => t.stop());
+        }
+      } catch (e) {}
+      // Stop any playing TTS audio too.
+      try { const p = document.getElementById("cwAudioPlayer"); if (p) { p.pause(); p.currentTime = 0; } } catch (e) {}
 
       // Reset header
       this.els.headerLang.style.display = "none";
@@ -1111,12 +1139,15 @@
 
       this._addStaffBubble(greetingText, greetingText, "auto", true);
 
-      // Play audio
+      // Play audio via the pure /tts endpoint — the greeting is already in
+      // the customer's language, so translating it again through /staff-reply
+      // would be wasteful and could alter the wording. Just speak it.
       try {
-        const form = new FormData();
-        form.append("staff_text", greetingText);
-        form.append("target_language", this.selectedLanguage);
-        const res = await fetch(`${API_BASE}/staff-reply`, { method: "POST", body: form });
+        const res = await fetch(`${API_BASE}/tts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: greetingText, language: this.selectedLanguage }),
+        });
         const data = await res.json();
         if (data.audio_b64) this._playAudio(data.audio_b64);
         else speakWithBrowserSynthesis(greetingText, this.selectedLanguage);
@@ -1132,7 +1163,11 @@
     // ── Customer Recording ──────────────────────────────────────────────
     async toggleCustomerRecording() {
       if (this.isRecording) this._stopCustomerRecording();
-      else await this._startCustomerRecording();
+      else {
+        // Busy-guard: don't start a customer turn while a reply is still processing.
+        if (this._busy) { this._showToast("Please wait — still processing…", true); return; }
+        await this._startCustomerRecording();
+      }
     }
 
     async _startCustomerRecording() {
@@ -1142,6 +1177,9 @@
         this._showToast(err.name === "NotAllowedError" ? "Microphone permission denied." : `Mic error: ${err.message}`, true);
         return;
       }
+      // Barge-in: stop any assistant TTS still playing so it doesn't talk over
+      // the customer while they speak.
+      try { const p = document.getElementById("cwAudioPlayer"); if (p) { p.pause(); p.currentTime = 0; } } catch (e) {}
       try {
         const mime = getSupportedMimeType();
         this.mediaRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
@@ -1175,6 +1213,7 @@
     }
 
     async _processCustomerAudio() {
+      this._busy = true;
       try {
         const mime = getSupportedMimeType();
         const blob = new Blob(this.audioChunks, { type: mime || "audio/webm" });
@@ -1203,9 +1242,10 @@
             // Update intent display if needed
           }
           this.conversationLog.push({ role: "customer", text: data.customer_text, translation: data.english_translation });
-          await this._updateStepFromLLM();
-          await this._autoCheckStepCompletion();
           this._setStatus("", "Ready");
+          // Fire-and-forget: step tracking + smart replies run in the
+          // background so the desk is responsive immediately.
+          this._runPostTurnUpdates();
         } else {
           this._showToast(data.error || "Could not transcribe. Try again.", true);
           this._setStatus("", "Ready");
@@ -1214,6 +1254,8 @@
         this._hideProcessingIndicator();
         this._showToast("Backend error. Is port 8000 running?", true);
         this._setStatus("", "Ready");
+      } finally {
+        this._busy = false;
       }
     }
 
@@ -1300,6 +1342,10 @@
     async sendStaffReply() {
       const text = this.els.textInput.value.trim();
       if (!text) return;
+      // Busy-guard: don't let a second reply (or a customer turn) start while
+      // one is still in flight — out-of-order responses corrupt the log.
+      if (this._busy) { this._showToast("Please wait — still processing…", true); return; }
+      this._busy = true;
       this.els.sendBtn.disabled = true;
       this.els.sendBtn.classList.add("loading");
       this._showTyping();
@@ -1344,8 +1390,8 @@
           this.els.textInput.style.height = "auto";
           this.els.quickReplies.innerHTML = "";
           this._setStatus("", "Ready");
-          await this._updateStepFromLLM();
-          await this._autoCheckStepCompletion();
+          // Fire-and-forget background step tracking (non-blocking).
+          this._runPostTurnUpdates();
         } else {
           this._showToast(data.error || "Translation failed", true);
         }
@@ -1354,6 +1400,8 @@
         this.els.sendBtn.disabled = false;
         this.els.sendBtn.classList.remove("loading");
         this._showToast("Backend error. Is port 8000 running?", true);
+      } finally {
+        this._busy = false;
       }
     }
 
@@ -1391,7 +1439,19 @@
       }
     }
 
-    async _updateStepFromLLM() {
+    // ── Post-turn updates (consolidated) ────────────────────────────────
+    // UPDATED: previously each turn fired THREE serial calls —
+    //   /detect-step → /step-complete → /smart-replies
+    // but /step-complete does not exist in the backend router, so it 404'd
+    // on every message (wasted round trip + console errors), and
+    // /smart-replies could fire twice (button flicker).
+    //
+    // Now: exactly ONE /detect-step call (which already returns
+    // `step_complete` for auto-advance AND `missing_info`/`next_question`),
+    // then ONE /smart-replies call. Callers invoke this WITHOUT awaiting so
+    // the staff can keep typing while step-tracking updates in the
+    // background — the translation + audio have already been shown.
+    async _runPostTurnUpdates() {
       if (this.conversationLog.length === 0) return;
       try {
         const res = await fetch(`${API_BASE}/detect-step`, {
@@ -1404,38 +1464,20 @@
           })
         });
         const data = await res.json();
-        if (!data.success) return;
-        if (data.missing_info && data.missing_info.length > 0) {
-          this._addInfoBadge(`📋 AI suggests still needed: ${data.missing_info.join(", ")}`);
+        if (data && data.success) {
+          if (data.missing_info && data.missing_info.length > 0) {
+            this._addInfoBadge(`📋 AI suggests still needed: ${data.missing_info.join(", ")}`);
+          }
+          if (data.next_question) this._addSuggestionBadge(`💡 Suggested: ${data.next_question}`);
+          // /detect-step already tells us if the step is done — auto-advance
+          // straight from it instead of a second (missing) endpoint.
+          if (data.step_complete) this._advanceStep();
         }
-        if (data.next_question) this._addSuggestionBadge(`💡 Suggested: ${data.next_question}`);
-        await this._fetchSmartQuickReplies();
       } catch (e) {
-        console.warn("[SmartStep] failed, using static:", e);
-        this._showStaticQuickReplies();
+        console.warn("[PostTurn] detect-step failed, using static replies:", e);
       }
-    }
-
-    async _autoCheckStepCompletion() {
-      try {
-        const res = await fetch(`${API_BASE}/step-complete`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            step_index: this.stepIndex,
-            conversation: this.conversationLog,
-            process_type: this.selectedProcess,
-            customer_language: this.selectedLanguage
-          })
-        });
-        const data = await res.json();
-        if (data.is_complete) {
-          this._advanceStep();
-          await this._fetchSmartQuickReplies();
-        } else if (data.missing_fields) {
-          this._addInfoBadge(`📋 Still need: ${data.missing_fields.join(", ")}`);
-        }
-      } catch (e) { console.warn("[AutoStep] failed:", e); }
+      // Fetch smart replies EXACTLY ONCE, after any step advance is applied.
+      await this._fetchSmartQuickReplies();
     }
 
     async _fetchSmartQuickReplies() {
