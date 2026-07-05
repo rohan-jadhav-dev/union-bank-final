@@ -143,9 +143,6 @@ async def _sarvam_tts(text: str, lang_code: str) -> str:
             json=payload
         )
         data = resp.json()
-    
-    # DEBUG — remove after fix
-    logger.error(f"SARVAM DEBUG: key={SARVAM_API_KEY[:10]}... lang={lang_code} speaker={speaker} response={data}")
 
     audios = data.get("audios", [])
     if audios:

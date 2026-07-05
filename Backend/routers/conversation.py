@@ -191,6 +191,38 @@ async def detect_step(req: StepDetectRequest):
         }
 
 
+# ── STEP COMPLETION CHECK (frontend auto-advance) ────────────────────────────
+# chat-widget.js calls POST /step-complete after every customer turn and
+# expects { is_complete, missing_fields }. This endpoint was missing (404),
+# so auto-advance silently never fired. It wraps the same LLM step detection
+# used by /detect-step.
+class StepCompleteRequest(BaseModel):
+    step_index: int = 0
+    conversation: list = []
+    process_type: str = "General enquiry"
+    customer_language: str = "Hindi"
+
+
+@router.post("/step-complete")
+async def step_complete(req: StepCompleteRequest):
+    try:
+        result = await llm_service.detect_process_step(
+            conversation_history=req.conversation,
+            process_type=req.process_type,
+            current_step=req.step_index
+        )
+        return {
+            "success": True,
+            "is_complete": result.get("step_complete", False),
+            "missing_fields": result.get("missing_info", []),
+            "next_question": result.get("next_question", ""),
+            "actual_step": result.get("actual_step", req.step_index)
+        }
+    except Exception as e:
+        logger.error(f"step-complete error: {e}", exc_info=True)
+        return {"success": False, "error": str(e), "is_complete": False, "missing_fields": []}
+
+
 # ── SMART QUICK REPLIES ──────────────────────────────────────────────────────
 class SmartRepliesRequest(BaseModel):
     conversation: list
@@ -342,37 +374,95 @@ class SubmitLeadRequest(BaseModel):
     session_duration: Optional[str] = ""
 
 
-@router.post("/submit-lead")
-async def submit_lead(req: SubmitLeadRequest):
-    try:
-        os.makedirs("leads", exist_ok=True)
-        record = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "process_type": req.process_type,
-            "customer_language": req.customer_language,
-            "session_duration": req.session_duration,
-            "lead": req.lead,
-        }
-        with open("leads/leads.jsonl", "a", encoding="utf-8") as f:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
-        logger.info(f"[submit-lead] saved lead for process={req.process_type}")
-        return JSONResponse({"success": True})
-    except Exception as e:
-        logger.error(f"submit-lead error: {e}", exc_info=True)
-        return JSONResponse({"success": False, "error": str(e)})
-    
-    
-@router.get("/leads")
-async def get_leads():
-    try:
-        if not os.path.exists("leads/leads.jsonl"):
-            return {"success": True, "leads": []}
-        leads = []
+# In-memory cache alongside the JSONL file. On Hugging Face Spaces the disk
+# is EPHEMERAL — it's wiped on every restart/redeploy — so the file alone
+# silently loses leads. The cache keeps the current session's leads served
+# fast, the file survives ordinary process restarts within the same
+# container, and /leads/export lets staff download a CSV snapshot at any
+# time (the durable copy for the demo).
+_LEADS_CACHE: List[dict] = []
+
+
+def _load_leads_from_disk() -> List[dict]:
+    leads = []
+    if os.path.exists("leads/leads.jsonl"):
         with open("leads/leads.jsonl", "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line:
-                    leads.append(json.loads(line))
+                    try:
+                        leads.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+    return leads
+
+
+def _all_leads() -> List[dict]:
+    disk = _load_leads_from_disk()
+    # merge: disk first, then any cached leads not yet on disk
+    seen = {json.dumps(l, sort_keys=True, ensure_ascii=False) for l in disk}
+    merged = disk + [l for l in _LEADS_CACHE if json.dumps(l, sort_keys=True, ensure_ascii=False) not in seen]
+    return merged
+
+
+@router.post("/submit-lead")
+async def submit_lead(req: SubmitLeadRequest):
+    record = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "process_type": req.process_type,
+        "customer_language": req.customer_language,
+        "session_duration": req.session_duration,
+        "lead": req.lead,
+    }
+    _LEADS_CACHE.append(record)
+    try:
+        os.makedirs("leads", exist_ok=True)
+        with open("leads/leads.jsonl", "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        logger.info(f"[submit-lead] saved lead for process={req.process_type}")
+    except Exception as e:
+        # Disk write failed (read-only fs etc.) — lead still lives in cache
+        logger.error(f"submit-lead disk write failed (kept in memory): {e}", exc_info=True)
+    return JSONResponse({"success": True})
+
+
+@router.get("/leads")
+async def get_leads():
+    try:
+        leads = _all_leads()
         return {"success": True, "count": len(leads), "leads": leads}
     except Exception as e:
-        return {"success": False, "error": str(e)}    
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/leads/export")
+async def export_leads_csv():
+    """Download all captured leads as a CSV file (demo-durable snapshot)."""
+    import csv
+    from io import StringIO
+    from fastapi.responses import Response
+
+    leads = _all_leads()
+    # Collect every field key that appears across leads
+    field_keys = []
+    for rec in leads:
+        for k in rec.get("lead", {}):
+            if k not in field_keys:
+                field_keys.append(k)
+
+    buf = StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["timestamp", "process_type", "customer_language", "session_duration"] + field_keys)
+    for rec in leads:
+        lead = rec.get("lead", {})
+        writer.writerow(
+            [rec.get("timestamp", ""), rec.get("process_type", ""),
+             rec.get("customer_language", ""), rec.get("session_duration", "")]
+            + [lead.get(k, "") for k in field_keys]
+        )
+
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=union_bank_leads.csv"},
+    )
