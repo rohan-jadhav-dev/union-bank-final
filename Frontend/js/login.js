@@ -1,440 +1,336 @@
-// ===================== STAFF DIRECTORY (mock — wire to auth.py /login endpoint later) =====================
-const STAFF_DIRECTORY = {
-  'EMP104782': { name: 'Rohan Jadhav', password: 'branch123', role: 'officer',    branch: 'Mumbai Fort' },
-  'EMP109933': { name: 'Aditi Rao',    password: 'super123',  role: 'supervisor', branch: 'Mumbai Fort' },
-  'EMP110045': { name: 'Karan Mehta',  password: 'branch123', role: 'officer',    branch: 'Andheri' }
-};
+// ===================== VoiceAssist AI — Staff Portal Login Logic =====================
+// Wires login.html to the FastAPI backend on Hugging Face Space.
 
-const SESSION_DURATION_MS = 30 * 60 * 1000; // 30 min idle expiry
-const MAX_LOGIN_ATTEMPTS = 3;
-let failedAttempts = 0;
+const API_BASE = "https://rohan667-voiceassist-ai-backend-kj.hf.space/api";
+const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/model";
+const MATCH_THRESHOLD = 0.6; // lower = stricter match
 
-// face-api model weights — same source the MediScan recognition module uses
-const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
-const FACE_MATCH_THRESHOLD = 0.5;   // lower = stricter match (same default as MediScan's FaceMatcher)
-const REQUIRED_MATCH_STREAK = 5;    // consecutive matching frames before auto sign-in
-const DETECT_INTERVAL_MS = 400;
+// ---------- DOM refs ----------
+const credentialsStep = document.getElementById("credentialsStep");
+const faceStep = document.getElementById("faceStep");
+const loginForm = document.getElementById("loginForm");
+const empIdInput = document.getElementById("empId");
+const passwordInput = document.getElementById("password");
+const empIdError = document.getElementById("empIdError");
+const passwordError = document.getElementById("passwordError");
+const authError = document.getElementById("authError");
+const securityCheckbox = document.getElementById("securityCheckbox");
+const securityLabel = document.getElementById("securityLabel");
+const securitySpinner = document.getElementById("securitySpinner");
+const submitBtn = document.getElementById("submitBtn");
+const btnSpinner = document.getElementById("btnSpinner");
 
+const faceVideo = document.getElementById("faceVideo");
+const faceCanvas = document.getElementById("faceCanvas");
+const faceLabel = document.getElementById("faceLabel");
+const faceStatus = document.getElementById("faceStatus");
+const faceSubtitle = document.getElementById("faceSubtitle");
+const faceCheckbox = document.getElementById("faceCheckbox");
+const faceSpinner = document.getElementById("faceSpinner");
+const captureEnrollBtn = document.getElementById("captureEnrollBtn");
+const skipFaceBtn = document.getElementById("skipFaceBtn");
+const backToCredsBtn = document.getElementById("backToCredsBtn");
+
+const toast = document.getElementById("toast");
+const toastText = document.getElementById("toastText");
+
+// ---------- session state ----------
+let currentStaff = null;   // { staff_id, name, role, branch_id, branch_name, next_step }
+let faceMode = null;       // "enroll" | "verify"
 let modelsLoaded = false;
-let faceStream = null;
-let faceLoopHandle = null;
-let enrollMode = false;
-let matchStreak = 0;
-
-// ===================== ELEMENT REFERENCES =====================
-const credentialsStep = document.getElementById('credentialsStep');
-const faceStep = document.getElementById('faceStep');
-
-const loginForm = document.getElementById('loginForm');
-const empIdInput = document.getElementById('empId');
-const passwordInput = document.getElementById('password');
-const empIdError = document.getElementById('empIdError');
-const passwordError = document.getElementById('passwordError');
-const authError = document.getElementById('authError');
-const togglePasswordBtn = document.getElementById('togglePassword');
-const securityCheckbox = document.getElementById('securityCheckbox');
-const securityCheck = document.getElementById('securityCheck');
-const securitySpinner = document.getElementById('securitySpinner');
-const securityLabel = document.getElementById('securityLabel');
-const submitBtn = document.getElementById('submitBtn');
-const btnSpinner = document.getElementById('btnSpinner');
-const btnText = submitBtn.querySelector('.btn-text');
-const toast = document.getElementById('toast');
-const toastText = document.getElementById('toastText');
-
-const faceSubtitle = document.getElementById('faceSubtitle');
-const faceVideo = document.getElementById('faceVideo');
-const faceCanvas = document.getElementById('faceCanvas');
-const faceLabel = document.getElementById('faceLabel');
-const faceStatus = document.getElementById('faceStatus');
-const faceCheckbox = document.getElementById('faceCheckbox');
-const faceCheckRow = document.getElementById('faceCheckRow');
-const captureEnrollBtn = document.getElementById('captureEnrollBtn');
-const skipFaceBtn = document.getElementById('skipFaceBtn');
-const backToCredsBtn = document.getElementById('backToCredsBtn');
-
-let isVerified = false;
-let isVerifying = false;
-let pendingStaff = null;
-
-// ===================== PASSWORD TOGGLE =====================
-togglePasswordBtn.addEventListener('click', () => {
-  const isPassword = passwordInput.type === 'password';
-  passwordInput.type = isPassword ? 'text' : 'password';
-  togglePasswordBtn.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
-});
-
-// ===================== FIELD VALIDATION =====================
-function clearFieldError(input, errorEl) {
-  input.classList.remove('error');
-  errorEl.classList.remove('show');
-}
-
-function setFieldError(input, errorEl, message) {
-  input.classList.add('error');
-  if (message) errorEl.textContent = message;
-  errorEl.classList.add('show');
-}
-
-empIdInput.addEventListener('input', () => {
-  clearFieldError(empIdInput, empIdError);
-  authError.classList.remove('show');
-});
-passwordInput.addEventListener('input', () => {
-  clearFieldError(passwordInput, passwordError);
-  authError.classList.remove('show');
-});
-
-// ===================== SECURITY CHECK (consent box) =====================
-function runSecurityCheck() {
-  if (isVerified || isVerifying) return;
-  isVerifying = true;
-  securityCheckbox.classList.add('checking');
-  setTimeout(() => {
-    securityCheckbox.classList.remove('checking');
-    securityCheckbox.classList.add('verified');
-    securityCheckbox.setAttribute('aria-checked', 'true');
-    securityCheck.classList.add('verified');
-    securityLabel.textContent = 'Identity confirmed';
-    isVerified = true;
-    isVerifying = false;
-  }, 900);
-}
-
-securityCheckbox.addEventListener('click', runSecurityCheck);
-securityCheckbox.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); runSecurityCheck(); }
-});
+let detectInterval = null;
+let isAuthorized = false;
 
 // ===================== TOAST =====================
 function showToast(message, isError = false) {
   toastText.textContent = message;
-  toast.style.background = isError ? 'var(--error)' : 'var(--navy)';
-  toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 2600);
+  toast.style.background = isError ? "#E31E24" : "";
+  toast.classList.add("show");
+  setTimeout(() => toast.classList.remove("show"), 2800);
 }
 
-// ===================== AUDIT LOG (local, swap for POST /log-login later) =====================
-function logAuditEvent(empId, role, status) {
-  const logs = JSON.parse(localStorage.getItem('vai_audit_log') || '[]');
-  logs.push({ empId, role, status, timestamp: new Date().toISOString() });
-  localStorage.setItem('vai_audit_log', JSON.stringify(logs));
-  // Backend hook (uncomment once auth.py endpoint exists):
-  // fetch('/api/log-login', { method: 'POST', headers: {'Content-Type':'application/json'},
-  //   body: JSON.stringify({ empId, role, status }) });
+// ===================== SECURITY CHECKBOX ("I am an authorized staff member") =====================
+function toggleSecurityCheck() {
+  isAuthorized = !isAuthorized;
+  securityCheckbox.setAttribute("aria-checked", String(isAuthorized));
+  securityCheckbox.classList.toggle("checked", isAuthorized);
+  securityLabel.textContent = isAuthorized
+    ? "Authorized staff member confirmed"
+    : "I am an authorized staff member";
 }
+securityCheckbox.addEventListener("click", toggleSecurityCheck);
+securityCheckbox.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    toggleSecurityCheck();
+  }
+});
 
-// ===================== STEP 1 → STEP 2 TRANSITION =====================
-loginForm.addEventListener('submit', (e) => {
+// ===================== PASSWORD VISIBILITY TOGGLE =====================
+document.getElementById("togglePassword").addEventListener("click", () => {
+  passwordInput.type = passwordInput.type === "password" ? "text" : "password";
+});
+
+// ===================== STEP 1: LOGIN FORM SUBMIT =====================
+loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
+
+  empIdError.style.display = "none";
+  passwordError.style.display = "none";
+  authError.style.display = "none";
+
+  const staffId = empIdInput.value.trim();
+  const password = passwordInput.value;
+
   let hasError = false;
-
-  if (!empIdInput.value.trim()) {
-    setFieldError(empIdInput, empIdError, 'Enter your employee ID');
-    hasError = true;
-  } else {
-    clearFieldError(empIdInput, empIdError);
-  }
-
-  if (!passwordInput.value.trim()) {
-    setFieldError(passwordInput, passwordError, 'Enter your password');
-    hasError = true;
-  } else {
-    clearFieldError(passwordInput, passwordError);
-  }
-
-  if (!isVerified) {
-    securityCheck.classList.add('shake');
-    setTimeout(() => securityCheck.classList.remove('shake'), 400);
+  if (!staffId) {
+    empIdError.style.display = "block";
     hasError = true;
   }
-
-  if (hasError) {
-    if (empIdInput.classList.contains('error') || passwordInput.classList.contains('error')) {
-      loginForm.classList.add('shake');
-      setTimeout(() => loginForm.classList.remove('shake'), 400);
-    }
-    if (!isVerified) showToast('Please complete the security check', true);
-    return;
+  if (!password) {
+    passwordError.style.display = "block";
+    hasError = true;
   }
+  if (!isAuthorized) {
+    showToast("Please confirm you are an authorized staff member", true);
+    hasError = true;
+  }
+  if (hasError) return;
 
-  submitBtn.disabled = true;
-  btnText.textContent = 'Verifying credentials';
-  btnSpinner.classList.add('show');
+  setBtnLoading(true);
 
-  setTimeout(() => {
-    btnSpinner.classList.remove('show');
-    btnText.textContent = 'Continue';
-    submitBtn.disabled = false;
+  try {
+    const res = await fetch(`${API_BASE}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ staff_id: staffId, password }),
+    });
 
-    const empId = empIdInput.value.trim().toUpperCase();
-    const staff = STAFF_DIRECTORY[empId];
+    const data = await res.json();
 
-    if (!staff || staff.password !== passwordInput.value.trim()) {
-      failedAttempts++;
-      logAuditEvent(empId, 'unknown', 'failed');
-
-      if (failedAttempts >= MAX_LOGIN_ATTEMPTS) {
-        setFieldError(passwordInput, authError, 'Too many failed attempts. Account locked — contact branch IT.');
-        submitBtn.disabled = true;
-        return;
-      }
-
-      setFieldError(passwordInput, authError, `Employee ID or password is incorrect (${MAX_LOGIN_ATTEMPTS - failedAttempts} attempt(s) left)`);
-      loginForm.classList.add('shake');
-      setTimeout(() => loginForm.classList.remove('shake'), 400);
+    if (!res.ok) {
+      authError.textContent = data.detail || "Employee ID or password is incorrect";
+      authError.style.display = "block";
+      setBtnLoading(false);
       return;
     }
 
-    // credentials valid — move to the face verification / enrollment step
-    pendingStaff = { empId, ...staff };
-    credentialsStep.style.display = 'none';
-    faceStep.style.display = 'block';
-    enterFaceStep();
-  }, 1200);
+    currentStaff = data; // { staff_id, name, role, branch_id, branch_name, face_enrolled, next_step }
+    setBtnLoading(false);
+    goToFaceStep();
+  } catch (err) {
+    console.error("Login error:", err);
+    showToast("Could not reach the server. Check your connection.", true);
+    setBtnLoading(false);
+  }
 });
 
-// ===================== STEP 2: FACE VERIFICATION (real, face-api.js powered) =====================
-// Same pipeline as the MediScan patient scanner: SSD Mobilenet detector + 68-point
-// landmarks + a 128-d face descriptor, matched with faceapi.FaceMatcher.
-//
-// Storage model (demo / client-side only — see note at bottom of file):
-//   localStorage key  vai_face_<EMPID>  ->  JSON array (128-d descriptor)
-// First sign-in with no stored descriptor triggers ENROLLMENT.
-// Every sign-in after that triggers live VERIFICATION against the stored descriptor.
-
-function getStoredDescriptor(empId) {
-  const raw = localStorage.getItem('vai_face_' + empId);
-  return raw ? JSON.parse(raw) : null;
+function setBtnLoading(loading) {
+  submitBtn.disabled = loading;
+  btnSpinner.style.display = loading ? "inline-block" : "none";
 }
 
-function storeDescriptor(empId, descriptorArray) {
-  localStorage.setItem('vai_face_' + empId, JSON.stringify(descriptorArray));
+// ===================== STEP TRANSITIONS =====================
+function goToFaceStep() {
+  credentialsStep.style.display = "none";
+  faceStep.style.display = "block";
+
+  faceMode = currentStaff.next_step === "face_enroll" ? "enroll" : "verify";
+  faceSubtitle.textContent =
+    faceMode === "enroll"
+      ? "First time here — let's enroll your face for faster sign-in next time."
+      : "Look at the camera to confirm your identity.";
+  captureEnrollBtn.style.display = faceMode === "enroll" ? "block" : "none";
+
+  startCamera();
 }
 
-async function loadFaceModels() {
-  if (modelsLoaded) return;
-  faceStatus.textContent = 'Loading detector…';
-  await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
-  faceStatus.textContent = 'Loading landmarks…';
-  await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-  faceStatus.textContent = 'Loading recognition…';
-  await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-  modelsLoaded = true;
-}
+backToCredsBtn.addEventListener("click", () => {
+  stopCamera();
+  faceStep.style.display = "none";
+  credentialsStep.style.display = "block";
+  currentStaff = null;
+});
 
-async function startFaceCamera() {
-  faceStream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 320 } });
-  faceVideo.srcObject = faceStream;
-  await new Promise(resolve => { faceVideo.onloadedmetadata = resolve; });
-  await faceVideo.play();
-  faceCanvas.width = faceVideo.videoWidth || 320;
-  faceCanvas.height = faceVideo.videoHeight || 320;
-}
-
-function stopFaceCamera() {
-  if (faceLoopHandle) { clearInterval(faceLoopHandle); faceLoopHandle = null; }
-  if (faceStream) { faceStream.getTracks().forEach(t => t.stop()); faceStream = null; }
-  faceVideo.srcObject = null;
-  const ctx = faceCanvas.getContext('2d');
-  ctx.clearRect(0, 0, faceCanvas.width, faceCanvas.height);
-}
-
-async function enterFaceStep() {
-  faceCheckbox.classList.remove('verified');
-  faceCheckRow.classList.remove('verified');
-  faceLabel.textContent = 'Initializing camera…';
-  faceStatus.textContent = 'Loading models';
-  captureEnrollBtn.style.display = 'none';
-  matchStreak = 0;
+skipFaceBtn.addEventListener("click", async () => {
+  stopCamera();
+  const staffId = empIdInput.value.trim();
+  const password = passwordInput.value;
 
   try {
-    await loadFaceModels();
-  } catch (err) {
-    faceLabel.textContent = 'Could not load face models';
-    faceStatus.textContent = 'Check internet connection';
-    return;
-  }
-
-  try {
-    await startFaceCamera();
-  } catch (err) {
-    faceLabel.textContent = 'Camera permission denied';
-    faceStatus.textContent = 'Use password only below';
-    return;
-  }
-
-  const stored = getStoredDescriptor(pendingStaff.empId);
-  enrollMode = !stored;
-
-  if (enrollMode) {
-    faceSubtitle.textContent = "First sign-in on this device — let's enroll your face for next time.";
-    faceLabel.textContent = 'Position your face in the frame';
-    faceStatus.textContent = 'Enrollment';
-    captureEnrollBtn.style.display = 'flex';
-    captureEnrollBtn.disabled = true;
-    startEnrollDetectionLoop();
-  } else {
-    faceSubtitle.textContent = 'Look at the camera to confirm your identity.';
-    faceLabel.textContent = 'Scanning…';
-    faceStatus.textContent = 'Verifying';
-    startVerificationLoop(stored);
-  }
-}
-
-// ---- Enrollment: detect a face, let the user confirm capture, store descriptor ----
-function startEnrollDetectionLoop() {
-  faceLoopHandle = setInterval(async () => {
-    const det = await faceapi
-      .detectSingleFace(faceVideo, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
-      .withFaceLandmarks();
-
-    const ctx = faceCanvas.getContext('2d');
-    ctx.clearRect(0, 0, faceCanvas.width, faceCanvas.height);
-
-    if (det) {
-      const box = det.detection.box;
-      ctx.strokeStyle = '#4A9D6E';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(box.x, box.y, box.width, box.height);
-      faceLabel.textContent = 'Face detected — tap Capture & Enroll';
-      captureEnrollBtn.disabled = false;
-    } else {
-      faceLabel.textContent = 'No face detected';
-      captureEnrollBtn.disabled = true;
+    const res = await fetch(`${API_BASE}/login-password-only`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ staff_id: staffId, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.detail || "Login failed", true);
+      return;
     }
-  }, DETECT_INTERVAL_MS);
+    onLoginSuccess(data);
+  } catch (err) {
+    console.error(err);
+    showToast("Could not reach the server.", true);
+  }
+});
+
+// ===================== FACE MODELS + CAMERA =====================
+async function loadModels() {
+  if (modelsLoaded) return;
+  faceStatus.textContent = "Loading models";
+  await Promise.all([
+    faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+    faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+  ]);
+  modelsLoaded = true;
+  faceStatus.textContent = "Models ready";
 }
 
-captureEnrollBtn.addEventListener('click', async () => {
-  captureEnrollBtn.disabled = true;
-  captureEnrollBtn.querySelector('.btn-text').textContent = 'Capturing…';
+async function startCamera() {
+  try {
+    await loadModels();
 
-  const det = await faceapi
-    .detectSingleFace(faceVideo, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: 320, height: 240, facingMode: "user" },
+    });
+    faceVideo.srcObject = stream;
+
+    faceVideo.addEventListener("loadedmetadata", () => {
+      faceCanvas.width = faceVideo.videoWidth;
+      faceCanvas.height = faceVideo.videoHeight;
+    });
+
+    faceLabel.textContent =
+      faceMode === "enroll" ? "Position your face in the frame" : "Verifying your face…";
+    faceCheckbox.classList.add("active");
+
+    if (faceMode === "enroll") {
+      captureEnrollBtn.disabled = false;
+      captureEnrollBtn.addEventListener("click", handleEnrollCapture, { once: true });
+    } else {
+      runAutoVerify();
+    }
+  } catch (err) {
+    console.error("Camera error:", err);
+    faceStatus.textContent = "Camera unavailable";
+    faceLabel.textContent = "Could not access camera — use password only.";
+  }
+}
+
+function stopCamera() {
+  clearInterval(detectInterval);
+  const stream = faceVideo.srcObject;
+  if (stream) {
+    stream.getTracks().forEach((t) => t.stop());
+  }
+  faceVideo.srcObject = null;
+}
+
+// ===================== ENROLL FLOW =====================
+async function handleEnrollCapture() {
+  faceStatus.textContent = "Capturing…";
+  const detection = await faceapi
+    .detectSingleFace(faceVideo, new faceapi.TinyFaceDetectorOptions())
     .withFaceLandmarks()
     .withFaceDescriptor();
 
-  if (!det) {
-    faceLabel.textContent = 'No face found — try again';
-    captureEnrollBtn.disabled = false;
-    captureEnrollBtn.querySelector('.btn-text').textContent = 'Capture & Enroll Face';
+  if (!detection) {
+    showToast("No face detected — try again", true);
+    captureEnrollBtn.addEventListener("click", handleEnrollCapture, { once: true });
     return;
   }
 
-  storeDescriptor(pendingStaff.empId, Array.from(det.descriptor));
-  if (faceLoopHandle) { clearInterval(faceLoopHandle); faceLoopHandle = null; }
+  const descriptor = Array.from(detection.descriptor);
 
-  faceCheckbox.classList.add('verified');
-  faceCheckRow.classList.add('verified');
-  faceLabel.textContent = 'Face enrolled — signing you in…';
-  faceStatus.textContent = 'Enrolled';
-  captureEnrollBtn.style.display = 'none';
+  try {
+    const res = await fetch(`${API_BASE}/enroll-face`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ staff_id: currentStaff.staff_id, descriptor }),
+    });
+    const data = await res.json();
 
-  logAuditEvent(pendingStaff.empId, pendingStaff.role, 'face_enrolled');
-  stopFaceCamera();
-  setTimeout(finalizeLogin, 700);
-});
-
-// ---- Verification: compare live descriptor against the stored one every frame ----
-function startVerificationLoop(storedDescriptor) {
-  const matcher = new faceapi.FaceMatcher(
-    [new faceapi.LabeledFaceDescriptors(pendingStaff.empId, [new Float32Array(storedDescriptor)])],
-    FACE_MATCH_THRESHOLD
-  );
-  matchStreak = 0;
-
-  faceLoopHandle = setInterval(async () => {
-    const det = await faceapi
-      .detectSingleFace(faceVideo, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
-      .withFaceLandmarks()
-      .withFaceDescriptor();
-
-    const ctx = faceCanvas.getContext('2d');
-    ctx.clearRect(0, 0, faceCanvas.width, faceCanvas.height);
-
-    if (!det) {
-      matchStreak = 0;
-      faceLabel.textContent = 'No face detected';
-      faceStatus.textContent = 'Waiting';
+    if (!res.ok) {
+      showToast(data.detail || "Enrollment failed", true);
       return;
     }
 
-    const box = det.detection.box;
-    const result = matcher.findBestMatch(det.descriptor);
-    const isMatch = result.label === pendingStaff.empId;
+    stopCamera();
+    onLoginSuccess({ ...currentStaff, session_id: data.session_id });
+  } catch (err) {
+    console.error(err);
+    showToast("Could not reach the server.", true);
+  }
+}
 
-    ctx.strokeStyle = isMatch ? '#4A9D6E' : '#E31E24';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(box.x, box.y, box.width, box.height);
-
-    if (isMatch) {
-      matchStreak++;
-      const confidence = Math.max(0, Math.round((1 - result.distance) * 100));
-      faceLabel.textContent = `Matching… (${matchStreak}/${REQUIRED_MATCH_STREAK})`;
-      faceStatus.textContent = confidence + '% confidence';
-
-      if (matchStreak >= REQUIRED_MATCH_STREAK) {
-        if (faceLoopHandle) { clearInterval(faceLoopHandle); faceLoopHandle = null; }
-        faceCheckbox.classList.add('verified');
-        faceCheckRow.classList.add('verified');
-        faceLabel.textContent = 'Identity confirmed';
-        faceStatus.textContent = confidence + '% confidence';
-        logAuditEvent(pendingStaff.empId, pendingStaff.role, 'face_verified');
-        stopFaceCamera();
-        setTimeout(finalizeLogin, 500);
-      }
-    } else {
-      matchStreak = 0;
-      faceLabel.textContent = 'Face does not match employee record';
-      faceStatus.textContent = 'No match';
+// ===================== VERIFY FLOW (auto, runs every ~800ms) =====================
+async function runAutoVerify() {
+  let referenceDescriptor = null;
+  try {
+    const res = await fetch(`${API_BASE}/staff-descriptor/${currentStaff.staff_id}`);
+    const data = await res.json();
+    if (!res.ok || !data.descriptor || data.descriptor.length !== 128) {
+      showToast("Could not load face reference — use password only.", true);
+      return;
     }
-  }, DETECT_INTERVAL_MS);
+    referenceDescriptor = new Float32Array(data.descriptor);
+  } catch (err) {
+    console.error(err);
+    showToast("Could not reach the server.", true);
+    return;
+  }
+
+  detectInterval = setInterval(async () => {
+    const detection = await faceapi
+      .detectSingleFace(faceVideo, new faceapi.TinyFaceDetectorOptions())
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+
+    if (!detection) return;
+
+    const distance = faceapi.euclideanDistance(detection.descriptor, referenceDescriptor);
+    const isMatch = distance < MATCH_THRESHOLD;
+    const confidence = Math.max(0, 1 - distance);
+
+    clearInterval(detectInterval);
+    stopCamera();
+
+    faceStatus.textContent = isMatch ? "Match found" : "No match";
+    faceLabel.textContent = isMatch ? "Identity confirmed" : "Face did not match";
+
+    try {
+      const res = await fetch(`${API_BASE}/verify-face`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          staff_id: currentStaff.staff_id,
+          match_result: isMatch,
+          confidence: Number(confidence.toFixed(3)),
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        showToast(data.detail || "Face verification failed", true);
+        return;
+      }
+
+      onLoginSuccess({ ...currentStaff, session_id: data.session_id });
+    } catch (err) {
+      console.error(err);
+      showToast("Could not reach the server.", true);
+    }
+  }, 800);
 }
 
-skipFaceBtn.addEventListener('click', () => {
-  stopFaceCamera();
-  logAuditEvent(pendingStaff.empId, pendingStaff.role, 'face_skipped_password_only');
-  finalizeLogin();
-});
-
-backToCredsBtn.addEventListener('click', () => {
-  stopFaceCamera();
-  faceStep.style.display = 'none';
-  credentialsStep.style.display = 'block';
-});
-
-// ===================== FINALIZE: SESSION + ROLE REDIRECT =====================
-function finalizeLogin() {
-  const now = Date.now();
-  const session = {
-    empId: pendingStaff.empId,
-    name: pendingStaff.name,
-    role: pendingStaff.role,
-    branch: pendingStaff.branch,
-    loginTime: now,
-    expiresAt: now + SESSION_DURATION_MS
-  };
-  localStorage.setItem('vai_session', JSON.stringify(session));
-  logAuditEvent(pendingStaff.empId, pendingStaff.role, 'success');
-
-  showToast(`Welcome, ${pendingStaff.name}`);
+// ===================== SUCCESS =====================
+function onLoginSuccess(staffData) {
+  sessionStorage.setItem("vai_staff", JSON.stringify(staffData));
+  showToast(`Welcome, ${staffData.name}`);
   setTimeout(() => {
-    window.location.href = pendingStaff.role === 'supervisor'
-      ? 'dashboard.html?view=supervisor'
-      : 'dashboard.html';
-  }, 700);
+    window.location.href =
+      staffData.role === "manager" ? "../pages/manager-dashboard.html" : "../pages/dashboard.html";
+  }, 1000);
 }
-
-// =====================================================================================
-// IMPORTANT — PRODUCTION NOTE
-// This face check (like MediScan's) runs entirely in the browser: models load from a
-// public CDN, descriptors are 128-d vectors stored in localStorage, and matching happens
-// client-side. That's fine for a prototype, but for a real banking deployment it gives
-// no real security guarantee — anyone with devtools access can read localStorage, inject
-// a fake "match" result, or skip the step entirely by editing the page. For production:
-//   - Do enrollment + matching server-side (send the descriptor or a captured frame to
-//     auth.py, compare against an encrypted store, return only pass/fail).
-//   - Add liveness detection (blink/turn prompts) so a photo can't be used to spoof it.
-//   - Treat the face check as a second factor alongside the password, not a replacement.
-// =====================================================================================
