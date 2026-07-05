@@ -16,6 +16,7 @@
 import httpx
 import base64
 import logging
+from services.http_client import client as http
 from config import (
     BHASHINI_USER_ID, BHASHINI_UDYAT_KEY, BHASHINI_INFERENCE_KEY,
     BHASHINI_PIPELINE_URL, BHASHINI_INFERENCE_URL,
@@ -49,18 +50,11 @@ async def synthesize_speech(text: str, language: str) -> dict:
     """
     lang_codes = LANGUAGE_CODES.get(language, LANGUAGE_CODES["Hindi"])
 
-    # 1️⃣ Try Bhashini TTS (fails fast now — max ~12s total across both calls
-    #    instead of the previous ~40s worst case)
-    try:
-        audio_b64 = await _bhashini_tts(text, lang_codes["bhashini"])
-        if audio_b64:
-            return {"audio_b64": audio_b64, "engine": "bhashini", "language": language}
-    except (httpx.TimeoutException, httpx.ConnectError) as e:
-        logger.warning(f"Bhashini TTS timed out/unreachable ({BHASHINI_PIPELINE_TIMEOUT}s cap): {e}")
-    except Exception as e:
-        logger.warning(f"Bhashini TTS failed: {e}")
-
-    # 2️⃣ Try Sarvam TTS
+    # ORDER FIX: Bhashini TTS used to run FIRST, but with a dead/invalid key it
+    # hangs up to ~12s (6s pipeline + 6s inference) before falling through to
+    # Sarvam, which works. So every staff reply was eating that dead wait. Sarvam
+    # now runs first; Bhashini is a last resort that almost never fires.
+    # 1️⃣ Try Sarvam TTS (working engine)
     try:
         audio_b64 = await _sarvam_tts(text, lang_codes["sarvam"])
         if audio_b64:
@@ -69,6 +63,16 @@ async def synthesize_speech(text: str, language: str) -> dict:
         logger.warning(f"Sarvam TTS timed out/unreachable ({SARVAM_TTS_TIMEOUT}s cap): {e}")
     except Exception as e:
         logger.warning(f"Sarvam TTS failed: {e}")
+
+    # 2️⃣ Last resort — Bhashini key is currently dead, so this rarely runs.
+    try:
+        audio_b64 = await _bhashini_tts(text, lang_codes["bhashini"])
+        if audio_b64:
+            return {"audio_b64": audio_b64, "engine": "bhashini", "language": language}
+    except (httpx.TimeoutException, httpx.ConnectError) as e:
+        logger.warning(f"Bhashini TTS timed out/unreachable ({BHASHINI_PIPELINE_TIMEOUT}s cap): {e}")
+    except Exception as e:
+        logger.warning(f"Bhashini TTS failed: {e}")
 
     # Both failed fast — frontend's speakWithBrowserSynthesis() takes over
     # from here using the browser's built-in voice.
@@ -133,19 +137,16 @@ async def _sarvam_tts(text: str, lang_code: str) -> str:
         "model": "bulbul:v3",
         "enable_preprocessing": True
     }
-    async with httpx.AsyncClient(timeout=SARVAM_TTS_TIMEOUT) as client:
-        resp = await client.post(
-            SARVAM_TTS_URL,
-            headers={
-                "api-subscription-key": SARVAM_API_KEY,
-                "Content-Type": "application/json"
-            },
-            json=payload
-        )
-        data = resp.json()
-    
-    # DEBUG — remove after fix
-    logger.error(f"SARVAM DEBUG: key={SARVAM_API_KEY[:10]}... lang={lang_code} speaker={speaker} response={data}")
+    resp = await http.post(
+        SARVAM_TTS_URL,
+        headers={
+            "api-subscription-key": SARVAM_API_KEY,
+            "Content-Type": "application/json"
+        },
+        json=payload,
+        timeout=SARVAM_TTS_TIMEOUT,
+    )
+    data = resp.json()
 
     audios = data.get("audios", [])
     if audios:

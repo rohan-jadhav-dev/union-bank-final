@@ -2,10 +2,10 @@
 # Groq LLaMA-3.3-70B — Translation, intent detection, smart step tracking, bilingual summary
 # Covers: Account Opening, Loan Enquiry, Balance Check, Credit Card Apply, all banking jargon
 
-import httpx
 import json
 import logging
 from config import GROQ_API_KEY, GROQ_MODEL
+from services.http_client import client as http
 
 logger = logging.getLogger(__name__)
 GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -489,21 +489,21 @@ Return ONLY valid JSON:
 
 async def _groq_chat(messages: list, max_tokens: int = 500) -> str:
     """Raw Groq LLaMA chat call."""
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(
-            GROQ_CHAT_URL,
-            headers={
-                "Authorization": f"Bearer {GROQ_API_KEY}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "model": GROQ_MODEL,
-                "messages": messages,
-                "max_tokens": max_tokens,
-                "temperature": 0.3
-            }
-        )
-        data = resp.json()
+    resp = await http.post(
+        GROQ_CHAT_URL,
+        headers={
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "model": GROQ_MODEL,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": 0.3
+        },
+        timeout=30,
+    )
+    data = resp.json()
 
     if "error" in data:
         logger.error(f"Groq error: {data['error']}")

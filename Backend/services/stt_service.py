@@ -27,9 +27,11 @@
 #     picks up the transcription almost immediately after.
 
 import httpx
+import asyncio
 import base64
 import io
 import logging
+from services.http_client import client as http
 from config import (
     BHASHINI_USER_ID, BHASHINI_UDYAT_KEY, BHASHINI_INFERENCE_KEY,
     BHASHINI_PIPELINE_URL, BHASHINI_INFERENCE_URL,
@@ -92,8 +94,15 @@ async def transcribe_audio(audio_bytes: bytes, language: str) -> dict:
     is_auto = language not in LANGUAGE_CODES
 
     if is_auto:
-        groq_text, groq_code, groq_err = await _safe_groq_autodetect(audio_bytes)
-        sarvam_text, sarvam_code, sarvam_err = await _safe_sarvam_autodetect(audio_bytes)
+        # Run Groq Whisper and Sarvam CONCURRENTLY instead of one-after-another.
+        # Both safe wrappers never raise, so gather always returns both results.
+        # The decision logic below is unchanged — we just stop waiting for Groq
+        # to finish before starting Sarvam, roughly halving auto-detect latency.
+        (groq_text, groq_code, groq_err), (sarvam_text, sarvam_code, sarvam_err) = \
+            await asyncio.gather(
+                _safe_groq_autodetect(audio_bytes),
+                _safe_sarvam_autodetect(audio_bytes),
+            )
 
         if groq_err:
             logger.error(f"[STT] Groq auto-detect failed: {groq_err}")
@@ -126,16 +135,12 @@ async def transcribe_audio(audio_bytes: bytes, language: str) -> dict:
         return {"text": "", "engine": "none", "language": "Hindi"}
 
     # ── EXPLICIT LANGUAGE MODE (verification step, staff replies, etc.) ──
+    # ORDER FIX: Bhashini used to run FIRST here, but with a dead/invalid key it
+    # burns up to ~10s (5s pipeline + 5s inference) before falling through to
+    # Groq Whisper, which actually transcribes in <1s. Since the Bhashini key is
+    # down, we now try the fast working engines first (Groq -> Sarvam) and only
+    # fall back to Bhashini as a last resort. Same accuracy, no more dead wait.
     lang_codes = LANGUAGE_CODES[language]
-
-    try:
-        result = await _bhashini_stt(audio_bytes, lang_codes["bhashini"])
-        if result:
-            return {"text": result, "engine": "bhashini", "language": language}
-    except (httpx.TimeoutException, httpx.ConnectError) as e:
-        logger.warning(f"Bhashini STT timed out/unreachable ({BHASHINI_STT_PIPELINE_TIMEOUT}s cap): {e}")
-    except Exception as e:
-        logger.warning(f"Bhashini STT failed: {e}")
 
     try:
         result = await _groq_whisper(audio_bytes, lang_codes["groq"])
@@ -150,6 +155,16 @@ async def transcribe_audio(audio_bytes: bytes, language: str) -> dict:
             return {"text": result, "engine": "sarvam", "language": language}
     except Exception as e:
         logger.warning(f"Sarvam STT failed: {e}")
+
+    # Last resort only — Bhashini key is currently dead, so this almost never runs.
+    try:
+        result = await _bhashini_stt(audio_bytes, lang_codes["bhashini"])
+        if result:
+            return {"text": result, "engine": "bhashini", "language": language}
+    except (httpx.TimeoutException, httpx.ConnectError) as e:
+        logger.warning(f"Bhashini STT timed out/unreachable ({BHASHINI_STT_PIPELINE_TIMEOUT}s cap): {e}")
+    except Exception as e:
+        logger.warning(f"Bhashini STT failed: {e}")
 
     return {"text": "", "engine": "none", "language": language}
 
@@ -221,14 +236,14 @@ async def _bhashini_stt(audio_bytes: bytes, lang_code: str) -> str:
 # ── GROQ WHISPER ──────────────────────────────────────────────────────────────
 
 async def _groq_whisper(audio_bytes: bytes, lang_code: str) -> str:
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(
-            "https://api.groq.com/openai/v1/audio/transcriptions",
-            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
-            files={"file": ("audio.wav", io.BytesIO(audio_bytes), "audio/wav")},
-            data={"model": GROQ_WHISPER_MODEL, "language": lang_code}
-        )
-        data = resp.json()
+    resp = await http.post(
+        "https://api.groq.com/openai/v1/audio/transcriptions",
+        headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+        files={"file": ("audio.wav", io.BytesIO(audio_bytes), "audio/wav")},
+        data={"model": GROQ_WHISPER_MODEL, "language": lang_code},
+        timeout=30,
+    )
+    data = resp.json()
 
     if "error" in data:
         raise Exception(f"Groq error: {data['error']}")
@@ -243,14 +258,14 @@ async def _groq_whisper_autodetect(audio_bytes: bytes):
     Returns: (text, detected_lang_code)
     Raises on HTTP/API error (caller wraps in _safe_groq_autodetect).
     """
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(
-            "https://api.groq.com/openai/v1/audio/transcriptions",
-            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
-            files={"file": ("audio.wav", io.BytesIO(audio_bytes), "audio/wav")},
-            data={"model": GROQ_WHISPER_MODEL, "response_format": "verbose_json"}
-        )
-        data = resp.json()
+    resp = await http.post(
+        "https://api.groq.com/openai/v1/audio/transcriptions",
+        headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+        files={"file": ("audio.wav", io.BytesIO(audio_bytes), "audio/wav")},
+        data={"model": GROQ_WHISPER_MODEL, "response_format": "verbose_json"},
+        timeout=30,
+    )
+    data = resp.json()
 
     if "error" in data:
         # Surface the REAL error (bad key, bad file, rate limit, etc.)
@@ -264,14 +279,14 @@ async def _groq_whisper_autodetect(audio_bytes: bytes):
 # ── SARVAM ────────────────────────────────────────────────────────────────────
 
 async def _sarvam_stt(audio_bytes: bytes, lang_code: str) -> str:
-    async with httpx.AsyncClient(timeout=20) as client:
-        resp = await client.post(
-            SARVAM_STT_URL,
-            headers={"api-subscription-key": SARVAM_API_KEY},
-            files={"file": ("audio.wav", io.BytesIO(audio_bytes), "audio/wav")},
-            data={"language_code": lang_code, "model": "saarika:v2.5"}
-        )
-        data = resp.json()
+    resp = await http.post(
+        SARVAM_STT_URL,
+        headers={"api-subscription-key": SARVAM_API_KEY},
+        files={"file": ("audio.wav", io.BytesIO(audio_bytes), "audio/wav")},
+        data={"language_code": lang_code, "model": "saarika:v2.5"},
+        timeout=20,
+    )
+    data = resp.json()
 
     if "error" in data:
         raise Exception(f"Sarvam error: {data['error']}")
@@ -285,14 +300,14 @@ async def _sarvam_autodetect(audio_bytes: bytes):
     Returns: (text, detected_lang_code e.g. 'mr-IN')
     Raises on HTTP/API error (caller wraps in _safe_sarvam_autodetect).
     """
-    async with httpx.AsyncClient(timeout=20) as client:
-        resp = await client.post(
-            SARVAM_STT_URL,
-            headers={"api-subscription-key": SARVAM_API_KEY},
-            files={"file": ("audio.wav", io.BytesIO(audio_bytes), "audio/wav")},
-            data={"language_code": "unknown", "model": "saarika:v2.5"}
-        )
-        data = resp.json()
+    resp = await http.post(
+        SARVAM_STT_URL,
+        headers={"api-subscription-key": SARVAM_API_KEY},
+        files={"file": ("audio.wav", io.BytesIO(audio_bytes), "audio/wav")},
+        data={"language_code": "unknown", "model": "saarika:v2.5"},
+        timeout=20,
+    )
+    data = resp.json()
 
     if "error" in data:
         raise Exception(f"Sarvam API error: {data['error']}")
