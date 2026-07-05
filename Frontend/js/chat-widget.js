@@ -838,6 +838,54 @@
     // as the popup appears, because many customers understand spoken
     // language far better than reading dense legal text. A "Listen again"
     // button lets them replay it as many times as needed before deciding.
+    // Pre-generate the DPDP consent audio as EARLY as possible — called by the
+    // dashboard the moment the language is detected, i.e. several seconds before
+    // the customer clicks "Begin conversation". By the time the consent popup
+    // appears the audio is already made and plays instantly instead of making
+    // the customer wait ~15-20s for a live text-to-speech round-trip. Safe to
+    // call repeatedly (e.g. if the staff changes the language) — the newest
+    // call wins and the consent player matches on exact text+language.
+    prewarmConsent(lang) {
+      try {
+        const consent = CONSENT_TEXT[lang] || CONSENT_TEXT["English"];
+        if (!consent || !consent.body) return;
+        const text = consent.body;
+        const promise = fetch(`${API_BASE}/tts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, language: lang }),
+        })
+          .then((r) => r.json())
+          .then((d) => (d && d.audio_b64) ? d.audio_b64 : "")
+          .catch(() => "");
+        this._consentPrefetch = { text, lang, promise };
+      } catch (e) {
+        this._consentPrefetch = null;
+      }
+    }
+
+    // Pre-generate the auto-greeting audio while the consent popup is on screen,
+    // so once the customer taps "Yes, I agree" the greeting speaks within ~1-2s
+    // instead of triggering a fresh text-to-speech round-trip at that moment.
+    _prefetchGreeting(lang, process) {
+      try {
+        const greetingMap = GREETINGS[process] || GREETINGS["General enquiry"];
+        const greetingText = greetingMap[lang] || greetingMap["English"];
+        const key = `${lang}|${process}`;
+        const promise = fetch(`${API_BASE}/tts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: greetingText, language: lang }),
+        })
+          .then((r) => r.json())
+          .then((d) => (d && d.audio_b64) ? d.audio_b64 : "")
+          .catch(() => "");
+        this._greetingPrefetch = { key, promise };
+      } catch (e) {
+        this._greetingPrefetch = null;
+      }
+    }
+
     _showConsentPopup(lang, process) {
       this._pendingSessionLang = lang;
       this._pendingSessionProcess = process;
@@ -869,6 +917,10 @@
       this._consentSpeechText = consent.body;
       this._consentSpeechLang = lang;
       this._speakConsentNotice();
+
+      // Warm the greeting audio in the background while the customer reads/
+      // listens to the consent, so it's ready the instant they agree.
+      this._prefetchGreeting(lang, process);
     }
 
     // Speaks the currently-displayed consent notice in the customer's
@@ -893,17 +945,32 @@
         // translator, which could paraphrase or alter the DPDP consent
         // wording (a compliance risk) and is slower. The consent text is
         // already in the customer's language, so we only need to speak it.
-        const res = await fetch(`${API_BASE}/tts`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: this._consentSpeechText,
-            language: this._consentSpeechLang,
-          }),
-        });
-        const data = await res.json();
-        if (data.audio_b64) {
-          await this._playConsentAudio(data.audio_b64);
+        let audioB64 = "";
+
+        // If the dashboard already pre-warmed this exact consent text/language
+        // (started the moment the language was detected), reuse that in-flight/
+        // completed request instead of firing a fresh one — this is what makes
+        // the audio play almost instantly instead of after a ~15-20s wait.
+        const pf = this._consentPrefetch;
+        if (pf && pf.text === this._consentSpeechText && pf.lang === this._consentSpeechLang) {
+          audioB64 = await pf.promise;
+        }
+
+        if (!audioB64) {
+          const res = await fetch(`${API_BASE}/tts`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: this._consentSpeechText,
+              language: this._consentSpeechLang,
+            }),
+          });
+          const data = await res.json();
+          audioB64 = data.audio_b64 || "";
+        }
+
+        if (audioB64) {
+          await this._playConsentAudio(audioB64);
           this.els.consentListenBtn.classList.remove("speaking");
           return;
         }
@@ -1143,13 +1210,28 @@
       // the customer's language, so translating it again through /staff-reply
       // would be wasteful and could alter the wording. Just speak it.
       try {
-        const res = await fetch(`${API_BASE}/tts`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: greetingText, language: this.selectedLanguage }),
-        });
-        const data = await res.json();
-        if (data.audio_b64) this._playAudio(data.audio_b64);
+        let audioB64 = "";
+
+        // Reuse the greeting audio pre-fetched while the consent popup was up,
+        // so the greeting speaks within ~1-2s of the customer agreeing instead
+        // of waiting for a fresh text-to-speech call here.
+        const key = `${this.selectedLanguage}|${this.selectedProcess}`;
+        if (this._greetingPrefetch && this._greetingPrefetch.key === key) {
+          audioB64 = await this._greetingPrefetch.promise;
+          this._greetingPrefetch = null;
+        }
+
+        if (!audioB64) {
+          const res = await fetch(`${API_BASE}/tts`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: greetingText, language: this.selectedLanguage }),
+          });
+          const data = await res.json();
+          audioB64 = data.audio_b64 || "";
+        }
+
+        if (audioB64) this._playAudio(audioB64);
         else speakWithBrowserSynthesis(greetingText, this.selectedLanguage);
       } catch (e) {
         speakWithBrowserSynthesis(greetingText, this.selectedLanguage);
