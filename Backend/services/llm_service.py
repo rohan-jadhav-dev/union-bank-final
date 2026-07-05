@@ -5,6 +5,7 @@
 import json
 import logging
 from config import GROQ_API_KEY, GROQ_MODEL
+from services.pii_service import mask_text, unmask_text
 from services.http_client import client as http
 
 logger = logging.getLogger(__name__)
@@ -488,7 +489,26 @@ Return ONLY valid JSON:
 
 
 async def _groq_chat(messages: list, max_tokens: int = 500) -> str:
-    """Raw Groq LLaMA chat call."""
+    """
+    Raw Groq LLaMA chat call — with PII masking, over the shared HTTP client.
+
+    Every USER-role message is scrubbed of Aadhaar/PAN/phone/account numbers
+    before it leaves the server; tokens are restored in the response. The
+    third-party LLM never receives real customer identifiers. System prompts
+    (the bank's own published rates/helplines) are sent as-is.
+    """
+    pii_map: dict = {}
+    safe_messages = []
+    for msg in messages:
+        if msg.get("role") == "user":
+            masked, mapping = mask_text(msg["content"])
+            pii_map.update(mapping)
+            safe_messages.append({**msg, "content": masked})
+        else:
+            safe_messages.append(msg)
+    if pii_map:
+        logger.info(f"[PII] masked {len(pii_map)} identifier(s) before LLM call")
+
     resp = await http.post(
         GROQ_CHAT_URL,
         headers={
@@ -497,7 +517,7 @@ async def _groq_chat(messages: list, max_tokens: int = 500) -> str:
         },
         json={
             "model": GROQ_MODEL,
-            "messages": messages,
+            "messages": safe_messages,
             "max_tokens": max_tokens,
             "temperature": 0.3
         },
@@ -509,4 +529,8 @@ async def _groq_chat(messages: list, max_tokens: int = 500) -> str:
         logger.error(f"Groq error: {data['error']}")
         raise Exception(data["error"].get("message", "Groq API error"))
 
-    return data["choices"][0]["message"]["content"]
+    content = data["choices"][0]["message"]["content"]
+    # Restore any PII tokens the model echoed back (e.g. in translations)
+    if pii_map:
+        content = unmask_text(content, pii_map)
+    return content

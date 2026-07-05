@@ -50,8 +50,13 @@
   "use strict";
 
   // ── Constants (same as conversation-desk.js) ────────────────────────────
-  const API_BASE = "https://rohan667-voiceassist-ai-backend-kj.hf.space/api/conversation";
+  // Auto-select backend: local uvicorn while developing, HF Space when deployed
+const IS_LOCAL = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+const API_BASE = IS_LOCAL
+  ? "http://localhost:7860/api/conversation"
+  : "https://rohan667-voiceassist-ai-backend-kj.hf.space/api/conversation";
 
+  
   const LANG_META = {
     Hindi: { flag: "हि", tag: "हिन्दी" },
     Marathi: { flag: "मा", tag: "मराठी" },

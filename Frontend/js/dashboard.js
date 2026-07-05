@@ -676,7 +676,10 @@ function escHtml(s) {
 // from field completeness — this is just for sorting hot/warm/cold, not a
 // claim about actual creditworthiness.
 
-const LEADS_API_BASE = "https://rohan667-voiceassist-ai-backend-kj.hf.space/api/conversation";
+const LEADS_API_BASE = ["localhost", "127.0.0.1"].includes(window.location.hostname)
+  ? "http://localhost:7860/api/conversation"
+  : "https://rohan667-voiceassist-ai-backend-kj.hf.space/api/conversation";
+
 
 function getLeadTagLabel(tag) {
   if (tag === 'hot') return 'Hot lead';
