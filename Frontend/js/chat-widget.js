@@ -421,6 +421,7 @@ const API_BASE = IS_LOCAL
       this.kycShown = false;
       this.panelOpen = false;
       this.isActive = false; // true when a session is running
+      this._busy = false;    // true while a turn (staff reply / customer audio) is being processed
 
       // DPDP consent state
       this._pendingSessionLang = null;
@@ -842,6 +843,54 @@ const API_BASE = IS_LOCAL
     // as the popup appears, because many customers understand spoken
     // language far better than reading dense legal text. A "Listen again"
     // button lets them replay it as many times as needed before deciding.
+    // Pre-generate the DPDP consent audio as EARLY as possible — called by the
+    // dashboard the moment the language is detected, i.e. several seconds before
+    // the customer clicks "Begin conversation". By the time the consent popup
+    // appears the audio is already made and plays instantly instead of making
+    // the customer wait ~15-20s for a live text-to-speech round-trip. Safe to
+    // call repeatedly (e.g. if the staff changes the language) — the newest
+    // call wins and the consent player matches on exact text+language.
+    prewarmConsent(lang) {
+      try {
+        const consent = CONSENT_TEXT[lang] || CONSENT_TEXT["English"];
+        if (!consent || !consent.body) return;
+        const text = consent.body;
+        const promise = fetch(`${API_BASE}/tts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, language: lang }),
+        })
+          .then((r) => r.json())
+          .then((d) => (d && d.audio_b64) ? d.audio_b64 : "")
+          .catch(() => "");
+        this._consentPrefetch = { text, lang, promise };
+      } catch (e) {
+        this._consentPrefetch = null;
+      }
+    }
+
+    // Pre-generate the auto-greeting audio while the consent popup is on screen,
+    // so once the customer taps "Yes, I agree" the greeting speaks within ~1-2s
+    // instead of triggering a fresh text-to-speech round-trip at that moment.
+    _prefetchGreeting(lang, process) {
+      try {
+        const greetingMap = GREETINGS[process] || GREETINGS["General enquiry"];
+        const greetingText = greetingMap[lang] || greetingMap["English"];
+        const key = `${lang}|${process}`;
+        const promise = fetch(`${API_BASE}/tts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: greetingText, language: lang }),
+        })
+          .then((r) => r.json())
+          .then((d) => (d && d.audio_b64) ? d.audio_b64 : "")
+          .catch(() => "");
+        this._greetingPrefetch = { key, promise };
+      } catch (e) {
+        this._greetingPrefetch = null;
+      }
+    }
+
     _showConsentPopup(lang, process) {
       this._pendingSessionLang = lang;
       this._pendingSessionProcess = process;
@@ -873,6 +922,10 @@ const API_BASE = IS_LOCAL
       this._consentSpeechText = consent.body;
       this._consentSpeechLang = lang;
       this._speakConsentNotice();
+
+      // Warm the greeting audio in the background while the customer reads/
+      // listens to the consent, so it's ready the instant they agree.
+      this._prefetchGreeting(lang, process);
     }
 
     // Speaks the currently-displayed consent notice in the customer's
@@ -892,13 +945,37 @@ const API_BASE = IS_LOCAL
       this.els.consentListenBtn.classList.add("speaking");
 
       try {
-        const form = new FormData();
-        form.append("staff_text", this._consentSpeechText);
-        form.append("target_language", this._consentSpeechLang);
-        const res = await fetch(`${API_BASE}/staff-reply`, { method: "POST", body: form });
-        const data = await res.json();
-        if (data.audio_b64) {
-          await this._playConsentAudio(data.audio_b64);
+        // Use the dedicated /tts endpoint (pure text-to-speech) — NOT
+        // /staff-reply. /staff-reply runs the text through the LLM
+        // translator, which could paraphrase or alter the DPDP consent
+        // wording (a compliance risk) and is slower. The consent text is
+        // already in the customer's language, so we only need to speak it.
+        let audioB64 = "";
+
+        // If the dashboard already pre-warmed this exact consent text/language
+        // (started the moment the language was detected), reuse that in-flight/
+        // completed request instead of firing a fresh one — this is what makes
+        // the audio play almost instantly instead of after a ~15-20s wait.
+        const pf = this._consentPrefetch;
+        if (pf && pf.text === this._consentSpeechText && pf.lang === this._consentSpeechLang) {
+          audioB64 = await pf.promise;
+        }
+
+        if (!audioB64) {
+          const res = await fetch(`${API_BASE}/tts`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: this._consentSpeechText,
+              language: this._consentSpeechLang,
+            }),
+          });
+          const data = await res.json();
+          audioB64 = data.audio_b64 || "";
+        }
+
+        if (audioB64) {
+          await this._playConsentAudio(audioB64);
           this.els.consentListenBtn.classList.remove("speaking");
           return;
         }
@@ -1069,6 +1146,24 @@ const API_BASE = IS_LOCAL
       this.kycShown = false;
       this.isRecording = false;
       this.staffRecording = false;
+      this._busy = false;
+
+      // Stop any live mic streams so the OS mic indicator turns off and the
+      // MediaRecorder doesn't leak (previously only the flags were reset).
+      try {
+        if (this.mediaRecorder && this.mediaRecorder.state === "recording") {
+          this.mediaRecorder.stop();
+          this.mediaRecorder.stream.getTracks().forEach(t => t.stop());
+        }
+      } catch (e) {}
+      try {
+        if (this.staffRecorder && this.staffRecorder.state === "recording") {
+          this.staffRecorder.stop();
+          this.staffRecorder.stream.getTracks().forEach(t => t.stop());
+        }
+      } catch (e) {}
+      // Stop any playing TTS audio too.
+      try { const p = document.getElementById("cwAudioPlayer"); if (p) { p.pause(); p.currentTime = 0; } } catch (e) {}
 
       // Reset header
       this.els.headerLang.style.display = "none";
@@ -1116,14 +1211,32 @@ const API_BASE = IS_LOCAL
 
       this._addStaffBubble(greetingText, greetingText, "auto", true);
 
-      // Play audio
+      // Play audio via the pure /tts endpoint — the greeting is already in
+      // the customer's language, so translating it again through /staff-reply
+      // would be wasteful and could alter the wording. Just speak it.
       try {
-        const form = new FormData();
-        form.append("staff_text", greetingText);
-        form.append("target_language", this.selectedLanguage);
-        const res = await fetch(`${API_BASE}/staff-reply`, { method: "POST", body: form });
-        const data = await res.json();
-        if (data.audio_b64) this._playAudio(data.audio_b64);
+        let audioB64 = "";
+
+        // Reuse the greeting audio pre-fetched while the consent popup was up,
+        // so the greeting speaks within ~1-2s of the customer agreeing instead
+        // of waiting for a fresh text-to-speech call here.
+        const key = `${this.selectedLanguage}|${this.selectedProcess}`;
+        if (this._greetingPrefetch && this._greetingPrefetch.key === key) {
+          audioB64 = await this._greetingPrefetch.promise;
+          this._greetingPrefetch = null;
+        }
+
+        if (!audioB64) {
+          const res = await fetch(`${API_BASE}/tts`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: greetingText, language: this.selectedLanguage }),
+          });
+          const data = await res.json();
+          audioB64 = data.audio_b64 || "";
+        }
+
+        if (audioB64) this._playAudio(audioB64);
         else speakWithBrowserSynthesis(greetingText, this.selectedLanguage);
       } catch (e) {
         speakWithBrowserSynthesis(greetingText, this.selectedLanguage);
@@ -1137,7 +1250,11 @@ const API_BASE = IS_LOCAL
     // ── Customer Recording ──────────────────────────────────────────────
     async toggleCustomerRecording() {
       if (this.isRecording) this._stopCustomerRecording();
-      else await this._startCustomerRecording();
+      else {
+        // Busy-guard: don't start a customer turn while a reply is still processing.
+        if (this._busy) { this._showToast("Please wait — still processing…", true); return; }
+        await this._startCustomerRecording();
+      }
     }
 
     async _startCustomerRecording() {
@@ -1147,6 +1264,9 @@ const API_BASE = IS_LOCAL
         this._showToast(err.name === "NotAllowedError" ? "Microphone permission denied." : `Mic error: ${err.message}`, true);
         return;
       }
+      // Barge-in: stop any assistant TTS still playing so it doesn't talk over
+      // the customer while they speak.
+      try { const p = document.getElementById("cwAudioPlayer"); if (p) { p.pause(); p.currentTime = 0; } } catch (e) {}
       try {
         const mime = getSupportedMimeType();
         this.mediaRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
@@ -1180,6 +1300,7 @@ const API_BASE = IS_LOCAL
     }
 
     async _processCustomerAudio() {
+      this._busy = true;
       try {
         const mime = getSupportedMimeType();
         const blob = new Blob(this.audioChunks, { type: mime || "audio/webm" });
@@ -1208,9 +1329,10 @@ const API_BASE = IS_LOCAL
             // Update intent display if needed
           }
           this.conversationLog.push({ role: "customer", text: data.customer_text, translation: data.english_translation });
-          await this._updateStepFromLLM();
-          await this._autoCheckStepCompletion();
           this._setStatus("", "Ready");
+          // Fire-and-forget: step tracking + smart replies run in the
+          // background so the desk is responsive immediately.
+          this._runPostTurnUpdates();
         } else {
           this._showToast(data.error || "Could not transcribe. Try again.", true);
           this._setStatus("", "Ready");
@@ -1219,6 +1341,8 @@ const API_BASE = IS_LOCAL
         this._hideProcessingIndicator();
         this._showToast("Backend error. Is port 8000 running?", true);
         this._setStatus("", "Ready");
+      } finally {
+        this._busy = false;
       }
     }
 
@@ -1305,6 +1429,10 @@ const API_BASE = IS_LOCAL
     async sendStaffReply() {
       const text = this.els.textInput.value.trim();
       if (!text) return;
+      // Busy-guard: don't let a second reply (or a customer turn) start while
+      // one is still in flight — out-of-order responses corrupt the log.
+      if (this._busy) { this._showToast("Please wait — still processing…", true); return; }
+      this._busy = true;
       this.els.sendBtn.disabled = true;
       this.els.sendBtn.classList.add("loading");
       this._showTyping();
@@ -1349,8 +1477,8 @@ const API_BASE = IS_LOCAL
           this.els.textInput.style.height = "auto";
           this.els.quickReplies.innerHTML = "";
           this._setStatus("", "Ready");
-          await this._updateStepFromLLM();
-          await this._autoCheckStepCompletion();
+          // Fire-and-forget background step tracking (non-blocking).
+          this._runPostTurnUpdates();
         } else {
           this._showToast(data.error || "Translation failed", true);
         }
@@ -1359,6 +1487,8 @@ const API_BASE = IS_LOCAL
         this.els.sendBtn.disabled = false;
         this.els.sendBtn.classList.remove("loading");
         this._showToast("Backend error. Is port 8000 running?", true);
+      } finally {
+        this._busy = false;
       }
     }
 
@@ -1396,7 +1526,19 @@ const API_BASE = IS_LOCAL
       }
     }
 
-    async _updateStepFromLLM() {
+    // ── Post-turn updates (consolidated) ────────────────────────────────
+    // UPDATED: previously each turn fired THREE serial calls —
+    //   /detect-step → /step-complete → /smart-replies
+    // but /step-complete does not exist in the backend router, so it 404'd
+    // on every message (wasted round trip + console errors), and
+    // /smart-replies could fire twice (button flicker).
+    //
+    // Now: exactly ONE /detect-step call (which already returns
+    // `step_complete` for auto-advance AND `missing_info`/`next_question`),
+    // then ONE /smart-replies call. Callers invoke this WITHOUT awaiting so
+    // the staff can keep typing while step-tracking updates in the
+    // background — the translation + audio have already been shown.
+    async _runPostTurnUpdates() {
       if (this.conversationLog.length === 0) return;
       try {
         const res = await fetch(`${API_BASE}/detect-step`, {
@@ -1409,38 +1551,20 @@ const API_BASE = IS_LOCAL
           })
         });
         const data = await res.json();
-        if (!data.success) return;
-        if (data.missing_info && data.missing_info.length > 0) {
-          this._addInfoBadge(`📋 AI suggests still needed: ${data.missing_info.join(", ")}`);
+        if (data && data.success) {
+          if (data.missing_info && data.missing_info.length > 0) {
+            this._addInfoBadge(`📋 AI suggests still needed: ${data.missing_info.join(", ")}`);
+          }
+          if (data.next_question) this._addSuggestionBadge(`💡 Suggested: ${data.next_question}`);
+          // /detect-step already tells us if the step is done — auto-advance
+          // straight from it instead of a second (missing) endpoint.
+          if (data.step_complete) this._advanceStep();
         }
-        if (data.next_question) this._addSuggestionBadge(`💡 Suggested: ${data.next_question}`);
-        await this._fetchSmartQuickReplies();
       } catch (e) {
-        console.warn("[SmartStep] failed, using static:", e);
-        this._showStaticQuickReplies();
+        console.warn("[PostTurn] detect-step failed, using static replies:", e);
       }
-    }
-
-    async _autoCheckStepCompletion() {
-      try {
-        const res = await fetch(`${API_BASE}/step-complete`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            step_index: this.stepIndex,
-            conversation: this.conversationLog,
-            process_type: this.selectedProcess,
-            customer_language: this.selectedLanguage
-          })
-        });
-        const data = await res.json();
-        if (data.is_complete) {
-          this._advanceStep();
-          await this._fetchSmartQuickReplies();
-        } else if (data.missing_fields) {
-          this._addInfoBadge(`📋 Still need: ${data.missing_fields.join(", ")}`);
-        }
-      } catch (e) { console.warn("[AutoStep] failed:", e); }
+      // Fetch smart replies EXACTLY ONCE, after any step advance is applied.
+      await this._fetchSmartQuickReplies();
     }
 
     async _fetchSmartQuickReplies() {

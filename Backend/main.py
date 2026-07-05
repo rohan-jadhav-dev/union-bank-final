@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers.conversation import router as conversation_router
 from config import CORS_ORIGINS
+from services import http_client
 import logging
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s — %(message)s")
@@ -22,6 +23,12 @@ app.add_middleware(
 )
 
 app.include_router(conversation_router)
+
+
+@app.on_event("shutdown")
+async def _shutdown():
+    # Close the shared pooled HTTP client cleanly.
+    await http_client.aclose()
 
 
 @app.get("/")

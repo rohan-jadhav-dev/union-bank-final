@@ -328,6 +328,16 @@ function setDetectedLanguage(langName, transcript) {
   processSection.classList.add('show');
   langDetected = true;
   checkBegin();
+
+  // Pre-generate the DPDP consent audio NOW (as soon as we know the language),
+  // while the staff picks a process and clicks Begin. By the time the consent
+  // popup opens the audio is ready → it plays instantly instead of after a
+  // ~15-20s text-to-speech wait.
+  try {
+    if (window.chatWidget && window.chatWidget.prewarmConsent) {
+      window.chatWidget.prewarmConsent(langName);
+    }
+  } catch (e) {}
 }
 
 changeLangBtn && changeLangBtn.addEventListener('click', () => {
@@ -347,6 +357,14 @@ document.querySelectorAll('.lang-option').forEach(btn => {
     langGrid.classList.remove('open');
     langDetected = true;
     checkBegin();
+
+    // Same head-start as auto-detect: warm the consent audio for the manually
+    // chosen language so it plays instantly when the popup opens.
+    try {
+      if (window.chatWidget && window.chatWidget.prewarmConsent) {
+        window.chatWidget.prewarmConsent(langName);
+      }
+    } catch (e) {}
   });
 });
 
