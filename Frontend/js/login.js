@@ -53,7 +53,7 @@ function showToast(message, isError = false) {
 function toggleSecurityCheck() {
   isAuthorized = !isAuthorized;
   securityCheckbox.setAttribute("aria-checked", String(isAuthorized));
-  securityCheckbox.classList.toggle("checked", isAuthorized);
+  securityCheckbox.classList.toggle("verified", isAuthorized);
   securityLabel.textContent = isAuthorized
     ? "Authorized staff member confirmed"
     : "I am an authorized staff member";
