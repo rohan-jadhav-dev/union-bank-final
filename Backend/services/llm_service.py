@@ -487,20 +487,25 @@ Return ONLY valid JSON:
         }
 
 
-async def _groq_chat(messages: list, max_tokens: int = 500) -> str:
-    """Raw Groq LLaMA chat call."""
+async def _groq_chat(messages: list, max_tokens: int = 500, json_mode: bool = False) -> str:
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": 0.3,
+        "reasoning_effort": "none",
+        "reasoning_format": "hidden",
+    }
+    if json_mode:
+        payload["response_format"] = {"type": "json_object"}
+
     resp = await http.post(
         GROQ_CHAT_URL,
         headers={
             "Authorization": f"Bearer {GROQ_API_KEY}",
             "Content-Type": "application/json"
         },
-        json={
-            "model": GROQ_MODEL,
-            "messages": messages,
-            "max_tokens": max_tokens,
-            "temperature": 0.3
-        },
+        json=payload,
         timeout=30,
     )
     data = resp.json()
