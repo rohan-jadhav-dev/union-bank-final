@@ -302,7 +302,7 @@ Return ONLY valid JSON:
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": f"Conversation so far:\n{conv_text}\n\nCurrent step index: {current_step + 1}"}
     ]
-    response = await _groq_chat(messages, max_tokens=1200)
+    response = await _groq_chat(messages, max_tokens=400)
     try:
         clean = response.strip().replace("```json", "").replace("```", "").strip()
         result = json.loads(clean)
