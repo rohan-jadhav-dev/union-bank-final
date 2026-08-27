@@ -1,9 +1,10 @@
 # services/llm_service.py
-# Groq LLaMA-3.3-70B — Translation, intent detection, smart step tracking, bilingual summary
+# Groq — Translation, intent detection, smart step tracking, bilingual summary
 # Covers: Account Opening, Loan Enquiry, Balance Check, Credit Card Apply, all banking jargon
 
 import json
 import logging
+import re
 from config import GROQ_API_KEY, GROQ_MODEL
 from services.http_client import client as http
 
@@ -231,18 +232,19 @@ Your task:
 3. Detect intent from: Account opening, Loan enquiry, Balance enquiry, Credit card apply, KYC, Transfer, FD/RD, General enquiry
 4. Extract any key details mentioned (amounts, account numbers, names, tenures)
 
-Return ONLY valid JSON:
-{{"english_translation": "...", "intent": "...", "confidence": 0.0-1.0, "key_details": "extracted amounts/numbers/names"}}
+Return ONLY valid JSON in this exact shape, nothing else:
+{{"english_translation": "...", "intent": "...", "confidence": 0.0, "key_details": "extracted amounts/numbers/names"}}
 """
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": f"Customer said in {customer_language}: {customer_text}"}
     ]
-    response = await _groq_chat(messages, max_tokens=400)
+    response = await _groq_chat(messages, max_tokens=400, json_mode=True)
     try:
         clean = response.strip().replace("```json", "").replace("```", "").strip()
         return json.loads(clean)
-    except Exception:
+    except Exception as e:
+        logger.error(f"translate_and_analyze parse error: {e} | raw: {response!r}")
         return {
             "english_translation": response,
             "intent": "General enquiry",
@@ -288,10 +290,10 @@ Based on the conversation, determine:
 4. What exact question should staff ask next IN ENGLISH?
 5. What has been collected so far?
 
-Return ONLY valid JSON:
+Return ONLY valid JSON in this exact shape, nothing else:
 {{
-  "actual_step": 1-{len(steps)},
-  "step_complete": true/false,
+  "actual_step": 1,
+  "step_complete": false,
   "missing_info": ["list of missing information items"],
   "next_question": "exact next question for staff to ask",
   "step_name": "name of current step",
@@ -302,7 +304,7 @@ Return ONLY valid JSON:
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": f"Conversation so far:\n{conv_text}\n\nCurrent step index: {current_step + 1}"}
     ]
-    response = await _groq_chat(messages, max_tokens=400)
+    response = await _groq_chat(messages, max_tokens=500, json_mode=True)
     try:
         clean = response.strip().replace("```json", "").replace("```", "").strip()
         result = json.loads(clean)
@@ -310,7 +312,7 @@ Return ONLY valid JSON:
         result["actual_step"] = max(0, int(result.get("actual_step", current_step + 1)) - 1)
         return result
     except Exception as e:
-        logger.error(f"Step detection parse error: {e} | raw: {response}")
+        logger.error(f"Step detection parse error: {e} | raw: {response!r}")
         return {
             "actual_step": current_step,
             "step_complete": False,
@@ -349,18 +351,19 @@ Rules:
 - Each reply max 15 words
 - NEVER output meta-commentary like "complex query" or "I cannot answer" — only output actual reply text a staff member could say
 
-Return ONLY valid JSON array:
-["reply 1", "reply 2", "reply 3"]
+Return ONLY valid JSON in this exact shape, nothing else — an OBJECT with a "replies" array (NOT a bare array):
+{{"replies": ["reply 1", "reply 2", "reply 3"]}}
 """
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": f"Recent conversation:\n{conv_text}"}
     ]
-    response = await _groq_chat(messages, max_tokens=200)
+    response = await _groq_chat(messages, max_tokens=250, json_mode=True)
     logger.info(f"[smart-replies] raw Groq response: {response!r}")
     try:
         clean = response.strip().replace("```json", "").replace("```", "").strip()
-        replies = json.loads(clean)
+        parsed = json.loads(clean)
+        replies = parsed.get("replies", []) if isinstance(parsed, dict) else parsed
         if not isinstance(replies, list):
             logger.warning(f"[smart-replies] non-list response: {replies!r}")
             return []
@@ -397,7 +400,7 @@ Translate the following bank staff reply from English to {target_language}.
 - Preserve all numbers, amounts (₹), account numbers exactly
 - Keep banking terms (EMI, KYC, CIBIL, NEFT, etc.) as-is — do NOT translate them
 - Use formal/respectful tone (आप/तुम्ही not तू)
-- Return ONLY the translated text, nothing else
+- Return ONLY the translated text, nothing else — no explanation, no quotes, no preamble
 """
     messages = [
         {"role": "system", "content": system_prompt},
@@ -421,14 +424,14 @@ Provide a concise, accurate, helpful answer using the knowledge base above.
 - Use friendly, professional tone
 - If the query is ambiguous, ask ONE clarifying question
 
-Return ONLY valid JSON:
+Return ONLY valid JSON in this exact shape, nothing else:
 {{"answer_english": "...", "needs_clarification": false, "clarification_question": ""}}
 """
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": f"Customer query: {query_english}\nProcess context: {process_type}"}
     ]
-    response = await _groq_chat(messages, max_tokens=300)
+    response = await _groq_chat(messages, max_tokens=350, json_mode=True)
     try:
         clean = response.strip().replace("```json", "").replace("```", "").strip()
         result = json.loads(clean)
@@ -437,7 +440,8 @@ Return ONLY valid JSON:
             trans = await translate_staff_reply(result["answer_english"], customer_language)
             result["answer_translated"] = trans["translated_text"]
         return result
-    except Exception:
+    except Exception as e:
+        logger.error(f"answer_banking_query parse error: {e} | raw: {response!r}")
         return {
             "answer_english": response,
             "answer_translated": response,
@@ -460,7 +464,7 @@ async def generate_bilingual_summary(conversation_turns: list, customer_language
 Generate a professional bilingual banking session summary.
 Process: {process_type} | Customer language: {customer_language}
 
-Return ONLY valid JSON:
+Return ONLY valid JSON in this exact shape, nothing else:
 {{
   "english_summary": "2-3 paragraph professional English summary. Include: what customer needed, key details collected (amounts/income/documents), what was resolved, pending action items.",
   "regional_summary": "Same summary fully in {customer_language}. Formal banking register.",
@@ -473,11 +477,12 @@ Return ONLY valid JSON:
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": f"Conversation:\n{conversation_text}"}
     ]
-    response = await _groq_chat(messages, max_tokens=1000)
+    response = await _groq_chat(messages, max_tokens=1200, json_mode=True)
     try:
         clean = response.strip().replace("```json", "").replace("```", "").strip()
         return json.loads(clean)
-    except Exception:
+    except Exception as e:
+        logger.error(f"generate_bilingual_summary parse error: {e} | raw: {response!r}")
         return {
             "english_summary": response,
             "regional_summary": f"({customer_language} translation unavailable)",
@@ -485,6 +490,21 @@ Return ONLY valid JSON:
             "customer_name": "",
             "amount_discussed": ""
         }
+
+
+_THINK_TAG_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+
+
+def _strip_think(text: str) -> str:
+    """Safety net: remove any leaked <think>...</think> reasoning block,
+    even if reasoning_format/reasoning_effort didn't fully suppress it."""
+    if not text:
+        return text
+    cleaned = _THINK_TAG_RE.sub("", text)
+    # Handle an unterminated <think> block (truncated by max_tokens)
+    if "<think>" in cleaned.lower() and "</think>" not in cleaned.lower():
+        cleaned = re.split(r"<think>", cleaned, flags=re.IGNORECASE)[0]
+    return cleaned.strip()
 
 
 async def _groq_chat(messages: list, max_tokens: int = 500, json_mode: bool = False) -> str:
@@ -514,4 +534,5 @@ async def _groq_chat(messages: list, max_tokens: int = 500, json_mode: bool = Fa
         logger.error(f"Groq error: {data['error']}")
         raise Exception(data["error"].get("message", "Groq API error"))
 
-    return data["choices"][0]["message"]["content"]
+    content = data["choices"][0]["message"]["content"]
+    return _strip_think(content)
